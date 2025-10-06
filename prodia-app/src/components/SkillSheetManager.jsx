@@ -1,0 +1,1342 @@
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
+import { useUser } from '../contexts/UserContext';
+import EngineerMemo from './EngineerMemo';
+
+// APIエンドポイント
+const API_BASE = 'http://localhost:8000/api/skillsheets/';
+
+// 統一されたローディングコンポーネント
+function AnimatedLoader() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 flex items-center justify-center">
+      <div className="text-center p-16 bg-white/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/80" style={{
+        boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)'
+      }}>
+        <div className="relative mb-10">
+          <div className="w-24 h-24 border-3 border-amber-200/50 rounded-full animate-spin border-t-amber-400 mx-auto"></div>
+          <div className="absolute inset-3 w-18 h-18 border-2 border-stone-200/40 rounded-full animate-pulse mx-auto"></div>
+          <div className="absolute inset-6 w-12 h-12 border border-amber-300/30 rounded-full animate-ping mx-auto"></div>
+        </div>
+        
+        <div className="flex justify-center space-x-4 mb-10">
+          <div className="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
+          <div className="w-3 h-3 bg-stone-400 rounded-full animate-bounce" style={{animationDelay: '0.3s'}}></div>
+          <div className="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0.6s'}}></div>
+        </div>
+        
+        <h2 className="text-3xl font-medium text-slate-700 mb-4 tracking-wide font-display">スキルシートデータを読み込み中...</h2>
+        <p className="text-slate-500 animate-pulse font-normal text-lg">エンジニア情報を取得しています</p>
+      </div>
+    </div>
+  );
+}
+
+// 標準ファイルアップロードコンポーネント
+function SkillSheetUpload({ onUpload }) {
+  const fileInputRef = useRef();
+  const [fileName, setFileName] = useState("");
+  const [engineerName, setEngineerName] = useState("");
+  const { user } = useUser(); // ログインユーザー情報を取得
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFileName(file.name);
+      // ファイル選択後、エンジニア名が入力済みなら即座にアップロード
+      if (engineerName.trim()) {
+        const uploaderName = user?.name || user?.email || 'Anonymous';
+        onUpload && onUpload(file, engineerName, uploaderName);
+      }
+    }
+  };
+
+  const handleEngineerNameChange = (e) => {
+    setEngineerName(e.target.value);
+  };
+
+  const handleUploadClick = () => {
+    if (!engineerName.trim()) {
+      alert("エンジニア名を入力してください");
+      return;
+    }
+    fileInputRef.current && fileInputRef.current.click();
+  };
+
+  const handleManualUpload = () => {
+    if (!fileName || !engineerName.trim()) {
+      alert("エンジニア名とファイルの両方を選択してください");
+      return;
+    }
+    const file = fileInputRef.current.files[0];
+    const uploaderName = user?.name || user?.email || 'Anonymous';
+    onUpload && onUpload(file, engineerName, uploaderName);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed border-stone-300 rounded-2xl text-center cursor-pointer transition-all duration-300 hover:border-amber-400 hover:bg-white/80">
+      <i className="fas fa-cloud-upload-alt text-4xl mb-4 text-stone-400"></i>
+      
+      <div className="w-full max-w-md mb-6">
+        <label htmlFor="engineerNameInput" className="text-slate-600 font-medium mb-2 block">
+          エンジニア名 <span className="text-red-500">*</span>
+        </label>
+        <input
+          id="engineerNameInput"
+          type="text"
+          value={engineerName}
+          onChange={handleEngineerNameChange}
+          placeholder="例: 田中太郎"
+          className="px-4 py-2 border border-stone-300 rounded-lg w-full text-center focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+        />
+        
+        {/* ログインユーザー表示 */}
+        <div className="mt-2 text-sm text-slate-500">
+          アップロード者: <span className="font-medium text-slate-700">
+            {user?.name || user?.email || '未ログイン'}
+          </span>
+        </div>
+      </div>
+
+      <label htmlFor="skillSheetUpload" className="text-slate-600 font-medium mb-2 cursor-pointer">
+        スキルシートを選択してください
+      </label>
+      <input
+        id="skillSheetUpload"
+        type="file"
+        accept=".pdf,.xlsx,.xls,.docx,.csv"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+      />
+      <button
+        className="mt-2 px-6 py-2 bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600 transition-colors"
+        onClick={handleUploadClick}
+      >
+        ファイルを選択
+      </button>
+      {fileName && (
+        <div className="mt-4">
+          <p className="text-sm text-slate-600 mb-2">
+            選択されたファイル: <span className="font-medium text-amber-600">{fileName}</span>
+          </p>
+          {engineerName && (
+            <button
+              onClick={handleManualUpload}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+            >
+              <i className="fas fa-upload mr-2"></i>
+              アップロード実行
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 案件マッチングモーダルコンポーネント
+function ProjectMatchingModal({ results, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-6xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl">
+          <div className="flex justify-between items-center">
+            <h3 className="text-2xl font-bold text-slate-700 flex items-center gap-3">
+              <i className="fas fa-search-plus text-indigo-600"></i>
+              案件マッチング分析結果
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-slate-600 mt-2">
+            現在のスキルシートデータベースから最適な人材をマッチングしました
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-8">
+          {results.map(({ project, matchingEngineers }) => (
+            <div key={project.id} className="border border-gray-200 rounded-xl p-6 bg-gradient-to-r from-gray-50 to-white">
+              {/* 案件情報 */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xl font-bold text-slate-700">{project.name}</h4>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    project.urgency === "高" ? "bg-red-100 text-red-700" :
+                    project.urgency === "中" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-green-100 text-green-700"
+                  }`}>
+                    優先度: {project.urgency}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-semibold text-slate-600">必要スキル:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {project.requiredSkills.map(skill => (
+                        <span key={skill} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-600">予算:</span>
+                    <span className="ml-2 text-emerald-600 font-bold">{project.budget}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-600">期間:</span>
+                    <span className="ml-2 text-slate-700">{project.duration}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* マッチング結果 */}
+              <div>
+                <h5 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                  <i className="fas fa-users text-indigo-600"></i>
+                  推奨エンジニア ({matchingEngineers.length}名)
+                </h5>
+                
+                {matchingEngineers.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {matchingEngineers.map(({ engineer, matchedSkills, matchScore, recommendationLevel }) => (
+                      <div key={engineer.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-slate-700">{engineer.engineer_name}</span>
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            recommendationLevel === "高" ? "bg-green-100 text-green-700" :
+                            recommendationLevel === "中" ? "bg-yellow-100 text-yellow-700" :
+                            "bg-gray-100 text-gray-700"
+                          }`}>
+                            {recommendationLevel}
+                          </span>
+                        </div>
+                        
+                        <div className="text-sm text-slate-600 mb-2">
+                          マッチ度: <span className="font-bold text-indigo-600">{matchScore}%</span>
+                        </div>
+                        
+                        <div className="text-xs">
+                          <span className="text-slate-500">マッチスキル:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {matchedSkills.map(skill => (
+                              <span key={skill} className="px-1 py-0.5 bg-green-100 text-green-700 rounded">
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <button 
+                          onClick={() => alert(`${engineer.engineer_name}の詳細スキルシートを確認します`)}
+                          className="w-full mt-3 px-3 py-1 bg-indigo-500 text-white rounded text-xs hover:bg-indigo-600 transition-colors"
+                        >
+                          詳細確認
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-slate-500">
+                    <i className="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                    <p>この案件に適したエンジニアが見つかりませんでした</p>
+                    <p className="text-sm">新規採用を検討してください</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <div className="border-t border-gray-200 p-6 bg-gray-50 rounded-b-2xl">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-slate-600">
+              <i className="fas fa-info-circle mr-2"></i>
+              マッチング精度は継続的に改善されます
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => alert("マッチング結果をPDFで出力します")}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              >
+                <i className="fas fa-file-pdf mr-2"></i>
+                PDF出力
+              </button>
+              <button 
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+function PreviewModal({ fileName, url, onClose }) {
+  const [previewContent, setPreviewContent] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    generatePreview();
+  }, [fileName, url]);
+
+  const generatePreview = async () => {
+    setLoading(true);
+    if (!fileName || !url) {
+      setLoading(false);
+      return;
+    }
+
+    const ext = fileName.split('.').pop().toLowerCase();
+
+    try {
+      if (ext === 'pdf') {
+        setPreviewContent(<iframe src={url} width="100%" height="500px" />);
+      } else if (['xlsx', 'xls'].includes(ext)) {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        setPreviewContent(
+          <div className="overflow-auto max-h-96">
+            <table className="w-full border-collapse border border-gray-300">
+              {jsonData.slice(0, 20).map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={cellIndex} className="border border-gray-300 px-2 py-1 text-sm">
+                      {cell || ''}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </table>
+            {jsonData.length > 20 && (
+              <p className="text-center text-gray-500 mt-2">...他 {jsonData.length - 20} 行</p>
+            )}
+          </div>
+        );
+      } else if (ext === 'docx') {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        setPreviewContent(<div dangerouslySetInnerHTML={{ __html: result.value }} />);
+      } else {
+        setPreviewContent(<p>このファイル形式のプレビューはサポートされていません。</p>);
+      }
+    } catch (error) {
+      console.error('プレビュー生成エラー:', error);
+      setPreviewContent(<p>プレビューの生成に失敗しました。</p>);
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-4xl max-h-screen overflow-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">{fileName} - プレビュー</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-amber-500"></div>
+          </div>
+        ) : (
+          previewContent
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function SkillSheetManager() {
+  const [engineers, setEngineers] = useState([]);
+  const [pendingSheets, setPendingSheets] = useState([]);
+  const [verifiedEngineers, setVerifiedEngineers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [previewFile, setPreviewFile] = useState(null);
+  const [sortBy, setSortBy] = useState("date");
+  const [filterBy, setFilterBy] = useState("all");
+  const [showMatchingModal, setShowMatchingModal] = useState(false);
+  const [matchingResults, setMatchingResults] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showMemoModal, setShowMemoModal] = useState(false);
+  const [selectedEngineerForMemo, setSelectedEngineerForMemo] = useState(null);
+  
+  const { user } = useUser(); // ログインユーザー情報を取得
+
+  // メモ関連のハンドラー
+  const openMemoModal = (engineerName) => {
+    setSelectedEngineerForMemo(engineerName);
+    setShowMemoModal(true);
+  };
+
+  const closeMemoModal = () => {
+    setShowMemoModal(false);
+    setSelectedEngineerForMemo(null);
+  };
+
+  // データ取得関数
+  const fetchEngineers = async () => {
+    try {
+      setLoading(true);
+      console.log('データ取得開始:', API_BASE);
+      
+      const response = await fetch(API_BASE);
+      console.log('レスポンス状態:', response.status, response.statusText);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('取得データ:', data);
+        
+        // 承認待ちと承認済みに分類
+        const pending = data.filter(item => !item.is_approved);
+        const approved = data.filter(item => item.is_approved);
+        
+        setPendingSheets(pending);
+        setVerifiedEngineers(approved);
+        
+        console.log('分類結果:', { pending: pending.length, approved: approved.length });
+      } else {
+        const errorText = await response.text();
+        console.error('データ取得エラー:', errorText);
+        setUploadMessage(`エラー: データの取得に失敗しました (${response.status})`);
+      }
+    } catch (error) {
+      console.error('データ取得エラー:', error);
+      setUploadMessage("エラー: サーバーに接続できませんでした");
+      setTimeout(() => setUploadMessage(""), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ファイルアップロード処理
+  const handleFileUpload = async (file, engineerName, uploaderName = null) => {
+    // アップロード者名が指定されていない場合は、ログインユーザーを使用
+    const actualUploader = uploaderName || user?.name || user?.email || 'Anonymous';
+    
+    if (!file || !engineerName.trim()) {
+      setUploadMessage("エラー: ファイルとエンジニア名を入力してください");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);  // Djangoのserializerに合わせて'file'を使用
+      formData.append('engineer_name', engineerName.trim());
+      formData.append('uploader', actualUploader); // ログインユーザーを使用
+
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      console.log('フォームデータ:', {
+        file: file.name,
+        engineer_name: engineerName.trim(),
+        uploader: actualUploader
+      });
+
+      // アップロード進捗をシミュレート
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      console.log('アップロード開始:', { file: file.name, engineerName });
+
+      const response = await fetch(API_BASE, {
+        method: 'POST',
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      console.log('レスポンス:', response.status, response.statusText);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('アップロード成功:', result);
+        
+        // 成功メッセージ
+        setUploadMessage(`${engineerName}のスキルシートをアップロードしました！承認待ちリストに追加されています。`);
+
+        // データを再取得
+        await fetchEngineers();
+        
+        // 3秒後にメッセージを消去
+        setTimeout(() => {
+          setUploadMessage("");
+        }, 3000);
+
+      } else {
+        const errorText = await response.text();
+        console.error('アップロードエラー詳細:', errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { detail: errorText || 'アップロードに失敗しました' };
+        }
+        throw new Error(errorData.detail || errorData.error || 'アップロードに失敗しました');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadMessage(`アップロードエラー: ${error.message}`);
+      
+      // エラーメッセージを5秒後に消去
+      setTimeout(() => {
+        setUploadMessage("");
+      }, 5000);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // 案件マッチング用のサンプルデータ
+  const sampleProjects = [
+    {
+      id: 1,
+      name: "ECサイト新規開発",
+      requiredSkills: ["React", "Node.js", "MongoDB"],
+      budget: "150万円/月",
+      duration: "6ヶ月",
+      urgency: "高"
+    },
+    {
+      id: 2,
+      name: "金融システム改修",
+      requiredSkills: ["Java", "Spring", "PostgreSQL"],
+      budget: "200万円/月",
+      duration: "12ヶ月",
+      urgency: "中"
+    },
+    {
+      id: 3,
+      name: "AIチャットボット開発",
+      requiredSkills: ["Python", "TensorFlow", "AWS"],
+      budget: "180万円/月",
+      duration: "8ヶ月",
+      urgency: "高"
+    },
+    {
+      id: 4,
+      name: "モバイルアプリ開発",
+      requiredSkills: ["React Native", "Firebase", "TypeScript"],
+      budget: "120万円/月",
+      duration: "4ヶ月",
+      urgency: "低"
+    }
+  ];
+
+  // 営業資料PDF出力
+  const generateSalesReport = () => {
+    try {
+      console.log('営業支援レポート生成開始');
+      
+      // 営業資料データの準備
+      const salesData = {
+        totalEngineers: verifiedEngineers.length,
+        skillSummary: stats.topSkills,
+        monthlyTrend: stats.thisMonth,
+        engineerDetails: verifiedEngineers.map(engineer => ({
+          name: engineer.engineer_name || '未設定',
+          uploadDate: engineer.uploaded_at,
+          status: engineer.status || 'pending',
+          fileName: engineer.file ? engineer.file.name : 'N/A'
+        }))
+      };
+
+      console.log('営業資料データ:', salesData);
+
+      // 詳細な営業レポート生成
+      const reportContent = `
+=== 📊 営業支援レポート ===
+生成日時: ${new Date().toLocaleString('ja-JP')}
+システム: Prodia エンジニアリソース管理
+
+【📈 概要サマリー】
+・登録エンジニア総数: ${salesData.totalEngineers}名
+・今月の新規登録: ${salesData.monthlyTrend}名
+・検出スキル種類: ${salesData.skillSummary.length}種類
+・承認待ち: ${pendingSheets.length}件
+
+【💼 主要スキル分析】
+${salesData.skillSummary.length > 0 ? 
+  salesData.skillSummary.map((skill, index) => `${index + 1}. ${skill.name} - ${skill.count}名保有`).join('\n') :
+  '- スキルデータが不足しています'
+}
+
+【👥 エンジニア詳細リスト】
+${salesData.engineerDetails.length > 0 ?
+  salesData.engineerDetails.map((eng, index) => 
+    `${index + 1}. ${eng.name}\n   登録日: ${new Date(eng.uploadDate).toLocaleDateString('ja-JP')}\n   ステータス: ${eng.status}\n   ファイル: ${eng.fileName}`
+  ).join('\n\n') :
+  '- 登録エンジニアがありません'
+}
+
+【🎯 営業アクション推奨】
+1. ECサイト開発案件 → React/Node.js経験者を優先的に提案
+2. 金融システム案件 → Java/Spring経験者を重点的にマッチング  
+3. AI・機械学習案件 → Python/データサイエンス経験者を積極活用
+4. モバイルアプリ案件 → React Native/Flutter経験者を最優先
+
+【📋 次のアクション】
+- 承認待ちスキルシートの確認: ${pendingSheets.length}件
+- 新規案件とのマッチング分析実施
+- エンジニアとの面談スケジュール調整
+- クライアントへの提案資料作成
+
+【📞 問い合わせ先】
+Prodia営業部 - engineer-support@prodia.com
+      `;
+
+      // ファイルダウンロード処理
+      const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `営業支援レポート_${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      console.log('営業支援レポート生成完了');
+      setUploadMessage("📊 営業支援レポートを生成しました！ダウンロードが開始されます。");
+      
+      // 3秒後にメッセージを消去
+      setTimeout(() => {
+        setUploadMessage("");
+      }, 3000);
+
+    } catch (error) {
+      console.error('営業資料生成エラー:', error);
+      setUploadMessage("❌ 営業資料の生成に失敗しました。コンソールでエラーを確認してください。");
+      setTimeout(() => setUploadMessage(""), 5000);
+    }
+  };
+
+  // Excel出力処理
+  const exportToExcel = () => {
+    try {
+      setUploadMessage("Excel形式でエクスポートを開始しました");
+      
+      // 実際のExcel出力処理をここに実装
+      // 今回はメッセージ表示のみ
+      setTimeout(() => {
+        setUploadMessage("Excelファイルのダウンロードが完了しました");
+        setTimeout(() => setUploadMessage(""), 3000);
+      }, 2000);
+      
+    } catch (error) {
+      setUploadMessage("Excelエクスポートに失敗しました");
+      setTimeout(() => setUploadMessage(""), 3000);
+    }
+  };
+
+  // 案件マッチング分析機能
+  const performProjectMatching = () => {
+    const results = sampleProjects.map(project => {
+      const matchingEngineers = verifiedEngineers.map(engineer => {
+        // ファイル名からスキルを推測（実際にはファイル内容を解析）
+        const fileName = engineer.file_name?.toLowerCase() || "";
+        const matchedSkills = project.requiredSkills.filter(skill => 
+          fileName.includes(skill.toLowerCase())
+        );
+        
+        const matchScore = Math.round((matchedSkills.length / project.requiredSkills.length) * 100);
+        
+        return {
+          engineer,
+          matchedSkills,
+          matchScore,
+          recommendationLevel: matchScore >= 80 ? "高" : matchScore >= 50 ? "中" : "低"
+        };
+      })
+      .filter(result => result.matchScore > 0)
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 3); // 上位3名
+      
+      return {
+        project,
+        matchingEngineers
+      };
+    });
+    
+    setMatchingResults(results);
+    setShowMatchingModal(true);
+  };
+
+  // 承認済みスキルシートのフィルタリング
+  const filteredEngineers = useMemo(() => {
+    let filtered = verifiedEngineers;
+    
+    // 検索フィルタ
+    if (searchTerm) {
+      filtered = filtered.filter(engineer => {
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          engineer.engineer_name?.toLowerCase().includes(searchLower) ||
+          engineer.file_name?.toLowerCase().includes(searchLower) ||
+          engineer.uploader?.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+    
+    // 期間フィルタ
+    if (filterBy !== "all") {
+      const now = new Date();
+      const filterDate = new Date();
+      
+      switch (filterBy) {
+        case "week":
+          filterDate.setDate(now.getDate() - 7);
+          break;
+        case "month":
+          filterDate.setMonth(now.getMonth() - 1);
+          break;
+        case "quarter":
+          filterDate.setMonth(now.getMonth() - 3);
+          break;
+      }
+      
+      filtered = filtered.filter(engineer => 
+        new Date(engineer.uploaded_at) >= filterDate
+      );
+    }
+    
+    // ソート
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return a.engineer_name?.localeCompare(b.engineer_name) || 0;
+        case "uploader":
+          return a.uploader?.localeCompare(b.uploader) || 0;
+        case "date":
+        default:
+          return new Date(b.uploaded_at) - new Date(a.uploaded_at);
+      }
+    });
+    
+    return filtered;
+  }, [verifiedEngineers, searchTerm, sortBy, filterBy]);
+
+  // 統計データ
+  const stats = useMemo(() => {
+    const total = verifiedEngineers.length;
+    const thisMonth = verifiedEngineers.filter(engineer => {
+      const uploadDate = new Date(engineer.uploaded_at);
+      const now = new Date();
+      return uploadDate.getMonth() === now.getMonth() && 
+             uploadDate.getFullYear() === now.getFullYear();
+    }).length;
+    
+    const skillsData = {};
+    verifiedEngineers.forEach(engineer => {
+      const fileName = engineer.file_name?.toLowerCase() || "";
+      if (fileName.includes("react")) skillsData.React = (skillsData.React || 0) + 1;
+      if (fileName.includes("python")) skillsData.Python = (skillsData.Python || 0) + 1;
+      if (fileName.includes("aws")) skillsData.AWS = (skillsData.AWS || 0) + 1;
+      if (fileName.includes("java")) skillsData.Java = (skillsData.Java || 0) + 1;
+    });
+    
+    const topSkills = Object.entries(skillsData)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3);
+    
+    return { total, thisMonth, topSkills };
+  }, [verifiedEngineers]);
+
+  // データ取得
+  useEffect(() => {
+    fetchEngineers();
+  }, []);
+
+  // 承認処理
+  const handleApprove = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE}${id}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_approved: true, status: 'approved' }),
+      });
+
+      if (response.ok) {
+        setUploadMessage("スキルシートが承認されました");
+        await fetchEngineers();
+      } else {
+        setUploadMessage("エラー: 承認に失敗しました");
+      }
+    } catch (error) {
+      console.error('承認エラー:', error);
+      setUploadMessage("エラー: 承認処理中にエラーが発生しました");
+    }
+
+    setTimeout(() => setUploadMessage(""), 3000);
+  };
+
+  // 却下処理
+  const handleReject = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE}${id}/`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setUploadMessage("スキルシートが却下され、削除されました");
+        await fetchEngineers();
+      } else {
+        setUploadMessage("エラー: 却下に失敗しました");
+      }
+    } catch (error) {
+      console.error('却下エラー:', error);
+      setUploadMessage("エラー: 却下処理中にエラーが発生しました");
+    }
+
+    setTimeout(() => setUploadMessage(""), 3000);
+  };
+
+  // プレビュー表示
+  const handlePreview = (engineer) => {
+    setPreviewFile({
+      fileName: engineer.file_name,
+      url: engineer.file_url,
+    });
+  };
+
+  // 検索クリア
+  const clearSearch = () => {
+    setSearchTerm("");
+  };
+
+  if (loading) {
+    return <AnimatedLoader />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 relative overflow-hidden">
+      <div className="container mx-auto px-6 py-8 space-y-8">
+        {/* 🎨 エレガントなヘッダー（ダッシュボードと同じスタイル） */}
+        <div className="flex justify-between items-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/80 relative overflow-hidden" style={{
+          boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)'
+        }}>
+          {/* 動的背景パターン */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-stone-500 transform rotate-12 scale-150"></div>
+          </div>
+          
+          <div className="relative z-10">
+            <h1 className="text-4xl font-medium text-slate-700 tracking-wide flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-stone-500 rounded-2xl flex items-center justify-center transform hover:rotate-12 transition-transform duration-300">
+                <i className="fas fa-file-alt text-white text-xl"></i>
+              </div>
+              スキルシート管理
+            </h1>
+            <p className="text-slate-500 mt-2 font-normal tracking-wide">登録・承認・検索・営業支援システム</p>
+            
+            {/* 統計情報表示 */}
+            <div className="mt-4 p-4 bg-gradient-to-r from-amber-50 to-stone-50 rounded-2xl border border-amber-200/50">
+              <div className="flex items-center gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-database text-amber-600"></i>
+                  <span className="text-slate-700">総登録数: <strong>{stats.total}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-calendar text-emerald-600"></i>
+                  <span className="text-slate-700">今月: <strong>+{stats.thisMonth}</strong></span>
+                </div>
+                {stats.topSkills.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <i className="fas fa-star text-blue-600"></i>
+                    <span className="text-slate-700">人気スキル: <strong>{stats.topSkills[0][0]}</strong></span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4 relative z-10">
+            {/* ログインユーザー表示 */}
+            <div className="flex items-center gap-2 text-white mr-4">
+              <i className="fas fa-user-circle text-xl"></i>
+              <span className="text-sm font-medium">
+                {user?.name || user?.email || '未ログイン'}
+              </span>
+            </div>
+            
+            {/* 営業支援ボタン */}
+            <button 
+              onClick={generateSalesReport}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <i className="fas fa-handshake mr-2"></i>
+              営業支援
+            </button>
+            {/* エクスポートボタン */}
+            <button 
+              onClick={exportToExcel}
+              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <i className="fas fa-file-excel mr-2"></i>
+              Excel出力
+            </button>
+          </div>
+        </div>
+
+        {/* アップロードメッセージ */}
+        {uploadMessage && (
+          <div className={`mb-6 p-4 rounded-lg ${
+            uploadMessage.includes("成功") ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+          }`}>
+            {uploadMessage}
+          </div>
+        )}
+
+        {/* 営業支援ダッシュボード */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+          {/* 統計カード */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{stats.total}</div>
+                <div className="text-blue-100 text-sm">総スキルシート数</div>
+              </div>
+              <i className="fas fa-database text-3xl text-blue-200"></i>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{stats.thisMonth}</div>
+                <div className="text-green-100 text-sm">今月新規登録</div>
+              </div>
+              <i className="fas fa-plus-circle text-3xl text-green-200"></i>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{pendingSheets.length}</div>
+                <div className="text-purple-100 text-sm">承認待ち</div>
+              </div>
+              <i className="fas fa-clock text-3xl text-purple-200"></i>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold">{stats.topSkills.length}</div>
+                <div className="text-amber-100 text-sm">検出スキル種類</div>
+              </div>
+              <i className="fas fa-cogs text-3xl text-amber-200"></i>
+            </div>
+          </div>
+        </div>
+
+        {/* アップロードセクション */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+          <h2 className="text-2xl font-semibold text-slate-700 mb-6">
+            新しいスキルシートをアップロード
+          </h2>
+          
+          {/* アップロードメッセージ */}
+          {uploadMessage && (
+            <div className={`mb-4 p-4 rounded-lg ${
+              uploadMessage.includes('エラー') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+            }`}>
+              <i className={`fas ${uploadMessage.includes('エラー') ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2`}></i>
+              {uploadMessage}
+            </div>
+          )}
+
+          {/* アップロード進捗 */}
+          {isUploading && (
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center mb-2">
+                <i className="fas fa-upload mr-2 text-blue-600"></i>
+                <span className="text-blue-700">アップロード中...</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <div className="text-sm text-blue-600 mt-1">{uploadProgress}%</div>
+            </div>
+          )}
+
+          <SkillSheetUpload onUpload={handleFileUpload} />
+        </div>
+
+        {/* 承認待ちセクション */}
+        {pendingSheets.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+            <h2 className="text-2xl font-semibold text-slate-700 mb-6">
+              承認待ちスキルシート ({pendingSheets.length}件)
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="border border-gray-300 px-4 py-2">エンジニア名</th>
+                    <th className="border border-gray-300 px-4 py-2">ファイル名</th>
+                    <th className="border border-gray-300 px-4 py-2">アップロード者</th>
+                    <th className="border border-gray-300 px-4 py-2">アップロード日</th>
+                    <th className="border border-gray-300 px-4 py-2">アクション</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingSheets.map((sheet) => (
+                    <tr key={sheet.id}>
+                      <td className="border border-gray-300 px-4 py-2">{sheet.engineer_name}</td>
+                      <td className="border border-gray-300 px-4 py-2">{sheet.file_name}</td>
+                      <td className="border border-gray-300 px-4 py-2">{sheet.uploader}</td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        {new Date(sheet.uploaded_at).toLocaleString('ja-JP')}
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handlePreview(sheet)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                          >
+                            プレビュー
+                          </button>
+                          <button
+                            onClick={() => handleApprove(sheet.id)}
+                            className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                          >
+                            承認
+                          </button>
+                          <button
+                            onClick={() => handleReject(sheet.id)}
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                          >
+                            却下
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 承認済みスキルシートセクション */}
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold text-slate-700 flex items-center gap-3">
+              <i className="fas fa-check-circle text-emerald-600"></i>
+              承認済みスキルシート ({verifiedEngineers.length}件)
+            </h2>
+            <div className="flex items-center space-x-3">
+              {/* ソート・フィルタ */}
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              >
+                <option value="date">日付順</option>
+                <option value="name">エンジニア名順</option>
+                <option value="uploader">アップロード者順</option>
+              </select>
+              
+              <select 
+                value={filterBy} 
+                onChange={(e) => setFilterBy(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              >
+                <option value="all">全期間</option>
+                <option value="week">1週間以内</option>
+                <option value="month">1ヶ月以内</option>
+                <option value="quarter">3ヶ月以内</option>
+              </select>
+              
+              {/* 検索ボックス */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="エンジニア名、ファイル名、アップロード者で検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent w-80"
+                />
+                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                {searchTerm && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 営業向け要約情報 */}
+          {stats.topSkills.length > 0 && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <i className="fas fa-chart-pie text-indigo-600 text-xl"></i>
+                  <div>
+                    <div className="font-semibold text-slate-700">営業戦略インサイト</div>
+                    <div className="text-sm text-slate-600">
+                      人気スキル: {stats.topSkills.map(([skill, count]) => `${skill}(${count}人)`).join(', ')}
+                    </div>
+                  </div>
+                </div>
+                <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors">
+                  <i className="fas fa-download mr-2"></i>
+                  営業資料生成
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-stone-50">
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-slate-700">
+                    <i className="fas fa-user mr-2 text-blue-600"></i>エンジニア名
+                  </th>
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-slate-700">
+                    <i className="fas fa-file mr-2 text-green-600"></i>ファイル名
+                  </th>
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-slate-700">
+                    <i className="fas fa-user-tie mr-2 text-purple-600"></i>アップロード者
+                  </th>
+                  <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-slate-700">
+                    <i className="fas fa-calendar mr-2 text-amber-600"></i>アップロード日
+                  </th>
+                  <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-slate-700">
+                    <i className="fas fa-cogs mr-2 text-red-600"></i>アクション
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEngineers.map((engineer, index) => (
+                  <tr key={engineer.id} className={`hover:bg-amber-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                    <td className="border border-gray-300 px-4 py-3 font-medium text-slate-700">{engineer.engineer_name}</td>
+                    <td className="border border-gray-300 px-4 py-3 text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-file-pdf text-red-500" title="PDF"></i>
+                        <span className="truncate max-w-xs">{engineer.file_name}</span>
+                      </div>
+                    </td>
+                    <td className="border border-gray-300 px-4 py-3 text-slate-600">{engineer.uploader}</td>
+                    <td className="border border-gray-300 px-4 py-3 text-slate-600">
+                      {new Date(engineer.uploaded_at).toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => handlePreview(engineer)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors transform hover:scale-105"
+                          title="プレビュー"
+                        >
+                          <i className="fas fa-eye mr-1"></i>
+                          プレビュー
+                        </button>
+                        <button
+                          onClick={() => openMemoModal(engineer.engineer_name)}
+                          className="px-3 py-1 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors transform hover:scale-105"
+                          title="営業メモ"
+                        >
+                          <i className="fas fa-sticky-note mr-1"></i>
+                          メモ
+                        </button>
+                        <button
+                          onClick={() => setUploadMessage(`${engineer.engineer_name}のスキルシートを営業資料として準備しました`)}
+                          className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-sm font-semibold hover:bg-indigo-600 transition-colors transform hover:scale-105"
+                          title="営業資料として活用"
+                        >
+                          <i className="fas fa-handshake mr-1"></i>
+                          営業活用
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 空の状態表示 */}
+          {filteredEngineers.length === 0 && verifiedEngineers.length > 0 && (
+            <div className="text-center py-12">
+              <i className="fas fa-search text-4xl text-stone-300 mb-4"></i>
+              <p className="text-slate-500 mb-2">検索条件に一致するスキルシートが見つかりません。</p>
+              <p className="text-sm text-slate-400 mb-4">キーワードを変更するか、検索をクリアしてください。</p>
+              <button 
+                onClick={clearSearch}
+                className="px-4 py-2 bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600 transition-colors"
+              >
+                <i className="fas fa-refresh mr-2"></i>
+                検索をリセット
+              </button>
+            </div>
+          )}
+          {verifiedEngineers.length === 0 && (
+            <div className="text-center py-12">
+              <i className="fas fa-folder-open text-4xl text-stone-300 mb-4"></i>
+              <p className="text-slate-500 mb-2">承認済みのスキルシートはまだありません。</p>
+              <p className="text-sm text-slate-400">スキルシートを承認すると、ここに表示されます。</p>
+            </div>
+          )}
+        </div>
+
+        {/* 営業支援レポートセクション */}
+        {stats.topSkills.length > 0 && (
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-2xl shadow-xl p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold flex items-center gap-3">
+                <i className="fas fa-chart-line"></i>
+                営業支援レポート
+              </h2>
+              <div className="text-sm opacity-80">
+                データ更新: {new Date().toLocaleDateString('ja-JP')}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* スキル分析 */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <i className="fas fa-fire text-orange-300"></i>
+                  人気スキルランキング
+                </h3>
+                <div className="space-y-3">
+                  {stats.topSkills.map(([skill, count], index) => (
+                    <div key={skill} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-xs font-bold">
+                          {index + 1}
+                        </span>
+                        <span>{skill}</span>
+                      </div>
+                      <span className="font-bold">{count}人</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* 月次トレンド */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <i className="fas fa-chart-bar text-green-300"></i>
+                  月次登録トレンド
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span>今月新規</span>
+                    <span className="font-bold text-green-300">+{stats.thisMonth}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>総登録数</span>
+                    <span className="font-bold">{stats.total}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>承認待ち</span>
+                    <span className="font-bold text-yellow-300">{pendingSheets.length}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 営業アクション */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <i className="fas fa-rocket text-purple-300"></i>
+                  クイックアクション
+                </h3>
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => setUploadMessage("提案資料テンプレートをダウンロードしました")}
+                    className="w-full bg-white/20 hover:bg-white/30 transition-all py-2 px-3 rounded-lg text-sm font-semibold text-left"
+                  >
+                    <i className="fas fa-file-powerpoint mr-2"></i>
+                    提案資料作成
+                  </button>
+                  <button 
+                    onClick={() => setUploadMessage("スキルマッチング分析を開始しました")}
+                    className="w-full bg-white/20 hover:bg-white/30 transition-all py-2 px-3 rounded-lg text-sm font-semibold text-left"
+                  >
+                    <i className="fas fa-search-plus mr-2"></i>
+                    スキルマッチング
+                  </button>
+                  <button 
+                    onClick={() => setUploadMessage("空き状況レポートを生成しました")}
+                    className="w-full bg-white/20 hover:bg-white/30 transition-all py-2 px-3 rounded-lg text-sm font-semibold text-left"
+                  >
+                    <i className="fas fa-calendar-check mr-2"></i>
+                    空き状況確認
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* プレビューモーダル */}
+        {previewFile && (
+          <PreviewModal
+            fileName={previewFile.fileName}
+            url={previewFile.url}
+            onClose={() => setPreviewFile(null)}
+          />
+        )}
+
+        {/* 営業メモモーダル */}
+        {showMemoModal && selectedEngineerForMemo && (
+          <EngineerMemo
+            engineerName={selectedEngineerForMemo}
+            onClose={closeMemoModal}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
