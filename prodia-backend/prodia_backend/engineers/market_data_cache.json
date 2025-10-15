@@ -1,0 +1,102 @@
+{
+  "data": [
+    {
+      "technology": "React",
+      "change_percentage": 18.5,
+      "current_demand": 2847,
+      "trend_direction": "up",
+      "confidence": 0.92,
+      "data_sources": [
+        "GitHub API",
+        "Stack Overflow"
+      ],
+      "last_updated": "2025-10-14T14:32:18.178783"
+    },
+    {
+      "technology": "TypeScript",
+      "change_percentage": 24.3,
+      "current_demand": 1923,
+      "trend_direction": "up",
+      "confidence": 0.88,
+      "data_sources": [
+        "GitHub API",
+        "NPM Stats"
+      ],
+      "last_updated": "2025-10-14T14:32:18.179953"
+    },
+    {
+      "technology": "AWS",
+      "change_percentage": 15.7,
+      "current_demand": 3421,
+      "trend_direction": "up",
+      "confidence": 0.95,
+      "data_sources": [
+        "Job Boards",
+        "GitHub API"
+      ],
+      "last_updated": "2025-10-14T14:32:18.179953"
+    },
+    {
+      "technology": "Vue.js",
+      "change_percentage": 8.2,
+      "current_demand": 1456,
+      "trend_direction": "up",
+      "confidence": 0.79,
+      "data_sources": [
+        "GitHub API",
+        "Stack Overflow"
+      ],
+      "last_updated": "2025-10-14T14:32:18.179953"
+    },
+    {
+      "technology": "Python",
+      "change_percentage": 12.1,
+      "current_demand": 4126,
+      "trend_direction": "up",
+      "confidence": 0.91,
+      "data_sources": [
+        "GitHub API",
+        "Stack Overflow"
+      ],
+      "last_updated": "2025-10-14T14:32:18.179953"
+    },
+    {
+      "technology": "jQuery",
+      "change_percentage": -8.4,
+      "current_demand": 892,
+      "trend_direction": "down",
+      "confidence": 0.83,
+      "data_sources": [
+        "GitHub API",
+        "Stack Overflow"
+      ],
+      "last_updated": "2025-10-14T14:32:18.179953"
+    },
+    {
+      "technology": "Angular",
+      "change_percentage": 3.6,
+      "current_demand": 1287,
+      "trend_direction": "stable",
+      "confidence": 0.76,
+      "data_sources": [
+        "GitHub API",
+        "NPM Stats"
+      ],
+      "last_updated": "2025-10-14T14:32:18.179953"
+    },
+    {
+      "technology": "Docker",
+      "change_percentage": 16.9,
+      "current_demand": 2156,
+      "trend_direction": "up",
+      "confidence": 0.87,
+      "data_sources": [
+        "GitHub API",
+        "Job Boards"
+      ],
+      "last_updated": "2025-10-14T14:32:18.179953"
+    }
+  ],
+  "cached_at": "2025-10-14T14:32:18.179953",
+  "cache_duration_seconds": 3600
+}

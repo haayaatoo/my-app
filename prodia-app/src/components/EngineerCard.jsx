@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import "./EngineerCard.css";
 
-function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemoClick }) {
+function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemoClick, refreshTrigger }) {
   const { name, position, skills, planner, engineer_status, phase, project } = engineer || {};
   const [isDragging, setIsDragging] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -58,10 +58,10 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
     return 'none';
   };
 
-  // コンポーネントマウント時とエンジニア名変更時にメモ統計を取得
+  // コンポーネントマウント時とエンジニア名変更時、外部トリガー時にメモ統計を取得
   useEffect(() => {
     fetchMemoStats();
-  }, [name]);
+  }, [name, refreshTrigger]);
 
   // メモボタンクリックハンドラー
   const handleMemoClick = (e) => {

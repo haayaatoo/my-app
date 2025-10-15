@@ -82,16 +82,24 @@ WSGI_APPLICATION = 'prodia_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# PostgreSQL設定（開発・本番共通）
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'prodia_db',         # 作成したいDB名
-        'USER': 'postgres',          # PostgreSQLのユーザー名（通常はpostgres）
-        'PASSWORD': 'password', # インストール時に設定したパスワード
+        'NAME': 'prodia_db',
+        'USER': 'postgres',
+        'PASSWORD': 'password',
         'HOST': 'localhost',
         'PORT': '5432',
+        'OPTIONS': {
+            'client_encoding': 'UTF8',
+        },
     }
 }
+
+# 設定の強制確認（デバッグ用）
+print(f"🔧 DATABASE ENGINE: {DATABASES['default']['ENGINE']}")
+print(f"🔧 DATABASE NAME: {DATABASES['default']['NAME']}")
 
 
 # Password validation

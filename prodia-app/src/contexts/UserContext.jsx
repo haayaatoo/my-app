@@ -5,13 +5,8 @@ export const UserContext = createContext(null);
 
 // Providerコンポーネント
 export const UserProvider = ({ children }) => {
-  // デフォルトのログインユーザー（開発・テスト用）
-  const [user, setUser] = useState({
-    id: 1,
-    name: '山田太郎',
-    email: 'yamada@prodia.com',
-    role: 'admin'
-  });
+  // ユーザー情報（ログイン後に設定される）
+  const [user, setUser] = useState(null);
 
   return (
     <UserContext.Provider value={{ user, setUser }}>

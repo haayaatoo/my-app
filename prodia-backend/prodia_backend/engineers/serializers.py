@@ -1,8 +1,11 @@
 from rest_framework import serializers
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, Interview
 
 # SkillSheet用シリアライザ
 class SkillSheetSerializer(serializers.ModelSerializer):
+    file_name = serializers.ReadOnlyField()
+    file_url = serializers.ReadOnlyField()
+    
     class Meta:
         model = SkillSheet
         fields = '__all__'
@@ -29,6 +32,17 @@ class SalesMemoSerializer(serializers.ModelSerializer):
 class MemoAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = MemoAttachment
+        fields = '__all__'
+
+# 面談履歴シリアライザ
+class InterviewSerializer(serializers.ModelSerializer):
+    engineer_name = serializers.ReadOnlyField(source='engineer.name')
+    created_by_name = serializers.ReadOnlyField(source='created_by.name')
+    interview_type_display = serializers.ReadOnlyField(source='get_interview_type_display')
+    result_display = serializers.ReadOnlyField(source='get_result_display')
+    
+    class Meta:
+        model = Interview
         fields = '__all__'
 
 # エンジニア詳細用（メモ込み）

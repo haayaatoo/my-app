@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useUser } from "../contexts/UserContext";
+// import { useUser } from "../contexts/UserContext";
 
 // 🎉 面白い仕掛け：動的なメッセージシステム
 const EXECUTIVE_MESSAGES = [
@@ -10,7 +10,7 @@ const EXECUTIVE_MESSAGES = [
   { text: "技術スタックが多様化しています", icon: "fas fa-code", color: "text-indigo-600" }
 ];
 
-// 🎯 面白い仕掛け：スキルレーダーチャート風の視覚化
+// スキルレーダーチャート風の視覚化
 const SKILL_CATEGORIES = [
   { name: "フロントエンド", skills: ["React", "Vue.js", "Angular"], color: "bg-blue-500" },
   { name: "バックエンド", skills: ["Python", "Node.js", "Django"], color: "bg-green-500" },
@@ -42,44 +42,75 @@ function AnimatedCounter({ end, label, prefix = "", suffix = "", color = "blue",
   }, [end]);
   
   const colorClasses = {
-    blue: "bg-gradient-to-br from-slate-50 to-blue-50 text-slate-700 border-blue-100/50 shadow-blue-100/50",
-    green: "bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-700 border-emerald-100/50 shadow-emerald-100/50",
-    red: "bg-gradient-to-br from-rose-50 to-pink-50 text-rose-700 border-rose-100/50 shadow-rose-100/50",
-    purple: "bg-gradient-to-br from-violet-50 to-purple-50 text-violet-700 border-violet-100/50 shadow-violet-100/50",
-    yellow: "bg-gradient-to-br from-amber-50 to-orange-50 text-amber-700 border-amber-100/50 shadow-amber-100/50"
+    blue: {
+      bg: "bg-gradient-to-br from-blue-500 to-indigo-600",
+      text: "text-white",
+      icon: "text-blue-200",
+      accent: "bg-blue-300"
+    },
+    green: {
+      bg: "bg-gradient-to-br from-emerald-500 to-teal-600", 
+      text: "text-white",
+      icon: "text-emerald-200",
+      accent: "bg-emerald-300"
+    },
+    red: {
+      bg: "bg-gradient-to-br from-rose-500 to-pink-600",
+      text: "text-white", 
+      icon: "text-rose-200",
+      accent: "bg-rose-300"
+    },
+    purple: {
+      bg: "bg-gradient-to-br from-violet-500 to-purple-600",
+      text: "text-white",
+      icon: "text-violet-200", 
+      accent: "bg-violet-300"
+    },
+    yellow: {
+      bg: "bg-gradient-to-br from-amber-500 to-orange-600",
+      text: "text-white",
+      icon: "text-amber-200",
+      accent: "bg-amber-300"
+    }
   };
 
   return (
     <div className={`
-      relative overflow-hidden p-8 rounded-3xl shadow-xl border border-white/60 text-center 
-      transform transition-all duration-700 ease-out hover:scale-105 hover:-translate-y-2
-      backdrop-blur-sm bg-white/40
-      ${colorClasses[color]} ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}
+      relative overflow-hidden p-6 rounded-2xl shadow-xl text-center 
+      transform transition-all duration-500 ease-out hover:scale-105 hover:-translate-y-1
+      ${colorClasses[color].bg} ${colorClasses[color].text}
+      ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
     `} style={{
-      boxShadow: '0 20px 60px rgba(0,0,0,0.08), 0 8px 25px rgba(0,0,0,0.06)'
+      boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 10px 20px rgba(0,0,0,0.1)'
     }}>
-      {/* 上品な装飾ライン */}
-      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-transparent via-amber-300 to-transparent rounded-full"></div>
+      {/* 背景装飾 */}
+      <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-8 -mt-8"></div>
+      <div className="absolute bottom-0 left-0 w-12 h-12 bg-white/5 rounded-full -ml-6 -mb-6"></div>
       
       {/* アイコン */}
-      <div className="text-4xl mb-4 transform hover:scale-110 transition-transform duration-300 text-amber-600">
+      <div className={`text-3xl mb-4 ${colorClasses[color].icon}`}>
         <i className={icon}></i>
       </div>
       
       {/* カウンター */}
-      <div className="text-4xl font-light mb-2 tracking-tight">
-        <span className="inline-block transform hover:scale-110 transition-transform duration-200 font-extralight">
+      <div className="text-3xl font-bold mb-2">
+        <span className="tracking-tight">
           {prefix}{count.toLocaleString()}{suffix}
         </span>
       </div>
       
       {/* ラベル */}
-      <div className="text-sm font-medium text-slate-600 uppercase tracking-widest">
+      <div className="text-sm font-medium opacity-90 uppercase tracking-wide">
         {label}
       </div>
       
-      {/* 底部の装飾ライン */}
-      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-0.5 bg-gradient-to-r from-transparent via-amber-300 to-transparent rounded-full"></div>
+      {/* プログレスインジケーター */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+        <div 
+          className={`h-full ${colorClasses[color].accent} transition-all duration-2000 ease-out`}
+          style={{ width: isVisible ? '100%' : '0%' }}
+        ></div>
+      </div>
     </div>
   );
 }
@@ -182,7 +213,7 @@ function RevenueCard({ engineers }) {
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-8">
           <h3 className="text-2xl font-light text-slate-700 tracking-wide flex items-center">
-            <span className="mr-4 text-3xl text-amber-600">💰</span>
+            <i className="fas fa-chart-line mr-4 text-3xl text-amber-600"></i>
             売上予測（AI分析）
           </h3>
           <div className="text-3xl transform hover:scale-110 transition-transform duration-300 text-amber-600/70">
@@ -288,7 +319,7 @@ function AlertCard({ engineers }) {
   );
 }
 
-// 🎯 面白い仕掛け：インタラクティブスキル分析カード
+// インタラクティブスキル分析カード
 function SkillAnalysisCard({ engineers }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isHovering, setIsHovering] = useState(false);
@@ -362,7 +393,7 @@ function SkillAnalysisCard({ engineers }) {
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-8">
           <h3 className="text-2xl font-semibold text-slate-800 tracking-wide flex items-center gap-3">
-            <span className="text-amber-500 text-3xl">📊</span>
+            <i className="fas fa-chart-bar text-amber-500 text-3xl"></i>
             エンジニア統計
           </h3>
           <div className={`text-3xl transition-all duration-500 ${isHovering ? 'rotate-12 scale-110' : ''} text-amber-600/80`}>
@@ -475,31 +506,63 @@ function ScheduleCard({ engineers }) {
   const utilizationRate = engineers.length > 0 ? (assigned.length / engineers.length * 100) : 0;
   
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-gray-800">📅 稼働状況</h3>
-        <div className={`text-2xl font-bold ${utilizationRate >= 80 ? 'text-green-600' : utilizationRate >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-          {isFinite(utilizationRate) && !isNaN(utilizationRate) ? utilizationRate.toFixed(0) : '0'}%
-        </div>
-      </div>
-      <div className="space-y-4">
-        <div className="w-full bg-gray-200 rounded-full h-3">
-          <div 
-            className={`h-3 rounded-full transition-all duration-1000 ${
-              utilizationRate >= 80 ? 'bg-green-500' : 
-              utilizationRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-            }`}
-            style={{ width: `${utilizationRate}%` }}
-          ></div>
-        </div>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="text-center">
-            <div className="font-bold text-lg text-green-600">{assigned.length}</div>
-            <div className="text-gray-600">稼働中</div>
+    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/50 relative overflow-hidden">
+      {/* 背景グラデーション */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-200/20 to-transparent rounded-full blur-2xl"></div>
+      
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+              <i className="fas fa-calendar-alt text-white"></i>
+            </div>
+            稼働状況
+          </h3>
+          <div className={`text-3xl font-bold ${utilizationRate >= 80 ? 'text-emerald-600' : utilizationRate >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>
+            {isFinite(utilizationRate) && !isNaN(utilizationRate) ? utilizationRate.toFixed(0) : '0'}%
           </div>
-          <div className="text-center">
-            <div className="font-bold text-lg text-blue-600">{unassigned.length}</div>
-            <div className="text-gray-600">待機中</div>
+        </div>
+        
+        {/* プログレスバー */}
+        <div className="mb-6">
+          <div className="w-full bg-gray-100 rounded-full h-4 relative overflow-hidden">
+            <div 
+              className={`h-4 rounded-full transition-all duration-1000 ease-out relative ${
+                utilizationRate >= 80 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                utilizationRate >= 60 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 
+                'bg-gradient-to-r from-rose-400 to-rose-600'
+              }`}
+              style={{ width: `${utilizationRate}%` }}
+            >
+              <div className="absolute inset-0 bg-white/20 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500 mt-2">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+        </div>
+        
+        {/* 統計カード */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-2xl border border-emerald-100">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-600 mb-1">{assigned.length}</div>
+              <div className="text-emerald-700 text-sm font-medium">稼働中</div>
+              <div className="flex items-center justify-center mt-2">
+                <i className="fas fa-user-check text-emerald-500 text-sm"></i>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-2xl border border-amber-100">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-amber-600 mb-1">{unassigned.length}</div>
+              <div className="text-amber-700 text-sm font-medium">待機中</div>
+              <div className="flex items-center justify-center mt-2">
+                <i className="fas fa-user-clock text-amber-500 text-sm"></i>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -507,8 +570,263 @@ function ScheduleCard({ engineers }) {
   );
 }
 
+// リアルタイム市場トレンドコンポーネント
+function RealTimeMarketTrends() {
+  const [marketData, setMarketData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [error, setError] = useState(null);
+  const [selectedRegion, setSelectedRegion] = useState('aichi'); // デフォルトを愛知県に
+
+  const fetchMarketData = async (region = 'aichi') => {
+    try {
+      setLoading(true);
+      
+      // 地域別APIエンドポイント選択
+      const apiUrl = region === 'aichi' 
+        ? "http://localhost:8000/api/market/aichi/summary/"
+        : "http://localhost:8000/api/market/summary/";
+      
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // 愛知県データと全国データの構造差を吸収
+        const trendsData = region === 'aichi' 
+          ? data.summary.top_growing_technologies 
+          : data.summary.top_growing_technologies || [];
+        
+        setMarketData(trendsData);
+        setLastUpdated(new Date(data.last_updated));
+        setError(null);
+      } else {
+        throw new Error(data.error || '市場データの取得に失敗しました');
+      }
+    } catch (err) {
+      console.error('Market data fetch error:', err);
+      setError(err.message);
+      
+      // エラー時は地域別フォールバックデータを使用
+      const fallbackData = region === 'aichi' ? [
+        { technology: "ROS", change_percentage: 67.4, trend_direction: "up", job_count: 18, avg_salary: 6500000, major_companies: ["トヨタ自動車", "豊田自動織機"] },
+        { technology: "Unity", change_percentage: 41.5, trend_direction: "up", job_count: 29, avg_salary: 5100000, major_companies: ["トヨタ自動車", "デンソー"] },
+        { technology: "C++", change_percentage: 31.7, trend_direction: "up", job_count: 98, avg_salary: 5900000, major_companies: ["トヨタ自動車", "デンソー"] },
+        { technology: "Python", change_percentage: 28.4, trend_direction: "up", job_count: 145, avg_salary: 5200000, major_companies: ["トヨタ自動車", "デンソー"] }
+      ] : [
+        { technology: "React", change_percentage: 18.5, trend_direction: "up" },
+        { technology: "TypeScript", change_percentage: 24.3, trend_direction: "up" },
+        { technology: "AWS", change_percentage: 15.7, trend_direction: "up" },
+        { technology: "jQuery", change_percentage: -8.4, trend_direction: "down" }
+      ];
+      
+      setMarketData(fallbackData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMarketData(selectedRegion);
+    
+    // 5分ごとに自動更新
+    const interval = setInterval(() => fetchMarketData(selectedRegion), 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [selectedRegion]);
+
+  const getTrendColor = (percentage, direction) => {
+    if (direction === 'up' && percentage > 15) return 'text-green-600';
+    if (direction === 'up' && percentage > 5) return 'text-blue-600';
+    if (direction === 'down') return 'text-red-600';
+    return 'text-gray-600';
+  };
+
+  const getTrendIcon = (direction, percentage) => {
+    if (direction === 'up') {
+      return percentage > 15 ? 
+        <i className="fas fa-rocket text-green-600"></i> : 
+        <i className="fas fa-arrow-trend-up text-green-500"></i>;
+    }
+    if (direction === 'down') {
+      return <i className="fas fa-arrow-trend-down text-red-500"></i>;
+    }
+    return <i className="fas fa-arrow-right text-gray-500"></i>;
+  };
+
+  if (loading && marketData.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-xl shadow-lg">
+        <div className="flex items-center justify-center space-x-2">
+          <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce"></div>
+          <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+          <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+          <span className="ml-2 text-gray-600">市場データを読み込み中...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-lg relative overflow-hidden">
+      {/* 背景装飾 */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100/50 to-green-100/50 rounded-full transform translate-x-16 -translate-y-16"></div>
+      
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              {selectedRegion === 'aichi' ? 
+                <i className="fas fa-industry text-orange-600"></i> : 
+                <i className="fas fa-chart-area text-blue-600"></i>
+              }
+              {selectedRegion === 'aichi' ? '愛知県' : '全国'} IT市場トレンド分析
+              {loading && (
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-2"></div>
+              )}
+            </h3>
+            
+            {/* 地域切り替えボタン */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setSelectedRegion('aichi')}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                  selectedRegion === 'aichi' 
+                    ? 'bg-orange-500 text-white shadow-md' 
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <i className="fas fa-industry mr-1"></i> 愛知県
+              </button>
+              <button
+                onClick={() => setSelectedRegion('national')}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                  selectedRegion === 'national' 
+                    ? 'bg-blue-500 text-white shadow-md' 
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <i className="fas fa-globe-asia mr-1"></i> 全国
+              </button>
+            </div>
+          </div>
+          <div className="text-right">
+            <button 
+              onClick={() => fetchMarketData(selectedRegion)} 
+              disabled={loading}
+              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs hover:bg-blue-600 disabled:opacity-50 transition-colors duration-200 flex items-center gap-1"
+            >
+              <i className="fas fa-sync-alt"></i>
+              更新
+            </button>
+            <div className="text-xs text-gray-500 mt-1">
+              {lastUpdated ? `更新: ${lastUpdated.toLocaleString('ja-JP')}` : 'データ読み込み中...'}
+            </div>
+            {error && (
+              <div className="text-xs text-red-500 mt-1">
+                <i className="fas fa-exclamation-triangle text-red-500 mr-1"></i> {error}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {marketData.slice(0, 4).map((trend, index) => (
+            <div 
+              key={trend.technology}
+              className={`text-center p-4 rounded-xl border hover:shadow-md transition-all duration-300 transform hover:scale-105 ${
+                selectedRegion === 'aichi' 
+                  ? 'bg-gradient-to-br from-orange-50 to-red-50/30 border-orange-100' 
+                  : 'bg-gradient-to-br from-gray-50 to-blue-50/30 border-gray-100'
+              }`}
+              style={{ animationDelay: `${index * 0.1}s` }}
+            >
+              <div className="text-3xl mb-2 flex justify-center">
+                {getTrendIcon(trend.trend_direction, trend.change_percentage)}
+              </div>
+              <div className={`text-xl font-bold ${getTrendColor(trend.change_percentage, trend.trend_direction)}`}>
+                {trend.change_percentage > 0 ? '↑' : trend.change_percentage < 0 ? '↓' : '→'} 
+                {Math.abs(trend.change_percentage).toFixed(1)}%
+              </div>
+              <div className="text-sm text-gray-600 font-medium mt-1">
+                {trend.technology}
+              </div>
+              
+              {/* 愛知県データの場合、追加情報を表示 */}
+              {selectedRegion === 'aichi' && trend.job_count && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-xs text-orange-600 font-semibold">
+                    求人: {trend.job_count}件
+                  </div>
+                  {trend.avg_salary && (
+                    <div className="text-xs text-green-600 font-semibold">
+                      年収: {Math.round(trend.avg_salary / 10000)}万円
+                    </div>
+                  )}
+                  {trend.major_companies && trend.major_companies.length > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {trend.major_companies[0]}他
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                <div 
+                  className={`h-1.5 rounded-full transition-all duration-1000 ${
+                    selectedRegion === 'aichi'
+                      ? trend.trend_direction === 'up' ? 'bg-orange-500' : 
+                        trend.trend_direction === 'down' ? 'bg-red-500' : 'bg-gray-500'
+                      : trend.trend_direction === 'up' ? 'bg-green-500' : 
+                        trend.trend_direction === 'down' ? 'bg-red-500' : 'bg-gray-500'
+                  }`}
+                  style={{ 
+                    width: `${Math.min(100, Math.abs(trend.change_percentage) * 3)}%` 
+                  }}
+                ></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* データソース情報 */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>
+              <i className="fas fa-satellite-dish text-gray-500 mr-1"></i> データソース: {selectedRegion === 'aichi' 
+                ? '愛知県求人統計, 製造業DX調査, 地域IT企業分析' 
+                : 'GitHub API, Stack Overflow, 求人サイト統計'
+              }
+            </span>
+            <span className="flex items-center gap-1">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${
+                selectedRegion === 'aichi' ? 'bg-orange-500' : 'bg-green-500'
+              }`}></div>
+              {selectedRegion === 'aichi' ? '愛知県特化データ' : 'リアルタイム更新中'}
+            </span>
+          </div>
+          
+          {/* 愛知県特別情報 */}
+          {selectedRegion === 'aichi' && (
+            <div className="mt-2 p-2 bg-orange-50 rounded-lg border border-orange-200">
+              <div className="text-xs text-orange-700">
+                <i className="fas fa-industry text-orange-600 mr-1"></i> <strong>愛知県IT市場の特徴:</strong> 製造業DX・自動車関連技術が高需要 | 
+                平均年収509万円（全国トップクラス） | 
+                トヨタグループを中心とした技術投資活発
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
-  const { user } = useUser();
+  // const { user } = useUser(); // 現在未使用
   const [engineers, setEngineers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('month');
@@ -541,26 +859,30 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-slate-100 flex items-center justify-center">
-        <div className="text-center p-12 bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/80" style={{
-          boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)'
-        }}>
-          {/* エレガントなローダー */}
+      <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-slate-100 flex items-center justify-center relative overflow-hidden">
+        {/* 背景アニメーション */}
+        <div className="absolute inset-0">
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-amber-200/20 rounded-full animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-stone-200/20 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
+        
+        <div className="text-center p-12 bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 relative z-10">
+          {/* モダンローダー */}
           <div className="relative mb-10">
-            <div className="w-24 h-24 border-3 border-amber-200/50 rounded-full animate-spin border-t-amber-400 mx-auto"></div>
-            <div className="absolute inset-3 w-18 h-18 border-2 border-stone-200/40 rounded-full animate-pulse mx-auto"></div>
-            <div className="absolute inset-6 w-12 h-12 border border-amber-300/30 rounded-full animate-ping mx-auto"></div>
+            <div className="w-20 h-20 border-4 border-amber-100 rounded-full animate-spin border-t-amber-500 mx-auto"></div>
+            <div className="absolute inset-2 w-16 h-16 border-2 border-stone-100 rounded-full animate-pulse border-t-stone-400 mx-auto"></div>
           </div>
           
-          {/* 上品なドット */}
-          <div className="flex justify-center space-x-4 mb-10">
-            <div className="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
-            <div className="w-3 h-3 bg-stone-400 rounded-full animate-bounce" style={{animationDelay: '0.3s'}}></div>
-            <div className="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0.6s'}}></div>
+          {/* プログレスドット */}
+          <div className="flex justify-center space-x-3 mb-8">
+            <div className="w-3 h-3 bg-amber-500 rounded-full animate-bounce"></div>
+            <div className="w-3 h-3 bg-yellow-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+            <div className="w-3 h-3 bg-stone-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            <div className="w-3 h-3 bg-amber-600 rounded-full animate-bounce" style={{animationDelay: '0.3s'}}></div>
           </div>
           
-          <h2 className="text-3xl font-medium text-slate-700 mb-4 tracking-wide font-display">ダッシュボードデータを読み込み中...</h2>
-          <p className="text-slate-500 animate-pulse font-light text-lg">エンジニア情報を取得しています</p>
+          <h2 className="text-3xl font-bold text-slate-800 mb-4">ダッシュボードを準備中...</h2>
+          <p className="text-slate-600 text-lg">エンジニア情報を読み込んでいます</p>
         </div>
       </div>
     );
@@ -607,188 +929,181 @@ export default function Dashboard() {
   const advancedMonthlyRevenue = calculateAdvancedRevenue();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 relative overflow-hidden">
-      <div className="container mx-auto px-6 py-8 space-y-8">
-        {/* 🎨 面白い仕掛け：エレガントなヘッダー with 動的メッセージ */}
-        <div className="flex justify-between items-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/80 relative overflow-hidden" style={{
-          boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)'
-        }}>
-          {/* 動的背景パターン */}
-          <div className="absolute inset-0 opacity-5">
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-stone-500 transform rotate-12 scale-150"></div>
-          </div>
-          
-          <div className="relative z-10">
-            <h1 className="text-4xl font-medium text-slate-700 tracking-wide flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-stone-500 rounded-2xl flex items-center justify-center transform hover:rotate-12 transition-transform duration-300">
-                <i className="fas fa-tachometer-alt text-white text-xl"></i>
-              </div>
-              Executive Dashboard
-            </h1>
-            <p className="text-slate-500 mt-2 font-normal tracking-wide">リアルタイム人材管理 & 売上予測</p>
-            
-            {/* 🎯 面白い仕掛け：動的メッセージ表示 */}
-            <div className="mt-4 p-4 bg-gradient-to-r from-amber-50 to-stone-50 rounded-2xl border border-amber-200/50">
-              <div className="flex items-center gap-3 transition-all duration-500 transform">
-                <i className={`${EXECUTIVE_MESSAGES[currentMessage].icon} text-lg ${EXECUTIVE_MESSAGES[currentMessage].color}`}></i>
-                <span className="text-slate-700 font-medium">{EXECUTIVE_MESSAGES[currentMessage].text}</span>
-                <div className="ml-auto flex gap-1">
-                  {EXECUTIVE_MESSAGES.map((_, index) => (
-                    <div 
-                      key={index}
-                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                        index === currentMessage ? 'bg-amber-400' : 'bg-stone-300'
-                      }`}
-                    />
-                  ))}
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-slate-100 relative overflow-hidden">
+      {/* 背景装飾 */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-amber-200/20 to-transparent rounded-full blur-3xl"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-stone-200/20 to-transparent rounded-full blur-3xl"></div>
+      
+      <div className="container mx-auto px-6 py-6 relative z-10">
+        {/* モダンヘッダー */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            {/* タイトル部分 */}
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-2xl flex items-center justify-center shadow-luxury transform hover:rotate-12 transition-transform duration-300">
+                  <i className="fas fa-tachometer-alt text-white text-2xl"></i>
+                </div>
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-400 rounded-full flex items-center justify-center">
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                 </div>
               </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-amber-700 bg-clip-text text-transparent">
+                  Executive Dashboard
+                </h1>
+                <p className="text-slate-600 mt-1 text-lg">リアルタイム人材管理システム</p>
+              </div>
             </div>
-          </div>
-          
-          <div className="flex items-center gap-4 relative z-10">
-            <select 
-              value={selectedPeriod} 
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="border border-stone-200 bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-3 focus:ring-2 focus:ring-amber-400 font-light text-slate-700 shadow-lg"
-            >
-              <option value="week">今週</option>
-              <option value="month">今月</option>
-            <option value="quarter">四半期</option>
-          </select>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2">
-            <i className="fas fa-sync-alt"></i>
-            更新
-          </button>
-        </div>
-      </div>
 
-      {/* KPIカード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <AnimatedCounter 
-          end={engineers.length} 
-          label="総エンジニア数" 
-          color="blue"
-          suffix="名" 
-          icon="fas fa-users"
-        />
-        <AnimatedCounter 
-          end={assignedCount} 
-          label="稼働中" 
-          color="green"
-          suffix="名" 
-          icon="fas fa-user-check"
-        />
-        <AnimatedCounter 
-          end={unassignedCount} 
-          label="待機中" 
-          color="yellow"
-          suffix="名" 
-          icon="fas fa-user-clock"
-        />
-        <AnimatedCounter 
-          end={Math.round((assignedCount / engineers.length) * 100)} 
-          label="稼働率" 
-          color="purple"
-          suffix="%" 
-          icon="fas fa-chart-pie"
-        />
-        <AnimatedCounter 
-          end={advancedMonthlyRevenue} 
-          label="AI予測売上" 
-          color="green"
-          suffix="万円/月" 
-          icon="fas fa-robot"
-        />
-      </div>
-
-      {/* メインダッシュボード */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左列 */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* 売上と稼働状況 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <RevenueCard engineers={engineers} />
-            <ScheduleCard engineers={engineers} />
-          </div>
-          
-          {/* スキル分析 */}
-          <SkillAnalysisCard engineers={engineers} />
-        </div>
-
-        {/* 右列 */}
-        <div className="space-y-6">
-          {/* アラート */}
-          <AlertCard engineers={engineers} />
-          
-          {/* 営業支援カード */}
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">🎯 営業支援</h3>
-              <i className="fas fa-handshake text-2xl opacity-80"></i>
-            </div>
-            <div className="space-y-3">
-              <button className="w-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-all py-2 px-3 rounded-lg text-sm font-semibold">
-                <i className="fas fa-users mr-2"></i>
-                提案可能人材リスト
-              </button>
-              <button className="w-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-all py-2 px-3 rounded-lg text-sm font-semibold">
-                <i className="fas fa-calendar-alt mr-2"></i>
-                来月の空き状況
-              </button>
-              <button className="w-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-all py-2 px-3 rounded-lg text-sm font-semibold">
-                <i className="fas fa-chart-pie mr-2"></i>
-                スキルマッチング分析
+            {/* 右側コントロール */}
+            <div className="flex items-center gap-4">
+              <select 
+                value={selectedPeriod} 
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="px-4 py-3 bg-white/70 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-slate-700 shadow-sm"
+              >
+                <option value="week">今週</option>
+                <option value="month">今月</option>
+                <option value="quarter">四半期</option>
+              </select>
+              <button className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium">
+                <i className="fas fa-sync-alt"></i>
+                更新
               </button>
             </div>
           </div>
 
-          {/* クイックアクション */}
-          <div className="bg-white p-6 rounded-xl shadow-lg">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">⚡ クイックアクション</h3>
-            <div className="space-y-3">
-              <button className="w-full bg-gray-100 hover:bg-gray-200 transition-all py-2 px-3 rounded-lg text-sm font-semibold text-left flex items-center gap-2">
-                <i className="fas fa-plus-circle text-blue-600"></i>
-                新規エンジニア登録
-              </button>
-              <button className="w-full bg-gray-100 hover:bg-gray-200 transition-all py-2 px-3 rounded-lg text-sm font-semibold text-left flex items-center gap-2">
-                <i className="fas fa-file-excel text-green-600"></i>
-                月次レポート作成
-              </button>
-              <button className="w-full bg-gray-100 hover:bg-gray-200 transition-all py-2 px-3 rounded-lg text-sm font-semibold text-left flex items-center gap-2">
-                <i className="fas fa-bell text-yellow-600"></i>
-                アラート設定
-              </button>
+          {/* 動的メッセージ */}
+          <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl border border-amber-200/50">
+            <div className="flex items-center gap-3">
+              <i className={`${EXECUTIVE_MESSAGES[currentMessage].icon} text-xl ${EXECUTIVE_MESSAGES[currentMessage].color}`}></i>
+              <span className="text-slate-700 font-medium flex-1">{EXECUTIVE_MESSAGES[currentMessage].text}</span>
+              <div className="flex gap-1">
+                {EXECUTIVE_MESSAGES.map((_, index) => (
+                  <div 
+                    key={index}
+                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                      index === currentMessage ? 'bg-amber-500' : 'bg-stone-300'
+                    }`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* トレンド分析 */}
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-800">📈 市場トレンド分析</h3>
-          <span className="text-sm text-gray-500">データ更新: {new Date().toLocaleDateString('ja-JP')}</span>
+        {/* KPIメトリクス - グリッドレイアウトを改善 */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <AnimatedCounter 
+            end={engineers.length} 
+            label="総エンジニア数" 
+            color="blue"
+            suffix="名" 
+            icon="fas fa-users"
+          />
+          <AnimatedCounter 
+            end={assignedCount} 
+            label="稼働中" 
+            color="green"
+            suffix="名" 
+            icon="fas fa-user-check"
+          />
+          <AnimatedCounter 
+            end={unassignedCount} 
+            label="待機中" 
+            color="yellow"
+            suffix="名" 
+            icon="fas fa-user-clock"
+          />
+          <AnimatedCounter 
+            end={Math.round((assignedCount / engineers.length) * 100)} 
+            label="稼働率" 
+            color="purple"
+            suffix="%" 
+            icon="fas fa-chart-pie"
+          />
+          <AnimatedCounter 
+            end={advancedMonthlyRevenue} 
+            label="AI予測売上" 
+            color="green"
+            suffix="万円/月" 
+            icon="fas fa-robot"
+          />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">↑ 15%</div>
-            <div className="text-sm text-gray-600">React需要</div>
+
+        {/* メインコンテンツエリア - レスポンシブ対応を強化 */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-8">
+          {/* 左メインエリア (8/12) */}
+          <div className="xl:col-span-8 space-y-8">
+            {/* 売上と稼働状況を横並び */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <RevenueCard engineers={engineers} />
+              <ScheduleCard engineers={engineers} />
+            </div>
+            
+            {/* スキル分析を広く表示 */}
+            <SkillAnalysisCard engineers={engineers} />
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">↑ 12%</div>
-            <div className="text-sm text-gray-600">AWS案件</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">↑ 8%</div>
-            <div className="text-sm text-gray-600">TypeScript</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">↓ 3%</div>
-            <div className="text-sm text-gray-600">jQuery</div>
+
+          {/* 右サイドバー (4/12) */}
+          <div className="xl:col-span-4 space-y-6">
+            {/* アラート */}
+            <AlertCard engineers={engineers} />
+            
+            {/* 営業支援ツール - モダンなデザインに */}
+            <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 text-white p-6 rounded-2xl shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-3">
+                  <i className="fas fa-handshake text-emerald-200"></i>
+                  営業支援ツール
+                </h3>
+                <div className="w-3 h-3 bg-green-300 rounded-full animate-pulse"></div>
+              </div>
+              <div className="space-y-3">
+                <button className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all py-3 px-4 rounded-xl text-sm font-semibold flex items-center gap-3 group">
+                  <i className="fas fa-users group-hover:scale-110 transition-transform"></i>
+                  提案可能人材リスト
+                </button>
+                <button className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all py-3 px-4 rounded-xl text-sm font-semibold flex items-center gap-3 group">
+                  <i className="fas fa-calendar-alt group-hover:scale-110 transition-transform"></i>
+                  来月の空き状況
+                </button>
+                <button className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all py-3 px-4 rounded-xl text-sm font-semibold flex items-center gap-3 group">
+                  <i className="fas fa-chart-pie group-hover:scale-110 transition-transform"></i>
+                  スキルマッチング分析
+                </button>
+              </div>
+            </div>
+
+            {/* クイックアクション - デザインを統一 */}
+            <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-xl border border-white/50">
+              <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <i className="fas fa-bolt text-yellow-500"></i>
+                クイックアクション
+              </h3>
+              <div className="space-y-3">
+                <button className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all py-3 px-4 rounded-xl text-sm font-semibold text-left flex items-center gap-3 group border border-blue-100">
+                  <i className="fas fa-plus-circle text-blue-600 group-hover:scale-110 transition-transform"></i>
+                  新規エンジニア登録
+                </button>
+                <button className="w-full bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-all py-3 px-4 rounded-xl text-sm font-semibold text-left flex items-center gap-3 group border border-green-100">
+                  <i className="fas fa-file-excel text-green-600 group-hover:scale-110 transition-transform"></i>
+                  月次レポート作成
+                </button>
+                <button className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 hover:from-yellow-100 hover:to-orange-100 transition-all py-3 px-4 rounded-xl text-sm font-semibold text-left flex items-center gap-3 group border border-yellow-100">
+                  <i className="fas fa-bell text-yellow-600 group-hover:scale-110 transition-transform"></i>
+                  アラート設定
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+
+        {/* 市場トレンド - 全幅表示 */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 overflow-hidden">
+          <RealTimeMarketTrends />
+        </div>
       </div>
     </div>
   );

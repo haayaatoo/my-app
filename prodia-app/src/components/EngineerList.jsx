@@ -5,6 +5,7 @@ import EngineerForm from "./EngineerForm";
 import EngineerStats from "./EngineerStats";
 import DeleteDropZone from "./DeleteDropZone";
 import EngineerMemo from "./EngineerMemo";
+import CSVImporter from "./CSVImporter";
 
 // モダン・ラグジュアリーローディング
 function AnimatedLoader() {
@@ -64,7 +65,7 @@ function EngineerListHeader({ engineersCount, onAddNew, showStats, onToggleStats
         <div className="flex space-x-4">
           <button
             onClick={onToggleStats}
-            className="group relative overflow-hidden bg-gradient-to-br from-white/80 via-stone-50 to-amber-50/50 text-slate-700 px-8 py-4 rounded-2xl font-medium transition-all duration-500 transform hover:scale-105 shadow-lg border border-white/60 backdrop-blur-sm hover:shadow-amber-200/50"
+            className="group relative overflow-hidden bg-gradient-to-br from-white/80 via-stone-50 to-amber-50/50 text-slate-700 px-8 py-4 rounded-2xl font-medium transition-all duration-500 transform hover:scale-105 shadow-lg border border-white/60 backdrop-blur-sm hover:shadow-amber-200/50 whitespace-nowrap min-w-fit text-sm"
             style={{
               boxShadow: '0 10px 30px rgba(0,0,0,0.08), 0 4px 15px rgba(0,0,0,0.06)'
             }}
@@ -94,6 +95,8 @@ export default function EngineerList() {
   const [showStats, setShowStats] = useState(true); // 統計表示の切り替え
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [selectedEngineerForMemo, setSelectedEngineerForMemo] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // メモ変更時のカード更新トリガー
+  const [showCSVImporter, setShowCSVImporter] = useState(false); // CSVインポートモーダル
 
   const fetchEngineers = () => {
     setLoading(true);
@@ -151,36 +154,69 @@ export default function EngineerList() {
   });
 
   // 新規登録・編集
-  const handleSubmit = (form) => {
+  const handleSubmit = async (form, continueAfter = false) => {
     const url = editingEngineer 
       ? `http://localhost:8000/api/engineers/${editingEngineer.id}/`
       : "http://localhost:8000/api/engineers/";
     
     const method = editingEngineer ? "PUT" : "POST";
     
-    fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      console.log('送信データ:', {
         ...form,
         skills: form.skills,
         phase: form.phase,
-      })
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(editingEngineer ? "更新に失敗しました" : "登録に失敗しました");
-        return res.json();
-      })
-      .then(() => {
+      });
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          skills: form.skills,
+          phase: form.phase,
+        })
+      });
+
+      console.log('レスポンス状態:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('エラー詳細:', errorText);
+        
+        let errorMessage;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorData.error || JSON.stringify(errorData);
+        } catch (e) {
+          errorMessage = errorText || `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        throw new Error(`${editingEngineer ? "更新" : "登録"}に失敗しました: ${errorMessage}`);
+      }
+
+      await response.json();
+      
+      // 連続登録でなければフォームを閉じる
+      if (!continueAfter) {
         setShowForm(false);
         setEditingEngineer(null);
-        fetchEngineers();
-        // 成功メッセージ
-        showNotification(editingEngineer ? "更新完了!" : "登録完了!", "success");
-      })
-      .catch(err => {
-        alert(err.message);
-      });
+      }
+      
+      // データを再取得
+      fetchEngineers();
+      
+      // 成功メッセージ
+      showNotification(
+        continueAfter 
+          ? "登録完了！続けて登録できます" 
+          : (editingEngineer ? "更新完了!" : "登録完了!"), 
+        "success"
+      );
+      
+    } catch (err) {
+      throw err; // エラーをフォームに返す
+    }
   };
 
   // 編集開始
@@ -195,10 +231,18 @@ export default function EngineerList() {
     setShowMemoModal(true);
   };
 
-  // メモモーダルを閉じる
+  // メモモーダルを閉じる（メモ変更時のリアルタイム更新対応）
   const closeMemoModal = () => {
     setShowMemoModal(false);
     setSelectedEngineerForMemo(null);
+    // モーダルを閉じる際にも最終的にカードを更新（念のため）
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  // メモ変更時のコールバック（EngineerMemoから呼び出される）
+  const handleMemoChange = () => {
+    // メモが変更された際にエンジニアカードのメモ統計をリアルタイム更新
+    setRefreshTrigger(prev => prev + 1); // トリガー値を変更してカードのuseEffectを実行
   };
 
   // 削除
@@ -233,6 +277,25 @@ export default function EngineerList() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingEngineer(null);
+  };
+
+  // CSVインポート関連
+  const handleCSVImport = () => {
+    setShowCSVImporter(true);
+  };
+
+  const handleCSVImportComplete = (result) => {
+    showNotification(
+      `${result.created_count}名のエンジニアを登録しました${
+        result.skipped_count > 0 ? `（${result.skipped_count}名は重複のためスキップ）` : ''
+      }`, 
+      "success"
+    );
+    fetchEngineers(); // データを再取得
+  };
+
+  const handleCSVImportClose = () => {
+    setShowCSVImporter(false);
   };
 
   // 一括操作
@@ -387,7 +450,7 @@ export default function EngineerList() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleBulkDelete}
-                className="px-6 py-3 bg-white hover:bg-red-50 text-red-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-red-200 hover:border-red-300 font-medium"
+                className="px-6 py-3 bg-white hover:bg-red-50 text-red-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-red-200 hover:border-red-300 font-medium whitespace-nowrap min-w-fit text-sm"
                 style={{
                   boxShadow: '0 4px 15px rgba(220, 38, 38, 0.15)'
                 }}
@@ -397,7 +460,7 @@ export default function EngineerList() {
               </button>
               <button
                 onClick={() => handleBulkStatusChange('アサイン済')}
-                className="px-6 py-3 bg-white hover:bg-emerald-50 text-emerald-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-emerald-200 hover:border-emerald-300 font-medium"
+                className="px-6 py-3 bg-white hover:bg-emerald-50 text-emerald-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-emerald-200 hover:border-emerald-300 font-medium whitespace-nowrap min-w-fit text-sm"
                 style={{
                   boxShadow: '0 4px 15px rgba(16, 185, 129, 0.15)'
                 }}
@@ -407,7 +470,7 @@ export default function EngineerList() {
               </button>
               <button
                 onClick={() => handleBulkStatusChange('未アサイン')}
-                className="px-6 py-3 bg-white hover:bg-amber-50 text-amber-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-amber-200 hover:border-amber-300 font-medium"
+                className="px-6 py-3 bg-white hover:bg-amber-50 text-amber-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-amber-200 hover:border-amber-300 font-medium whitespace-nowrap min-w-fit text-sm"
                 style={{
                   boxShadow: '0 4px 15px rgba(245, 158, 11, 0.15)'
                 }}
@@ -451,7 +514,7 @@ export default function EngineerList() {
           }}>
             <button
               onClick={() => setViewMode('card')}
-              className={`px-5 py-3 rounded-xl text-lg font-medium transition-all duration-300 flex items-center gap-2 ${
+              className={`px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 whitespace-nowrap min-w-fit ${
                 viewMode === 'card' 
                   ? 'bg-gradient-to-r from-amber-100 to-stone-100 text-slate-700 shadow-lg border border-amber-200/50' 
                   : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
@@ -462,7 +525,7 @@ export default function EngineerList() {
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`px-5 py-3 rounded-xl text-lg font-medium transition-all duration-300 flex items-center gap-2 ${
+              className={`px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 whitespace-nowrap min-w-fit ${
                 viewMode === 'table' 
                   ? 'bg-gradient-to-r from-amber-100 to-stone-100 text-slate-700 shadow-lg border border-amber-200/50' 
                   : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
@@ -473,10 +536,22 @@ export default function EngineerList() {
             </button>
           </div>
           
+          {/* CSVインポート - エレガント */}
+          <button
+            onClick={handleCSVImport}
+            className="px-6 py-3 bg-white/90 hover:bg-blue-50 text-blue-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-blue-200 hover:border-blue-300 font-medium backdrop-blur-sm whitespace-nowrap min-w-fit text-sm"
+            style={{
+              boxShadow: '0 8px 25px rgba(59, 130, 246, 0.15)'
+            }}
+          >
+            <i className="fas fa-file-import text-lg"></i>
+            CSVインポート
+          </button>
+
           {/* CSVエクスポート - エレガント */}
           <button
             onClick={handleExportCSV}
-            className="px-6 py-3 bg-white/90 hover:bg-emerald-50 text-emerald-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-emerald-200 hover:border-emerald-300 font-medium backdrop-blur-sm"
+            className="px-6 py-3 bg-white/90 hover:bg-emerald-50 text-emerald-600 rounded-2xl transition-all duration-300 flex items-center gap-3 border-2 border-emerald-200 hover:border-emerald-300 font-medium backdrop-blur-sm whitespace-nowrap min-w-fit text-sm"
             style={{
               boxShadow: '0 8px 25px rgba(16, 185, 129, 0.15)'
             }}
@@ -487,7 +562,7 @@ export default function EngineerList() {
           
           {/* 新規登録 - プレミアム */}
           <button
-            className="px-8 py-3 bg-amber-400 hover:bg-amber-500 text-white rounded-2xl text-lg font-semibold flex items-center gap-3 transition-all duration-300 transform hover:scale-105 backdrop-blur-sm shadow-luxury"
+            className="px-8 py-3 bg-amber-400 hover:bg-amber-500 text-white rounded-2xl font-semibold flex items-center gap-3 transition-all duration-300 transform hover:scale-105 backdrop-blur-sm shadow-luxury whitespace-nowrap min-w-fit text-sm"
             style={{
               boxShadow: '0 8px 32px 0 rgba(245, 158, 11, 0.18), 0 2px 8px 0 rgba(120, 113, 108, 0.10), 0 1.5px 0 rgba(255,255,255,0.7) inset'
             }}
@@ -652,6 +727,7 @@ export default function EngineerList() {
               isSelected={selectedEngineers.includes(e.id)}
               onSelect={handleSelectEngineer}
               onMemoClick={handleMemoClick}
+              refreshTrigger={refreshTrigger}
             />
           </div>
         ))}
@@ -699,6 +775,15 @@ export default function EngineerList() {
         <EngineerMemo
           engineerName={selectedEngineerForMemo}
           onClose={closeMemoModal}
+          onMemoChange={handleMemoChange}
+        />
+      )}
+
+      {/* CSVインポートモーダル */}
+      {showCSVImporter && (
+        <CSVImporter
+          onImport={handleCSVImportComplete}
+          onClose={handleCSVImportClose}
         />
       )}
 

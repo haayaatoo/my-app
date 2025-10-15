@@ -70,7 +70,7 @@ const EngineerStats = ({ engineers }) => {
       </div>
       <div className="relative z-10">
         <h3 className="text-2xl font-semibold text-slate-800 mb-6 flex items-center gap-3 tracking-wide">
-          <span className="text-amber-500 text-3xl">📊</span>
+          <i className="fas fa-chart-bar text-amber-500 text-3xl"></i>
           エンジニア統計
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

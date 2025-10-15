@@ -4,13 +4,24 @@ import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import EngineerList from "./components/EngineerList";
 import SkillSheetManager from "./components/SkillSheetManager";
+import InterviewManager from "./components/InterviewManager";
+import HREvaluation from "./components/HREvaluation";
+import Settings from "./components/Settings";
 
 function MainLayout({ page, setPage, handleLogout }) {
   const { user } = useUser();
+  
+  // 権限チェック：面談履歴・人事評価ページにアクセス権限がない場合はダッシュボードにリダイレクト
+  React.useEffect(() => {
+    if ((page === "interviews" || page === "hr-evaluation") && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp') {
+      setPage("dashboard");
+    }
+  }, [page, user, setPage]);
+  
   return (
     <div className="flex h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100">
       {/* 🎨 モダン・ラグジュアリーサイドバー */}
-      <aside className="w-80 bg-gradient-to-b from-white/90 via-stone-50/80 to-amber-50/60 backdrop-blur-xl border-r border-white/60 flex flex-col relative overflow-hidden animate-slide-in" style={{
+      <aside className="w-80 bg-gradient-to-b from-white/90 via-stone-50/80 to-amber-50/60 backdrop-blur-xl border-r border-white/60 flex flex-col relative animate-slide-in" style={{
         boxShadow: '4px 0 30px rgba(0,0,0,0.08), 2px 0 15px rgba(0,0,0,0.04)'
       }}>
         {/* 装飾的な背景要素 */}
@@ -36,7 +47,7 @@ function MainLayout({ page, setPage, handleLogout }) {
         )}
 
         {/* ナビゲーション */}
-        <nav className="flex-1 p-6 space-y-3 relative z-10">
+        <nav className="flex-1 overflow-y-auto p-6 space-y-3 relative z-10 scrollbar-thin scrollbar-thumb-amber-200 scrollbar-track-transparent hover:scrollbar-thumb-amber-300">
           {/* ダッシュボード */}
           <button
             className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
@@ -110,7 +121,7 @@ function MainLayout({ page, setPage, handleLogout }) {
               </div>
               <div>
                 <span className="font-medium text-lg">スキルシート管理</span>
-                <p className="text-xs opacity-70 mt-0.5">登録・承認・検索</p>
+                <p className="text-xs opacity-70 mt-0.5">登録・検索</p>
               </div>
             </div>
             {page === "skill-sheets" && (
@@ -118,43 +129,92 @@ function MainLayout({ page, setPage, handleLogout }) {
             )}
           </button>
 
-          {/* プロジェクト管理 */}
+          {/* お客様面談履歴（権限チェック付き） */}
+          {user && (user.email === 'kamiya@1dr.co.jp' || user.email === 'asai@1dr.co.jp') && (
+            <button
+              className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+                page === "interviews" 
+                  ? "bg-gradient-to-r from-amber-100 to-stone-100 text-slate-700 shadow-lg border border-amber-200/50" 
+                  : "text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
+              }`}
+              onClick={() => setPage("interviews")}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                  page === "interviews" 
+                    ? "bg-gradient-to-br from-amber-400 to-stone-400 text-white shadow-lg" 
+                    : "bg-slate-100 text-slate-500 group-hover:bg-amber-100 group-hover:text-amber-600"
+                }`}>
+                  <i className="fas fa-handshake text-lg"></i>
+                </div>
+                <div>
+                  <span className="font-medium text-lg">お客様面談履歴</span>
+                  <p className="text-xs opacity-70 mt-0.5">客先面談記録</p>
+                </div>
+              </div>
+              {page === "interviews" && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-amber-400 to-stone-400 rounded-full"></div>
+              )}
+            </button>
+          )}
+
+          {/* 人事評価（権限チェック付き） */}
+          {user && (user.email === 'kamiya@1dr.co.jp' || user.email === 'asai@1dr.co.jp') && (
+            <button
+              className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+                page === "hr-evaluation" 
+                  ? "bg-gradient-to-r from-purple-100 to-indigo-100 text-slate-700 shadow-lg border border-purple-200/50" 
+                  : "text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
+              }`}
+              onClick={() => setPage("hr-evaluation")}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                  page === "hr-evaluation" 
+                    ? "bg-gradient-to-br from-purple-400 to-indigo-500 text-white shadow-lg" 
+                    : "bg-slate-100 text-slate-500 group-hover:bg-purple-100 group-hover:text-purple-600"
+                }`}>
+                  <i className="fas fa-star text-lg"></i>
+                </div>
+                <div>
+                  <span className="font-medium text-lg">人事評価</span>
+                  <p className="text-xs opacity-70 mt-0.5">社内評価・査定</p>
+                </div>
+              </div>
+              {page === "hr-evaluation" && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-purple-400 to-indigo-500 rounded-full"></div>
+              )}
+            </button>
+          )}
+
+          {/* 設定 */}
           <button
-            className="group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
-            onClick={() => alert("準備中です。近日公開予定！")}
+            className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+              page === "settings" 
+                ? "bg-gradient-to-r from-amber-100 to-stone-100 text-slate-700 shadow-lg border border-amber-200/50" 
+                : "text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
+            }`}
+            onClick={() => setPage("settings")}
           >
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 bg-slate-100 text-slate-500 group-hover:bg-amber-100 group-hover:text-amber-600">
-                <i className="fas fa-project-diagram text-lg"></i>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                page === "settings" 
+                  ? "bg-gradient-to-br from-amber-400 to-stone-400 text-white shadow-lg" 
+                  : "bg-slate-100 text-slate-500 group-hover:bg-amber-100 group-hover:text-amber-600"
+              }`}>
+                <i className="fas fa-cog text-lg"></i>
               </div>
               <div>
-                <span className="font-medium text-lg">プロジェクト管理</span>
-                <p className="text-xs opacity-70 mt-0.5">案件・進捗管理</p>
-              </div>
-              <div className="ml-auto">
-                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">準備中</span>
+                <span className="font-medium text-lg">設定</span>
+                <p className="text-xs opacity-70 mt-0.5">アカウント・セキュリティ</p>
               </div>
             </div>
+            {page === "settings" && (
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-amber-400 to-stone-400 rounded-full"></div>
+            )}
           </button>
 
-          {/* レポート */}
-          <button
-            className="group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
-            onClick={() => alert("準備中です。近日公開予定！")}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 bg-slate-100 text-slate-500 group-hover:bg-amber-100 group-hover:text-amber-600">
-                <i className="fas fa-chart-bar text-lg"></i>
-              </div>
-              <div>
-                <span className="font-medium text-lg">レポート</span>
-                <p className="text-xs opacity-70 mt-0.5">統計・分析</p>
-              </div>
-              <div className="ml-auto">
-                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">準備中</span>
-              </div>
-            </div>
-          </button>
+
         </nav>
         
         {/* フッター・ログアウト */}
@@ -183,6 +243,9 @@ function MainLayout({ page, setPage, handleLogout }) {
         {page === "dashboard" && <Dashboard />}
         {page === "engineers" && <EngineerList />}
         {page === "skill-sheets" && <SkillSheetManager />}
+        {page === "interviews" && <InterviewManager />}
+        {page === "hr-evaluation" && <HREvaluation />}
+        {page === "settings" && <Settings />}
       </main>
     </div>
   );
@@ -196,11 +259,13 @@ function App() {
   const handleLogin = () => {
     setIsLoggedIn(true);
     setShowLogoutMsg(false);
+    setPage("dashboard"); // ログイン時にダッシュボードに戻る
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setShowLogoutMsg(true);
+    setPage("dashboard"); // ログアウト時にダッシュボードにリセット
     // 3秒後にログアウトメッセージを自動的に非表示にする
     setTimeout(() => {
       setShowLogoutMsg(false);

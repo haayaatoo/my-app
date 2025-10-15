@@ -3,7 +3,7 @@ import { useUser } from "../contexts/UserContext";
 
 export default function Login({ onLogin, logoutMsg }) {
   const { setUser } = useUser();
-  const [empId, setEmpId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showLogoutMsg, setShowLogoutMsg] = useState(false);
@@ -20,18 +20,44 @@ export default function Login({ onLogin, logoutMsg }) {
     }
   }, [logoutMsg]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (empId && password) {
+    if (email && password) {
       setIsLoading(true);
-      // ログインアニメーション効果
-      setTimeout(() => {
+      
+      try {
+        const response = await fetch("http://localhost:8000/api/auth/login/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email,
+            password: password,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // ログイン成功
+          setUser(data.user);
+          setTimeout(() => {
+            setIsLoading(false);
+            onLogin();
+          }, 1500);
+        } else {
+          // ログイン失敗
+          setIsLoading(false);
+          alert(data.error || "ログインに失敗しました");
+        }
+      } catch (error) {
         setIsLoading(false);
-        setUser({ name: empId }); // 社員番号をユーザー名としてセット
-        onLogin();
-      }, 1500);
+        alert("ネットワークエラーが発生しました");
+        console.error("Login error:", error);
+      }
     } else {
-      alert("社員番号とパスワードを入力してください");
+      alert("メールアドレスとパスワードを入力してください");
     }
   };
 
@@ -92,16 +118,16 @@ export default function Login({ onLogin, logoutMsg }) {
 
           {/* ログインフォーム */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* 社員番号フィールド */}
+            {/* メールアドレスフィールド */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-600 ml-1">社員番号</label>
+              <label className="block text-sm font-medium text-slate-600 ml-1">メールアドレス</label>
               <div className="relative">
-                <i className="fas fa-id-card absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg"></i>
+                <i className="fas fa-envelope absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg"></i>
                 <input
-                  type="text"
-                  placeholder="例: EMP001"
-                  value={empId}
-                  onChange={(e) => setEmpId(e.target.value)}
+                  type="email"
+                  placeholder="例: yamada@prodia.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-14 pr-5 py-4 border-2 border-stone-200/80 rounded-2xl focus:border-amber-400 focus:ring-4 focus:ring-amber-100 transition-all duration-300 text-slate-700 placeholder-slate-400 bg-white/90 backdrop-blur-sm font-normal text-lg"
                   style={{
                     boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
@@ -182,7 +208,7 @@ export default function Login({ onLogin, logoutMsg }) {
               初回ログインの方へ
             </p>
             <p className="text-slate-500 text-xs">
-              社員番号とパスワードは人事部にお問い合わせください
+              メールアドレスとパスワードは人事部にお問い合わせください
             </p>
           </div>
         </div>

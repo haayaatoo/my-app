@@ -228,3 +228,27 @@ body {
   box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
   transform: translateY(-2px);
 }
+
+/* ボタンのテキスト改行防止とズーム対応 */
+.btn-no-wrap {
+  white-space: nowrap !important;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  min-width: fit-content;
+  flex-shrink: 0;
+}
+
+/* ズーム時でもテキストサイズを維持 */
+.btn-fixed-size {
+  font-size: 0.875rem !important; /* 14px */
+  line-height: 1.25rem !important; /* 20px */
+}
+
+/* レスポンシブボタンテキスト */
+@media (max-width: 640px) {
+  .btn-responsive {
+    font-size: 0.75rem !important; /* 12px */
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+}
