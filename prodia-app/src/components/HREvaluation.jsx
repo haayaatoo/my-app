@@ -16,6 +16,7 @@ export default function HREvaluation() {
     date_to: ''
   });
   const [groupedByEngineer, setGroupedByEngineer] = useState({});
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'dashboard'
 
   // フォーム状態
   const [formData, setFormData] = useState({
@@ -233,6 +234,426 @@ export default function HREvaluation() {
     }
   };
 
+  // 📊 人事評価ダッシュボード表示関数
+  const renderDashboardView = () => {
+    // 全評価データを平坦化
+    const allEvaluations = Object.values(groupedByEngineer).flat();
+    
+    // 統計データ計算
+    const stats = {
+      totalEvaluations: allEvaluations.length,
+      totalEngineers: Object.keys(groupedByEngineer).length,
+      avgTechnicalSkill: allEvaluations.filter(e => e.technical_skill).length > 0 
+        ? (allEvaluations.reduce((acc, e) => acc + (e.technical_skill || 0), 0) / allEvaluations.filter(e => e.technical_skill).length).toFixed(1)
+        : 0,
+      avgCommunicationSkill: allEvaluations.filter(e => e.communication_skill).length > 0
+        ? (allEvaluations.reduce((acc, e) => acc + (e.communication_skill || 0), 0) / allEvaluations.filter(e => e.communication_skill).length).toFixed(1)
+        : 0,
+      avgOverallRating: allEvaluations.filter(e => e.overall_rating).length > 0
+        ? (allEvaluations.reduce((acc, e) => acc + (e.overall_rating || 0), 0) / allEvaluations.filter(e => e.overall_rating).length).toFixed(1)
+        : 0,
+      highPerformers: allEvaluations.filter(e => e.overall_rating >= 4).length,
+      needsImprovement: allEvaluations.filter(e => e.overall_rating <= 2).length,
+      thisMonth: allEvaluations.filter(e => {
+        const evalDate = new Date(e.interview_date);
+        const now = new Date();
+        return evalDate.getMonth() === now.getMonth() && evalDate.getFullYear() === now.getFullYear();
+      }).length
+    };
+
+    // エンジニア別成長分析
+    const engineerGrowthStats = Object.entries(groupedByEngineer).map(([name, evals]) => {
+      const sortedEvals = evals.sort((a, b) => new Date(a.interview_date) - new Date(b.interview_date));
+      const latest = sortedEvals[sortedEvals.length - 1];
+      const previous = sortedEvals[sortedEvals.length - 2];
+      
+      return {
+        name,
+        evaluationCount: evals.length,
+        latestOverall: latest?.overall_rating || 0,
+        latestTechnical: latest?.technical_skill || 0,
+        latestCommunication: latest?.communication_skill || 0,
+        growth: previous && latest ? (latest.overall_rating || 0) - (previous.overall_rating || 0) : 0,
+        lastEvaluationDate: latest?.interview_date,
+        hasStrengths: latest?.strengths ? true : false,
+        hasGoals: latest?.goals_next_period ? true : false
+      };
+    }).sort((a, b) => b.latestOverall - a.latestOverall);
+
+    // スキル分布データ
+    const skillDistribution = {
+      technical: [1, 2, 3, 4, 5].map(rating => ({
+        rating,
+        count: allEvaluations.filter(e => e.technical_skill === rating).length
+      })),
+      communication: [1, 2, 3, 4, 5].map(rating => ({
+        rating,
+        count: allEvaluations.filter(e => e.communication_skill === rating).length
+      })),
+      overall: [1, 2, 3, 4, 5].map(rating => ({
+        rating,
+        count: allEvaluations.filter(e => e.overall_rating === rating).length
+      }))
+    };
+
+    return (
+      <div className="space-y-8">
+        {/* 📊 人事評価KPI統計サマリー */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* 総評価数 */}
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-purple-100 text-sm">総評価数</p>
+                  <p className="text-3xl font-bold">{stats.totalEvaluations}</p>
+                </div>
+                <i className="fas fa-star text-4xl text-purple-200"></i>
+              </div>
+              <div className="flex items-center justify-between text-purple-100 text-xs">
+                <span>対象: {stats.totalEngineers}名</span>
+                <span>今月: {stats.thisMonth}件</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 平均技術力 */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-blue-100 text-sm">平均技術力</p>
+                  <p className="text-3xl font-bold">{stats.avgTechnicalSkill}</p>
+                </div>
+                <i className="fas fa-code text-4xl text-blue-200"></i>
+              </div>
+              <div className="flex items-center gap-1 text-blue-100 text-xs">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <i key={i} className={`fas fa-star ${i <= Math.round(stats.avgTechnicalSkill) ? 'text-yellow-300' : 'text-blue-300'}`}></i>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 平均総合評価 */}
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-emerald-100 text-sm">平均総合評価</p>
+                  <p className="text-3xl font-bold">{stats.avgOverallRating}</p>
+                </div>
+                <i className="fas fa-trophy text-4xl text-emerald-200"></i>
+              </div>
+              <div className="flex items-center gap-1 text-emerald-100 text-xs">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <i key={i} className={`fas fa-star ${i <= Math.round(stats.avgOverallRating) ? 'text-yellow-300' : 'text-emerald-300'}`}></i>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 高評価者数 */}
+          <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-amber-100 text-sm">高評価者</p>
+                  <p className="text-3xl font-bold">{stats.highPerformers}</p>
+                </div>
+                <i className="fas fa-medal text-4xl text-amber-200"></i>
+              </div>
+              <div className="flex items-center justify-between text-amber-100 text-xs">
+                <span>4-5評価</span>
+                <span>要改善: {stats.needsImprovement}名</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 🏆 エンジニア別成長分析 & 📊 スキル分布 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* エンジニア別成長分析 */}
+          <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-700 flex items-center gap-3">
+                <i className="fas fa-chart-line text-purple-500"></i>
+                エンジニア別成長分析
+              </h3>
+              <div className="text-sm text-slate-500">
+                上位{Math.min(8, engineerGrowthStats.length)}名
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              {engineerGrowthStats.slice(0, 8).map((engineer, index) => (
+                <div key={engineer.name} className="relative bg-gradient-to-r from-white to-slate-50 rounded-xl p-5 border border-slate-200 hover:shadow-lg transition-all duration-300 group">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                    {/* ランキング & 基本情報 */}
+                    <div className="lg:col-span-3 flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white shadow-lg ${
+                        index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500' :
+                        index === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-500' :
+                        index === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700' :
+                        'bg-gradient-to-br from-slate-400 to-slate-500'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800">{engineer.name}</h4>
+                        <div className="text-xs text-slate-500">
+                          {engineer.evaluationCount}回評価済み
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* スキルスコア */}
+                    <div className="lg:col-span-4 grid grid-cols-3 gap-2">
+                      <div className="text-center bg-blue-50 rounded-lg p-2">
+                        <div className="text-xs text-blue-600 mb-1">技術</div>
+                        <div className="font-bold text-blue-800">{engineer.latestTechnical || '-'}</div>
+                      </div>
+                      <div className="text-center bg-green-50 rounded-lg p-2">
+                        <div className="text-xs text-green-600 mb-1">コミュ</div>
+                        <div className="font-bold text-green-800">{engineer.latestCommunication || '-'}</div>
+                      </div>
+                      <div className="text-center bg-purple-50 rounded-lg p-2">
+                        <div className="text-xs text-purple-600 mb-1">総合</div>
+                        <div className="font-bold text-purple-800">{engineer.latestOverall || '-'}</div>
+                      </div>
+                    </div>
+
+                    {/* 成長トレンド */}
+                    <div className="lg:col-span-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-slate-600">成長度</span>
+                        <div className={`flex items-center gap-1 ${
+                          engineer.growth > 0 ? 'text-emerald-600' :
+                          engineer.growth < 0 ? 'text-red-600' :
+                          'text-slate-500'
+                        }`}>
+                          <i className={`fas ${
+                            engineer.growth > 0 ? 'fa-arrow-up' :
+                            engineer.growth < 0 ? 'fa-arrow-down' :
+                            'fa-minus'
+                          } text-xs`}></i>
+                          <span className="text-sm font-bold">
+                            {engineer.growth > 0 ? '+' : ''}{engineer.growth}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        最終評価: {engineer.lastEvaluationDate ? new Date(engineer.lastEvaluationDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }) : '-'}
+                      </div>
+                    </div>
+
+                    {/* ステータス */}
+                    <div className="lg:col-span-2 flex flex-col gap-1">
+                      {engineer.hasStrengths && (
+                        <div className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs text-center">
+                          強み記録済
+                        </div>
+                      )}
+                      {engineer.hasGoals && (
+                        <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs text-center">
+                          目標設定済
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* スキル分布チャート */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-3">
+              <i className="fas fa-chart-bar text-blue-500"></i>
+              スキル分布
+            </h3>
+            
+            <div className="space-y-6">
+              {/* 技術力分布 */}
+              <div>
+                <h4 className="font-semibold text-slate-600 mb-3 flex items-center gap-2">
+                  <i className="fas fa-code text-blue-500"></i>
+                  技術力
+                </h4>
+                <div className="space-y-2">
+                  {skillDistribution.technical.map(item => (
+                    <div key={item.rating} className="flex items-center gap-3">
+                      <span className="text-sm font-medium w-8">{item.rating}★</span>
+                      <div className="flex-1 bg-slate-200 rounded-full h-3">
+                        <div 
+                          className="bg-gradient-to-r from-blue-400 to-blue-500 h-3 rounded-full transition-all duration-500"
+                          style={{ width: `${stats.totalEvaluations > 0 ? (item.count / stats.totalEvaluations) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-xs text-slate-500 w-8">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* コミュニケーション力分布 */}
+              <div>
+                <h4 className="font-semibold text-slate-600 mb-3 flex items-center gap-2">
+                  <i className="fas fa-comments text-green-500"></i>
+                  コミュ力
+                </h4>
+                <div className="space-y-2">
+                  {skillDistribution.communication.map(item => (
+                    <div key={item.rating} className="flex items-center gap-3">
+                      <span className="text-sm font-medium w-8">{item.rating}★</span>
+                      <div className="flex-1 bg-slate-200 rounded-full h-3">
+                        <div 
+                          className="bg-gradient-to-r from-green-400 to-green-500 h-3 rounded-full transition-all duration-500"
+                          style={{ width: `${stats.totalEvaluations > 0 ? (item.count / stats.totalEvaluations) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-xs text-slate-500 w-8">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 総合評価分布 */}
+              <div>
+                <h4 className="font-semibold text-slate-600 mb-3 flex items-center gap-2">
+                  <i className="fas fa-trophy text-purple-500"></i>
+                  総合評価
+                </h4>
+                <div className="space-y-2">
+                  {skillDistribution.overall.map(item => (
+                    <div key={item.rating} className="flex items-center gap-3">
+                      <span className="text-sm font-medium w-8">{item.rating}★</span>
+                      <div className="flex-1 bg-slate-200 rounded-full h-3">
+                        <div 
+                          className="bg-gradient-to-r from-purple-400 to-purple-500 h-3 rounded-full transition-all duration-500"
+                          style={{ width: `${stats.totalEvaluations > 0 ? (item.count / stats.totalEvaluations) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-xs text-slate-500 w-8">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 📈 評価トレンド & 🎯 改善アクション */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* 評価の質 */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-3">
+              <i className="fas fa-clipboard-check text-indigo-500"></i>
+              評価の質分析
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <i className="fas fa-thumbs-up text-emerald-600"></i>
+                  <h4 className="font-semibold text-slate-700">強み記録率</h4>
+                </div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {Math.round((allEvaluations.filter(e => e.strengths).length / allEvaluations.length) * 100)}%
+                </div>
+                <p className="text-sm text-slate-600 mt-1">
+                  {allEvaluations.filter(e => e.strengths).length}/{allEvaluations.length} 件で強みを記録
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <i className="fas fa-target text-blue-600"></i>
+                  <h4 className="font-semibold text-slate-700">目標設定率</h4>
+                </div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {Math.round((allEvaluations.filter(e => e.goals_next_period).length / allEvaluations.length) * 100)}%
+                </div>
+                <p className="text-sm text-slate-600 mt-1">
+                  {allEvaluations.filter(e => e.goals_next_period).length}/{allEvaluations.length} 件で目標を設定
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <i className="fas fa-exclamation-triangle text-amber-600"></i>
+                  <h4 className="font-semibold text-slate-700">改善領域記録率</h4>
+                </div>
+                <div className="text-2xl font-bold text-amber-600">
+                  {Math.round((allEvaluations.filter(e => e.improvement_areas).length / allEvaluations.length) * 100)}%
+                </div>
+                <p className="text-sm text-slate-600 mt-1">
+                  {allEvaluations.filter(e => e.improvement_areas).length}/{allEvaluations.length} 件で改善点を記録
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 組織の強み・弱み */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-3">
+              <i className="fas fa-building text-purple-500"></i>
+              組織分析
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+                <h4 className="font-semibold text-emerald-700 mb-3 flex items-center gap-2">
+                  <i className="fas fa-arrow-up"></i>
+                  組織の強み
+                </h4>
+                <ul className="space-y-2 text-sm text-slate-700">
+                  <li className="flex items-center gap-2">
+                    <i className="fas fa-check text-emerald-500"></i>
+                    平均技術力: {stats.avgTechnicalSkill}/5.0
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <i className="fas fa-check text-emerald-500"></i>
+                    高評価者: {stats.highPerformers}名 ({Math.round((stats.highPerformers / allEvaluations.length) * 100)}%)
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <i className="fas fa-check text-emerald-500"></i>
+                    継続評価率: {Math.round((Object.values(groupedByEngineer).filter(evals => evals.length >= 2).length / Object.keys(groupedByEngineer).length) * 100)}%
+                  </li>
+                </ul>
+              </div>
+
+              <div className="p-4 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-200">
+                <h4 className="font-semibold text-red-700 mb-3 flex items-center gap-2">
+                  <i className="fas fa-arrow-down"></i>
+                  改善エリア
+                </h4>
+                <ul className="space-y-2 text-sm text-slate-700">
+                  <li className="flex items-center gap-2">
+                    <i className="fas fa-exclamation text-red-500"></i>
+                    要改善: {stats.needsImprovement}名の低評価者
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <i className="fas fa-exclamation text-red-500"></i>
+                    コミュニケーション平均: {stats.avgCommunicationSkill}/5.0
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <i className="fas fa-exclamation text-red-500"></i>
+                    成長停滞: {engineerGrowthStats.filter(e => e.growth <= 0).length}名
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -255,17 +676,45 @@ export default function HREvaluation() {
               <p className="text-slate-500">エンジニア別評価面談記録・人事考課データ</p>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setShowForm(true);
-              setEditingEvaluation(null);
-              resetForm();
-            }}
-            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
-          >
-            <i className="fas fa-plus"></i>
-            新規評価記録
-          </button>
+          <div className="flex items-center gap-4">
+            {/* ビューモード切り替えボタン */}
+            <div className="flex bg-white rounded-2xl p-1 shadow-lg">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+                  viewMode === 'list'
+                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <i className="fas fa-list"></i>
+                リスト
+              </button>
+              <button
+                onClick={() => setViewMode('dashboard')}
+                className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+                  viewMode === 'dashboard'
+                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <i className="fas fa-chart-bar"></i>
+                ダッシュボード
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowForm(true);
+                setEditingEvaluation(null);
+                resetForm();
+              }}
+              className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
+            >
+              <i className="fas fa-plus"></i>
+              新規評価記録
+            </button>
+          </div>
         </div>
       </div>
 
@@ -320,8 +769,11 @@ export default function HREvaluation() {
         </div>
       </div>
 
-      {/* エンジニア別評価一覧 */}
-      <div className="space-y-6">
+      {/* メインコンテンツ: ビューモードに応じて表示切り替え */}
+      {viewMode === 'dashboard' ? (
+        renderDashboardView()
+      ) : (
+        <div className="space-y-6">
         {Object.keys(groupedByEngineer)
           .filter(engineerName => 
             !filters.engineer_id || 
@@ -429,7 +881,8 @@ export default function HREvaluation() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* 人事評価フォームモーダル */}
       {showForm && (

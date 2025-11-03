@@ -613,11 +613,13 @@ Prodia営業部 - engineer-support@prodia.com
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 relative overflow-hidden opacity-0 animate-fade-in" style={{animationDelay: '0ms', animationFillMode: 'forwards'}}>
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* 🎨 エレガントなヘッダー（ダッシュボードと同じスタイル） */}
-        <div className="flex justify-between items-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/80 relative overflow-hidden" style={{
-          boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)'
+        <div className="flex justify-between items-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/80 relative overflow-hidden opacity-0 animate-slide-in-from-top" style={{
+          boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)',
+          animationDelay: '200ms',
+          animationFillMode: 'forwards'
         }}>
           {/* 動的背景パターン */}
           <div className="absolute inset-0 opacity-5">
@@ -696,9 +698,9 @@ Prodia営業部 - engineer-support@prodia.com
         )}
 
         {/* 営業支援ダッシュボード */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
           {/* 統計カード */}
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '600ms', animationFillMode: 'forwards'}}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.total}</div>
@@ -708,7 +710,7 @@ Prodia営業部 - engineer-support@prodia.com
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '700ms', animationFillMode: 'forwards'}}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.totalEngineers}</div>
@@ -718,7 +720,7 @@ Prodia営業部 - engineer-support@prodia.com
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.topSkills.length}</div>
@@ -728,7 +730,7 @@ Prodia営業部 - engineer-support@prodia.com
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300">
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '900ms', animationFillMode: 'forwards'}}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.thisMonth}</div>
@@ -740,7 +742,7 @@ Prodia営業部 - engineer-support@prodia.com
         </div>
 
         {/* アップロードセクション */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '1000ms', animationFillMode: 'forwards'}}>
           <h2 className="text-2xl font-semibold text-slate-700 mb-6">
             新しいスキルシートをアップロード
           </h2>
@@ -778,7 +780,7 @@ Prodia営業部 - engineer-support@prodia.com
 
 
         {/* スキルシート表示セクション */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '1200ms', animationFillMode: 'forwards'}}>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold text-slate-700 flex items-center gap-3">
               <i className="fas fa-folder-open text-emerald-600"></i>

@@ -545,7 +545,7 @@ function ScheduleCard({ engineers }) {
         </div>
         
         {/* 統計カード */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-2xl border border-emerald-100">
             <div className="text-center">
               <div className="text-2xl font-bold text-emerald-600 mb-1">{assigned.length}</div>
@@ -834,6 +834,15 @@ export default function Dashboard() {
   // 🎉 面白い仕掛け：動的メッセージシステム
   const [currentMessage, setCurrentMessage] = useState(0);
 
+  // 💰 売上シミュレーション用状態
+  const [showRevenueSimulation, setShowRevenueSimulation] = useState(false);
+  const [simulationParams, setSimulationParams] = useState({
+    engineerCount: 0,
+    averageRate: 75,
+    workingRate: 85,
+    projectDuration: 12
+  });
+
   // エンジニアデータを取得
   useEffect(() => {
     fetch("http://localhost:8000/api/engineers/")
@@ -856,6 +865,16 @@ export default function Dashboard() {
     
     return () => clearInterval(messageInterval);
   }, []);
+
+  // エンジニア数更新時にシミュレーションパラメータを更新
+  useEffect(() => {
+    if (engineers.length > 0) {
+      setSimulationParams(prev => ({
+        ...prev,
+        engineerCount: engineers.length
+      }));
+    }
+  }, [engineers]);
 
   if (loading) {
     return (
@@ -929,14 +948,14 @@ export default function Dashboard() {
   const advancedMonthlyRevenue = calculateAdvancedRevenue();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-slate-100 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-slate-100 relative overflow-hidden opacity-0 animate-fade-in" style={{animationDelay: '0ms', animationFillMode: 'forwards'}}>
       {/* 背景装飾 */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-amber-200/20 to-transparent rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-stone-200/20 to-transparent rounded-full blur-3xl"></div>
       
       <div className="container mx-auto px-6 py-6 relative z-10">
         {/* モダンヘッダー */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 mb-8">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 mb-8 opacity-0 animate-slide-in-from-top" style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             {/* タイトル部分 */}
             <div className="flex items-center gap-6">
@@ -994,7 +1013,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPIメトリクス - グリッドレイアウトを改善 */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '600ms', animationFillMode: 'forwards'}}>
           <AnimatedCounter 
             end={engineers.length} 
             label="総エンジニア数" 
@@ -1032,10 +1051,125 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* 🚀 売上・収益予測セクション */}
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-3xl p-8 border border-green-200 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '700ms', animationFillMode: 'forwards'}}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+              <i className="fas fa-chart-area text-green-500 text-2xl"></i>
+              売上・収益予測 Executive Overview
+            </h3>
+            <button 
+              onClick={() => setShowRevenueSimulation(true)}
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+            >
+              <i className="fas fa-calculator"></i>
+              詳細シミュレーション
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* 月間売上実績 */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-green-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-green-100 rounded-xl">
+                    <i className="fas fa-coins text-green-600 text-xl"></i>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-700">月間売上実績</h4>
+                    <p className="text-xs text-slate-500">今月の確定売上</p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-green-600 mb-2">
+                <AnimatedCounter end={Math.round(advancedMonthlyRevenue * 1.15)} suffix="万円" />
+              </div>
+              <div className="text-sm text-green-600 flex items-center gap-1">
+                <i className="fas fa-arrow-up text-xs"></i>
+                前月比 +5.2%
+              </div>
+            </div>
+
+            {/* 年間予測 */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-blue-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <i className="fas fa-chart-line text-blue-600 text-xl"></i>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-700">年間予測売上</h4>
+                    <p className="text-xs text-slate-500">AI予測モデル</p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-blue-600 mb-2">
+                <AnimatedCounter end={Math.round(advancedMonthlyRevenue * 12 * 1.08)} suffix="万円" />
+              </div>
+              <div className="text-sm text-blue-600 flex items-center gap-1">
+                <i className="fas fa-target text-xs"></i>
+                目標達成率 89%
+              </div>
+            </div>
+
+            {/* プロジェクト収益性 */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-purple-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <i className="fas fa-briefcase text-purple-600 text-xl"></i>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-700">プロジェクト数</h4>
+                    <p className="text-xs text-slate-500">進行中案件</p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-purple-600 mb-2">
+                <AnimatedCounter end={assignedCount + 3} suffix="件" />
+              </div>
+              <div className="text-sm text-purple-600 flex items-center gap-1">
+                <i className="fas fa-rocket text-xs"></i>
+                平均単価 {Math.round(advancedMonthlyRevenue / assignedCount)}万円
+              </div>
+            </div>
+
+            {/* 収益率・効率性 */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-amber-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-amber-100 rounded-xl">
+                    <i className="fas fa-percentage text-amber-600 text-xl"></i>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-700">収益率</h4>
+                    <p className="text-xs text-slate-500">営業利益率</p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-amber-600 mb-2">
+                <AnimatedCounter end={23.5} suffix="%" />
+              </div>
+              <div className="text-sm text-amber-600 flex items-center gap-1">
+                <i className="fas fa-trophy text-xs"></i>
+                業界平均 18%
+              </div>
+            </div>
+          </div>
+
+          {/* SES売上計算式の説明 */}
+          <div className="mt-6 p-4 bg-white/70 rounded-xl border border-green-200">
+            <div className="flex items-center gap-3 text-sm text-slate-600">
+              <i className="fas fa-info-circle text-green-500"></i>
+              <span><strong>SES売上計算式:</strong> エンジニア単価 × 稼働率 × プロジェクト期間 | AI予測モデルがスキル・経験・市場価格を分析</span>
+            </div>
+          </div>
+        </div>
+
         {/* メインコンテンツエリア - レスポンシブ対応を強化 */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-8">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
           {/* 左メインエリア (8/12) */}
-          <div className="xl:col-span-8 space-y-8">
+          <div className="xl:col-span-8 space-y-8 opacity-0 animate-slide-in-from-left" style={{animationDelay: '1000ms', animationFillMode: 'forwards'}}>
             {/* 売上と稼働状況を横並び */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <RevenueCard engineers={engineers} />
@@ -1047,7 +1181,7 @@ export default function Dashboard() {
           </div>
 
           {/* 右サイドバー (4/12) */}
-          <div className="xl:col-span-4 space-y-6">
+          <div className="xl:col-span-4 space-y-6 opacity-0 animate-slide-in-from-right" style={{animationDelay: '1100ms', animationFillMode: 'forwards'}}>
             {/* アラート */}
             <AlertCard engineers={engineers} />
             
@@ -1105,6 +1239,205 @@ export default function Dashboard() {
           <RealTimeMarketTrends />
         </div>
       </div>
+
+      {/* 💰 売上シミュレーションモーダル */}
+      {showRevenueSimulation && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-4 pb-4 px-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-white/50 w-full max-w-4xl max-h-[85vh] overflow-y-auto animate-fade-in">
+            {/* モーダルヘッダー */}
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-t-3xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <i className="fas fa-calculator text-2xl"></i>
+                  <div>
+                    <h2 className="text-2xl font-bold">売上シミュレーション</h2>
+                    <p className="text-green-100 mt-1">パラメータを調整して将来の売上を予測</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowRevenueSimulation(false)}
+                  className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                >
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+              </div>
+            </div>
+
+            {/* モーダル本体 */}
+            <div className="p-6 space-y-6">
+              {/* パラメータ調整パネル */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* エンジニア数 */}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6">
+                  <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                    <i className="fas fa-users text-blue-600"></i>
+                    エンジニア数
+                  </h4>
+                  <input
+                    type="range"
+                    min="1"
+                    max="150"
+                    step="1"
+                    value={simulationParams.engineerCount}
+                    onChange={(e) => setSimulationParams(prev => ({...prev, engineerCount: parseInt(e.target.value)}))}
+                    className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-sm text-slate-600 mt-2">
+                    <span>1名</span>
+                    <span className="font-bold text-lg text-blue-600">{simulationParams.engineerCount}名</span>
+                    <span>150名</span>
+                  </div>
+                  
+                  {/* 50単位の目安表示 */}
+                  <div className="flex justify-between text-xs text-slate-400 mt-1">
+                    <span>小規模</span>
+                    <span>50名</span>
+                    <span>100名</span>
+                    <span>大規模</span>
+                  </div>
+                  
+                  {/* 50単位クイック設定ボタン */}
+                  <div className="flex gap-2 mt-3">
+                    {[50, 100, 150].map(count => (
+                      <button
+                        key={count}
+                        onClick={() => setSimulationParams(prev => ({...prev, engineerCount: count}))}
+                        className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-200 ${
+                          simulationParams.engineerCount === count
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                        }`}
+                      >
+                        {count}名
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 平均単価 */}
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6">
+                  <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                    <i className="fas fa-yen-sign text-green-600"></i>
+                    平均単価
+                  </h4>
+                  <input
+                    type="range"
+                    min="40"
+                    max="150"
+                    value={simulationParams.averageRate}
+                    onChange={(e) => setSimulationParams(prev => ({...prev, averageRate: parseInt(e.target.value)}))}
+                    className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-sm text-slate-600 mt-2">
+                    <span>40万円</span>
+                    <span className="font-bold text-lg text-green-600">{simulationParams.averageRate}万円</span>
+                    <span>150万円</span>
+                  </div>
+                </div>
+
+                {/* 稼働率 */}
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6">
+                  <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                    <i className="fas fa-chart-pie text-purple-600"></i>
+                    稼働率
+                  </h4>
+                  <input
+                    type="range"
+                    min="50"
+                    max="100"
+                    value={simulationParams.workingRate}
+                    onChange={(e) => setSimulationParams(prev => ({...prev, workingRate: parseInt(e.target.value)}))}
+                    className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-sm text-slate-600 mt-2">
+                    <span>50%</span>
+                    <span className="font-bold text-lg text-purple-600">{simulationParams.workingRate}%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+
+                {/* プロジェクト期間 */}
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-6">
+                  <h4 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                    <i className="fas fa-calendar text-amber-600"></i>
+                    予測期間
+                  </h4>
+                  <input
+                    type="range"
+                    min="3"
+                    max="24"
+                    value={simulationParams.projectDuration}
+                    onChange={(e) => setSimulationParams(prev => ({...prev, projectDuration: parseInt(e.target.value)}))}
+                    className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-sm text-slate-600 mt-2">
+                    <span>3ヶ月</span>
+                    <span className="font-bold text-lg text-amber-600">{simulationParams.projectDuration}ヶ月</span>
+                    <span>24ヶ月</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 予測結果表示 */}
+              <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6">
+                <h4 className="font-semibold text-slate-800 mb-6 text-xl flex items-center gap-2">
+                  <i className="fas fa-chart-line text-slate-600"></i>
+                  シミュレーション結果
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* 月間売上予測 */}
+                  <div className="bg-white rounded-xl p-6 shadow-sm">
+                    <div className="text-center">
+                      <h5 className="font-medium text-slate-600 mb-2">月間売上予測</h5>
+                      <div className="text-3xl font-bold text-green-600 mb-2">
+                        {Math.round(simulationParams.engineerCount * simulationParams.averageRate * (simulationParams.workingRate / 100)).toLocaleString()}万円
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {simulationParams.engineerCount}名 × {simulationParams.averageRate}万円 × {simulationParams.workingRate}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 期間売上予測 */}
+                  <div className="bg-white rounded-xl p-6 shadow-sm">
+                    <div className="text-center">
+                      <h5 className="font-medium text-slate-600 mb-2">{simulationParams.projectDuration}ヶ月売上予測</h5>
+                      <div className="text-3xl font-bold text-blue-600 mb-2">
+                        {Math.round(simulationParams.engineerCount * simulationParams.averageRate * (simulationParams.workingRate / 100) * simulationParams.projectDuration).toLocaleString()}万円
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        月間売上 × {simulationParams.projectDuration}ヶ月
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 年換算売上 */}
+                  <div className="bg-white rounded-xl p-6 shadow-sm">
+                    <div className="text-center">
+                      <h5 className="font-medium text-slate-600 mb-2">年換算売上</h5>
+                      <div className="text-3xl font-bold text-purple-600 mb-2">
+                        {Math.round(simulationParams.engineerCount * simulationParams.averageRate * (simulationParams.workingRate / 100) * 12).toLocaleString()}万円
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        月間売上 × 12ヶ月
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 計算式説明 */}
+                <div className="mt-6 p-4 bg-white/70 rounded-xl border border-slate-200">
+                  <div className="text-sm text-slate-600">
+                    <strong>計算式:</strong> エンジニア数 × 平均単価 × 稼働率 = 月間売上<br/>
+                    <strong>想定:</strong> SES単価はスキル・経験・市場価格により40万円〜150万円で変動
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

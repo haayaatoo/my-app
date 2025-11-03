@@ -4,7 +4,8 @@ from .views import (
     EngineerViewSet, SkillSheetViewSet, SalesMemoViewSet, MemoAttachmentViewSet, 
     InterviewViewSet, login_view, logout_view, change_password_view,
     market_trends_view, market_summary_view, aichi_market_trends_view, 
-    aichi_market_summary_view, regional_comparison_view
+    aichi_market_summary_view, regional_comparison_view,
+    RecruitmentChannelViewSet, SocialMediaPostViewSet
 )
 
 router = routers.DefaultRouter()
@@ -13,6 +14,8 @@ router.register(r'skillsheets', SkillSheetViewSet)
 router.register(r'memos', SalesMemoViewSet)
 router.register(r'memo-attachments', MemoAttachmentViewSet)
 router.register(r'interviews', InterviewViewSet)
+router.register(r'recruitment-channels', RecruitmentChannelViewSet)
+router.register(r'social-posts', SocialMediaPostViewSet)
 
 urlpatterns = router.urls + [
     path('auth/login/', login_view, name='login'),

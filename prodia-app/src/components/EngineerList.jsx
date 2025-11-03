@@ -398,7 +398,7 @@ export default function EngineerList() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 opacity-0 animate-fade-in" style={{animationDelay: '0ms', animationFillMode: 'forwards'}}>
       {/* モダン・ラグジュアリー通知 */}
       {notification && (
         <div className={`fixed top-6 right-6 z-50 px-8 py-4 rounded-3xl backdrop-blur-sm text-white font-medium animate-bounce-in flex items-center gap-4 border border-white/20 ${
@@ -417,24 +417,28 @@ export default function EngineerList() {
 
       <div className="container mx-auto px-6 py-8">
         {/* 新しいスタイリッシュヘッダー */}
-        <EngineerListHeader 
-          engineersCount={engineers.length}
-          onAddNew={() => setShowForm(true)}
-          showStats={showStats}
-          onToggleStats={() => setShowStats(!showStats)}
-        />
+        <div className="opacity-0 animate-slide-in-from-top" style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
+          <EngineerListHeader 
+            engineersCount={engineers.length}
+            onAddNew={() => setShowForm(true)}
+            showStats={showStats}
+            onToggleStats={() => setShowStats(!showStats)}
+          />
+        </div>
 
         {/* 統計情報（条件付き表示） */}
         {showStats && (
-          <div className="mb-8 transform transition-all duration-500 ease-in-out">
+          <div className="mb-8 transform transition-all duration-500 ease-in-out opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
             <EngineerStats engineers={engineers} />
           </div>
         )}
 
       {/* モダン・ラグジュアリー一括操作バー */}
       {selectedEngineers.length > 0 && (
-        <div className="mb-10 p-6 bg-gradient-to-r from-amber-50 via-white to-stone-50 backdrop-blur-sm rounded-3xl border border-amber-200/50" style={{
-          boxShadow: '0 15px 40px rgba(0,0,0,0.08), 0 6px 16px rgba(251,191,36,0.15)'
+        <div className="mb-10 p-6 bg-gradient-to-r from-amber-50 via-white to-stone-50 backdrop-blur-sm rounded-3xl border border-amber-200/50 opacity-0 animate-slide-in-from-bottom" style={{
+          boxShadow: '0 15px 40px rgba(0,0,0,0.08), 0 6px 16px rgba(251,191,36,0.15)',
+          animationDelay: '500ms',
+          animationFillMode: 'forwards'
         }}>
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -574,8 +578,10 @@ export default function EngineerList() {
         </div>
       </div>
       {/* モダン・ラグジュアリー検索フィルタ + ソート */}
-      <div className="mb-10 p-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-white/90" style={{
-        boxShadow: '0 20px 50px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.04)'
+      <div className="mb-10 p-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-white/90 opacity-0 animate-slide-in-from-bottom" style={{
+        boxShadow: '0 20px 50px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.04)',
+        animationDelay: '600ms',
+        animationFillMode: 'forwards'
       }}>
         <div className="flex flex-col gap-8">
           {/* 全選択チェックボックス - エレガント */}
@@ -710,7 +716,7 @@ export default function EngineerList() {
         </div>
       </div>
       {/* エンジニア一覧 - スタイリッシュアニメーション付き */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
         {filtered.map((e, index) => (
           <div 
             key={e.id}

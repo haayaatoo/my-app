@@ -8,14 +8,16 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.models import Session
 from django.utils import timezone
 from django.db import transaction
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost
 from .serializers import (
     EngineerSerializer, 
     SkillSheetSerializer, 
     SalesMemoSerializer, 
     MemoAttachmentSerializer,
     EngineerDetailSerializer,
-    InterviewSerializer
+    InterviewSerializer,
+    RecruitmentChannelSerializer,
+    SocialMediaPostSerializer
 )
 
 class EngineerViewSet(viewsets.ModelViewSet):
@@ -573,3 +575,123 @@ def regional_comparison_view(request):
             'error': f'地域比較データ取得エラー: {str(e)}',
             'success': False
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# 採用経路管理ViewSet
+class RecruitmentChannelViewSet(viewsets.ModelViewSet):
+    queryset = RecruitmentChannel.objects.all()
+    serializer_class = RecruitmentChannelSerializer
+    
+    def get_queryset(self):
+        queryset = RecruitmentChannel.objects.all()
+        
+        # フィルタリング
+        channel = self.request.query_params.get('channel')
+        status = self.request.query_params.get('status')  
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        
+        if channel:
+            queryset = queryset.filter(channel=channel)
+        if status:
+            queryset = queryset.filter(status=status)
+        if date_from:
+            queryset = queryset.filter(applied_at__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(applied_at__date__lte=date_to)
+            
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """採用経路別統計データ"""
+        queryset = self.get_queryset()
+        
+        # 全体統計
+        total_applications = queryset.count()
+        hired_count = queryset.filter(status='hired').count()
+        hiring_rate = (hired_count / total_applications * 100) if total_applications > 0 else 0
+        
+        # 採用経路別統計
+        channel_stats = {}
+        for choice in RecruitmentChannel.CHANNEL_CHOICES:
+            channel_code = choice[0]
+            channel_applications = queryset.filter(channel=channel_code)
+            channel_hired = channel_applications.filter(status='hired').count()
+            channel_total = channel_applications.count()
+            channel_rate = (channel_hired / channel_total * 100) if channel_total > 0 else 0
+            
+            channel_stats[channel_code] = {
+                'name': choice[1],
+                'total_applications': channel_total,
+                'hired_count': channel_hired,
+                'hiring_rate': round(channel_rate, 1)
+            }
+        
+        return Response({
+            'overall': {
+                'total_applications': total_applications,
+                'hired_count': hired_count,
+                'hiring_rate': round(hiring_rate, 1)
+            },
+            'by_channel': channel_stats
+        })
+
+
+# SNS投稿管理ViewSet  
+class SocialMediaPostViewSet(viewsets.ModelViewSet):
+    queryset = SocialMediaPost.objects.all()
+    serializer_class = SocialMediaPostSerializer
+    
+    def get_queryset(self):
+        queryset = SocialMediaPost.objects.all()
+        
+        # プラットフォーム別フィルタリング
+        platform = self.request.query_params.get('platform')
+        if platform:
+            queryset = queryset.filter(platform=platform)
+            
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def analytics(self, request):
+        """SNS投稿分析データ"""
+        queryset = self.get_queryset()
+        
+        # 全体統計
+        total_posts = queryset.count()
+        total_views = sum(post.views_count for post in queryset)
+        total_likes = sum(post.likes_count for post in queryset)
+        total_comments = sum(post.comments_count for post in queryset)
+        total_shares = sum(post.shares_count for post in queryset)
+        
+        # 平均エンゲージメント率
+        avg_engagement = sum(float(post.engagement_rate) for post in queryset) / total_posts if total_posts > 0 else 0
+        
+        # プラットフォーム別統計
+        platform_stats = {}
+        for choice in SocialMediaPost.PLATFORM_CHOICES:
+            platform_code = choice[0]
+            platform_posts = queryset.filter(platform=platform_code)
+            platform_count = platform_posts.count()
+            
+            if platform_count > 0:
+                platform_stats[platform_code] = {
+                    'name': choice[1],
+                    'posts_count': platform_count,
+                    'total_views': sum(p.views_count for p in platform_posts),
+                    'total_likes': sum(p.likes_count for p in platform_posts),
+                    'avg_engagement': sum(float(p.engagement_rate) for p in platform_posts) / platform_count
+                }
+        
+        return Response({
+            'overall': {
+                'total_posts': total_posts,
+                'total_views': total_views,
+                'total_likes': total_likes,
+                'total_comments': total_comments,
+                'total_shares': total_shares,
+                'avg_engagement_rate': round(avg_engagement, 2)
+            },
+            'by_platform': platform_stats
+        })

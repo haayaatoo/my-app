@@ -10,6 +10,9 @@ export default function InterviewManager() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingInterview, setEditingInterview] = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'cards', 'dashboard'
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState(null);
   const [filters, setFilters] = useState({
     engineer_id: '',
     interview_type: '',
@@ -191,6 +194,1001 @@ export default function InterviewManager() {
     }
   };
 
+  // 🎨 カード型表示関数（改良版）
+  const renderCardView = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+      {interviews.map(interview => {
+        const engineer = engineers.find(e => e.id === interview.engineer);
+        const statusConfig = {
+          'pass': { 
+            color: 'bg-emerald-500 text-white border-emerald-600', 
+            icon: '✓', 
+            text: '合格',
+            iconClass: 'fas fa-check-circle',
+            gradient: 'from-emerald-400 to-emerald-500'
+          },
+          'fail': { 
+            color: 'bg-red-500 text-white border-red-600', 
+            icon: '✗', 
+            text: '不合格',
+            iconClass: 'fas fa-times-circle',
+            gradient: 'from-red-400 to-red-500'
+          },
+          'pending': { 
+            color: 'bg-amber-500 text-white border-amber-600', 
+            icon: '◔', 
+            text: '保留中',
+            iconClass: 'fas fa-clock',
+            gradient: 'from-amber-400 to-amber-500'
+          },
+          'canceled': { 
+            color: 'bg-gray-500 text-white border-gray-600', 
+            icon: '⊗', 
+            text: 'キャンセル',
+            iconClass: 'fas fa-ban',
+            gradient: 'from-gray-400 to-gray-500'
+          }
+        };
+
+        const status = statusConfig[interview.result] || statusConfig.pending;
+        const isRecent = new Date(interview.interview_date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const avatarColor = engineer?.name 
+          ? `from-${['blue', 'green', 'purple', 'pink', 'indigo'][engineer.name.charCodeAt(0) % 5]}-400 to-${['blue', 'green', 'purple', 'pink', 'indigo'][engineer.name.charCodeAt(0) % 5]}-500`
+          : 'from-gray-400 to-gray-500';
+
+        const cardBorder = {
+          'pass': 'border-l-4 border-l-emerald-500 bg-emerald-50/30',
+          'fail': 'border-l-4 border-l-red-500 bg-red-50/30',
+          'pending': 'border-l-4 border-l-amber-500 bg-amber-50/30',
+          'canceled': 'border-l-4 border-l-gray-500 bg-gray-50/30',
+        };
+
+        const cardStyle = cardBorder[interview.result] || cardBorder.pending;
+
+        return (
+          <div key={interview.id} className={`group relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.03] border border-white/60 overflow-hidden ${cardStyle}`}>
+            {/* 新しい面談の場合のリボン */}
+            {isRecent && (
+              <div className="absolute top-0 right-0 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs px-3 py-1 rounded-bl-lg">
+                NEW
+              </div>
+            )}
+
+            {/* カードヘッダー */}
+            <div className="flex items-start gap-3 mb-5">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className={`w-14 h-14 bg-gradient-to-br ${avatarColor} rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-md flex-shrink-0`}>
+                  {engineer?.name.charAt(0) || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-slate-800 text-lg truncate">{engineer?.name || '不明なエンジニア'}</h3>
+                  <p className="text-slate-500 text-sm">ID: {engineer?.id || 'N/A'}</p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                <span className={`w-24 h-10 rounded-full text-xs font-bold border-2 shadow-lg ${status.color} flex items-center justify-center gap-1 flex-shrink-0`}>
+                  <i className={`${status.iconClass} text-sm`}></i>
+                  <span className="truncate">{status.text}</span>
+                </span>
+                {interview.priority && (
+                  <span className="w-20 h-6 bg-orange-100 text-orange-700 rounded-full text-xs font-medium flex items-center justify-center flex-shrink-0">
+                    優先{interview.priority}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 面談詳細情報 */}
+            <div className="space-y-4">
+              {/* 会社情報 */}
+              <div className="bg-slate-50 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-slate-700 mb-2">
+                  <i className="fas fa-building text-blue-500"></i>
+                  <span className="font-semibold text-lg">{interview.client_company || '会社名未設定'}</span>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-slate-600">
+                  <div className="flex items-center gap-1">
+                    <i className="fas fa-calendar text-green-500"></i>
+                    <span>{new Date(interview.interview_date).toLocaleDateString('ja-JP', { 
+                      year: 'numeric', 
+                      month: 'short', 
+                      day: 'numeric',
+                      weekday: 'short'
+                    })}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <i className="fas fa-clock text-amber-500"></i>
+                    <span>{interview.interview_time || '時間未設定'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* メモ・次のアクション */}
+              {(interview.notes || interview.next_action) && (
+                <div className="space-y-3">
+                  {interview.notes && (
+                    <div className="bg-blue-50 rounded-lg p-3 border-l-4 border-blue-400">
+                      <div className="flex items-start gap-2">
+                        <i className="fas fa-comment-alt text-blue-500 mt-0.5"></i>
+                        <div>
+                          <p className="text-blue-700 text-xs font-medium mb-1">メモ</p>
+                          <p className="text-slate-600 text-sm leading-relaxed line-clamp-2">{interview.notes}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {interview.next_action && (
+                    <div className="bg-amber-50 rounded-lg p-3 border-l-4 border-amber-400">
+                      <div className="flex items-start gap-2">
+                        <i className="fas fa-tasks text-amber-500 mt-0.5"></i>
+                        <div>
+                          <p className="text-amber-700 text-xs font-medium mb-1">次のアクション</p>
+                          <p className="text-slate-600 text-sm">{interview.next_action}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 不合格理由 */}
+              {interview.result === 'fail' && interview.rejection_reason && (
+                <div className="bg-red-50 rounded-lg p-3 border-l-4 border-red-400">
+                  <div className="flex items-start gap-2">
+                    <i className="fas fa-times-circle text-red-500 mt-0.5"></i>
+                    <div>
+                      <p className="text-red-700 text-xs font-medium mb-1">不合格理由</p>
+                      <p className="text-slate-600 text-sm">{interview.rejection_reason}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* フッター アクションボタン */}
+            <div className="flex gap-2 mt-6 pt-4 border-t border-slate-100">
+              <button 
+                onClick={() => {
+                  setEditingInterview(interview);
+                  setFormData({
+                    engineer: interview.engineer,
+                    interview_date: interview.interview_date,
+                    interview_type: interview.interview_type,
+                    client_company: interview.client_company,
+                    result: interview.result,
+                    rejection_reason: interview.rejection_reason || '',
+                    notes: interview.notes || '',
+                    next_action: interview.next_action || ''
+                  });
+                  setShowForm(true);
+                }}
+                className="flex-1 px-3 py-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all duration-200 text-sm font-medium flex items-center justify-center gap-2 border border-amber-200 hover:border-amber-300"
+              >
+                <i className="fas fa-pencil-alt"></i>
+                編集
+              </button>
+              <button 
+                onClick={() => {
+                  setSelectedInterview(interview);
+                  setShowDetailModal(true);
+                }}
+                className="flex-1 px-3 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl transition-all duration-200 text-sm font-medium flex items-center justify-center gap-2 border border-slate-200 hover:border-slate-300"
+              >
+                <i className="fas fa-info-circle"></i>
+                詳細
+              </button>
+              <button 
+                onClick={() => {
+                  const url = `https://www.google.com/search?q=${encodeURIComponent(interview.client_company || 'エンジニア面談')}`;
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                }}
+                className="px-3 py-2.5 text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-200 text-sm border border-blue-200 hover:border-blue-300"
+                title="クライアント企業を検索"
+              >
+                <i className="fas fa-external-link-alt"></i>
+              </button>
+            </div>
+
+            {/* ホバー時のグラデーション効果 */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // 📊 高精度ダッシュボード表示関数
+  const renderDashboardView = () => {
+    // 詳細統計データ計算
+    const now = new Date();
+    const completedInterviews = interviews.filter(i => i.result && i.result !== 'pending');
+    const thisWeek = interviews.filter(i => {
+      const interviewDate = new Date(i.interview_date);
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay());
+      return interviewDate >= weekStart;
+    });
+    const lastWeek = interviews.filter(i => {
+      const interviewDate = new Date(i.interview_date);
+      const lastWeekStart = new Date(now);
+      lastWeekStart.setDate(now.getDate() - now.getDay() - 7);
+      const lastWeekEnd = new Date(now);
+      lastWeekEnd.setDate(now.getDate() - now.getDay() - 1);
+      return interviewDate >= lastWeekStart && interviewDate <= lastWeekEnd;
+    });
+
+    const stats = {
+      total: interviews.length,
+      pass: interviews.filter(i => i.result === 'pass').length,
+      fail: interviews.filter(i => i.result === 'fail').length,
+      pending: interviews.filter(i => i.result === 'pending').length,
+      canceled: interviews.filter(i => i.result === 'canceled').length,
+      
+      // 面談通過率 (重要指標)
+      passRate: completedInterviews.length > 0 
+        ? Math.round((interviews.filter(i => i.result === 'pass').length / completedInterviews.length) * 100)
+        : 0,
+      
+      // 決定率 (合格+不合格の割合)
+      decisionRate: interviews.length > 0 
+        ? Math.round((completedInterviews.length / interviews.length) * 100)
+        : 0,
+      
+      // 時期別統計
+      thisMonth: interviews.filter(i => {
+        const interviewDate = new Date(i.interview_date);
+        return interviewDate.getMonth() === now.getMonth() && 
+               interviewDate.getFullYear() === now.getFullYear();
+      }).length,
+      lastMonth: interviews.filter(i => {
+        const interviewDate = new Date(i.interview_date);
+        const lastMonth = new Date();
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        return interviewDate.getMonth() === lastMonth.getMonth() && 
+               interviewDate.getFullYear() === lastMonth.getFullYear();
+      }).length,
+      thisWeek: thisWeek.length,
+      lastWeek: lastWeek.length,
+      
+      // 今月の通過率
+      thisMonthPassRate: (() => {
+        const thisMonthInterviews = interviews.filter(i => {
+          const interviewDate = new Date(i.interview_date);
+          return interviewDate.getMonth() === now.getMonth() && 
+                 interviewDate.getFullYear() === now.getFullYear();
+        });
+        const thisMonthCompleted = thisMonthInterviews.filter(i => i.result && i.result !== 'pending');
+        const thisMonthPass = thisMonthInterviews.filter(i => i.result === 'pass');
+        return thisMonthCompleted.length > 0 
+          ? Math.round((thisMonthPass.length / thisMonthCompleted.length) * 100)
+          : 0;
+      })(),
+      
+      // 平均面談期間 (面談日から結果確定まで)
+      avgDecisionDays: completedInterviews.length > 0 
+        ? Math.round(completedInterviews.reduce((acc, interview) => {
+            // 簡易計算: 結果がある場合は1-3日、保留は7日と仮定
+            return acc + (interview.result === 'pass' || interview.result === 'fail' ? 2 : 7);
+          }, 0) / completedInterviews.length)
+        : 0
+    };
+
+    // エンジニア別詳細統計
+    const engineerStats = engineers.map(engineer => {
+      const engineerInterviews = interviews.filter(i => i.engineer === engineer.id);
+      const engineerCompleted = engineerInterviews.filter(i => i.result && i.result !== 'pending');
+      const thisMonthInterviews = engineerInterviews.filter(i => {
+        const interviewDate = new Date(i.interview_date);
+        return interviewDate.getMonth() === now.getMonth() && 
+               interviewDate.getFullYear() === now.getFullYear();
+      });
+      
+      return {
+        ...engineer,
+        totalInterviews: engineerInterviews.length,
+        passCount: engineerInterviews.filter(i => i.result === 'pass').length,
+        failCount: engineerInterviews.filter(i => i.result === 'fail').length,
+        pendingCount: engineerInterviews.filter(i => i.result === 'pending').length,
+        canceledCount: engineerInterviews.filter(i => i.result === 'canceled').length,
+        
+        // 通過率 (決定済み面談に対する合格率)
+        passRate: engineerCompleted.length > 0 
+          ? Math.round((engineerInterviews.filter(i => i.result === 'pass').length / engineerCompleted.length) * 100)
+          : 0,
+          
+        // 活動率 (今月の面談数)
+        thisMonthActivity: thisMonthInterviews.length,
+        
+        // 成功度スコア (合格数 × 2 + 面談数)
+        successScore: (engineerInterviews.filter(i => i.result === 'pass').length * 2) + engineerInterviews.length,
+        
+        // 最近の面談履歴
+        recentInterviews: engineerInterviews
+          .sort((a, b) => new Date(b.interview_date) - new Date(a.interview_date))
+          .slice(0, 3),
+          
+        // 最後の面談からの日数
+        lastInterviewDays: engineerInterviews.length > 0 
+          ? Math.floor((now - new Date(Math.max(...engineerInterviews.map(i => new Date(i.interview_date))))) / (1000 * 60 * 60 * 24))
+          : null,
+          
+        // 面談企業のユニーク数
+        uniqueCompanies: new Set(engineerInterviews.map(i => i.client_company)).size
+      };
+    }).sort((a, b) => b.successScore - a.successScore);
+
+    // 月別詳細推移データ（過去6ヶ月）
+    const monthlyData = Array.from({ length: 6 }, (_, i) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - (5 - i));
+      const monthInterviews = interviews.filter(interview => {
+        const interviewDate = new Date(interview.interview_date);
+        return interviewDate.getMonth() === date.getMonth() && 
+               interviewDate.getFullYear() === date.getFullYear();
+      });
+      
+      const monthCompleted = monthInterviews.filter(i => i.result && i.result !== 'pending');
+      const monthPass = monthInterviews.filter(i => i.result === 'pass');
+      
+      return {
+        month: `${date.getMonth() + 1}月`,
+        total: monthInterviews.length,
+        pass: monthPass.length,
+        fail: monthInterviews.filter(i => i.result === 'fail').length,
+        pending: monthInterviews.filter(i => i.result === 'pending').length,
+        canceled: monthInterviews.filter(i => i.result === 'canceled').length,
+        passRate: monthCompleted.length > 0 ? Math.round((monthPass.length / monthCompleted.length) * 100) : 0,
+        uniqueEngineers: new Set(monthInterviews.map(i => i.engineer)).size,
+        uniqueCompanies: new Set(monthInterviews.map(i => i.client_company)).size
+      };
+    });
+
+    return (
+      <div className="space-y-8">
+        {/* 📊 主要KPI統計サマリー */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          {/* 総面談数 */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-blue-100 text-sm">総面談数</p>
+                  <p className="text-3xl font-bold">{stats.total}</p>
+                </div>
+                <i className="fas fa-handshake text-4xl text-blue-200"></i>
+              </div>
+              <div className="flex items-center justify-between text-blue-100 text-xs">
+                <span>今月: {stats.thisMonth}件</span>
+                <div className={`flex items-center gap-1 ${stats.thisMonth >= stats.lastMonth ? 'text-green-300' : 'text-red-300'}`}>
+                  <i className={`fas ${stats.thisMonth >= stats.lastMonth ? 'fa-arrow-up' : 'fa-arrow-down'}`}></i>
+                  <span>{stats.thisMonth >= stats.lastMonth ? '+' : ''}{stats.thisMonth - stats.lastMonth}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 面談通過率 (重要KPI) */}
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-emerald-100 text-sm">面談通過率</p>
+                  <p className="text-3xl font-bold">{stats.passRate}%</p>
+                </div>
+                <i className="fas fa-percentage text-4xl text-emerald-200"></i>
+              </div>
+              <div className="flex items-center justify-between text-emerald-100 text-xs">
+                <span>合格: {stats.pass}件</span>
+                <span>今月: {stats.thisMonthPassRate}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 決定率 */}
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-purple-100 text-sm">決定率</p>
+                  <p className="text-3xl font-bold">{stats.decisionRate}%</p>
+                </div>
+                <i className="fas fa-chart-line text-4xl text-purple-200"></i>
+              </div>
+              <div className="flex items-center justify-between text-purple-100 text-xs">
+                <span>決定済: {stats.pass + stats.fail}件</span>
+                <span>保留: {stats.pending}件</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 平均決定日数 */}
+          <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-amber-100 text-sm">平均決定日数</p>
+                  <p className="text-3xl font-bold">{stats.avgDecisionDays}</p>
+                </div>
+                <i className="fas fa-clock text-4xl text-amber-200"></i>
+              </div>
+              <div className="flex items-center justify-between text-amber-100 text-xs">
+                <span>今週: {stats.thisWeek}件</span>
+                <span>先週: {stats.lastWeek}件</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 活動状況 */}
+          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -mr-10 -mt-10"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-indigo-100 text-sm">活動状況</p>
+                  <p className="text-2xl font-bold">
+                    {stats.pending > 0 ? '進行中' : '安定'}
+                  </p>
+                </div>
+                <i className={`fas ${stats.pending > 0 ? 'fa-spinner fa-spin' : 'fa-check-circle'} text-4xl text-indigo-200`}></i>
+              </div>
+              <div className="flex items-center justify-between text-indigo-100 text-xs">
+                <span>保留中: {stats.pending}件</span>
+                {stats.canceled > 0 && <span>キャンセル: {stats.canceled}件</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 🏆 エンジニア別パフォーマンス & 📅 月別推移 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* エンジニア別パフォーマンス */}
+          <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-700 flex items-center gap-3">
+                <i className="fas fa-trophy text-amber-500"></i>
+                エンジニア別パフォーマンス
+              </h3>
+              <div className="text-sm text-slate-500">
+                上位{Math.min(6, engineerStats.length)}名
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              {engineerStats.slice(0, 8).map((engineer, index) => (
+                <div key={engineer.id} className="relative bg-gradient-to-r from-white to-slate-50 rounded-xl p-5 border border-slate-200 hover:shadow-lg transition-all duration-300 group">
+                  <div className="flex items-center gap-5">
+                    {/* ランキングバッジ */}
+                    <div className="flex-shrink-0">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-lg ${
+                        index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-500' :
+                        index === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-500' :
+                        index === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700' :
+                        'bg-gradient-to-br from-slate-400 to-slate-500'
+                      }`}>
+                        {index + 1}
+                      </div>
+                    </div>
+
+                    {/* エンジニア詳細情報 */}
+                    <div className="flex-1">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                        {/* 基本情報 */}
+                        <div className="lg:col-span-3">
+                          <h4 className="font-bold text-slate-800 text-lg mb-1">{engineer.name}</h4>
+                          <div className="flex items-center gap-3 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <i className="fas fa-building"></i>
+                              {engineer.uniqueCompanies}社
+                            </span>
+                            {engineer.lastInterviewDays !== null && (
+                              <span className="flex items-center gap-1">
+                                <i className="fas fa-calendar-alt"></i>
+                                {engineer.lastInterviewDays}日前
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 面談統計 */}
+                        <div className="lg:col-span-4">
+                          <div className="grid grid-cols-4 gap-2 text-center">
+                            <div className="bg-blue-50 rounded-lg p-2">
+                              <div className="text-xs text-blue-600 mb-1">総数</div>
+                              <div className="font-bold text-blue-800">{engineer.totalInterviews}</div>
+                            </div>
+                            <div className="bg-emerald-50 rounded-lg p-2">
+                              <div className="text-xs text-emerald-600 mb-1">合格</div>
+                              <div className="font-bold text-emerald-800">{engineer.passCount}</div>
+                            </div>
+                            <div className="bg-red-50 rounded-lg p-2">
+                              <div className="text-xs text-red-600 mb-1">不合格</div>
+                              <div className="font-bold text-red-800">{engineer.failCount}</div>
+                            </div>
+                            <div className="bg-amber-50 rounded-lg p-2">
+                              <div className="text-xs text-amber-600 mb-1">保留</div>
+                              <div className="font-bold text-amber-800">{engineer.pendingCount}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 通過率と活動状況 */}
+                        <div className="lg:col-span-3">
+                          <div className="space-y-3">
+                            {/* 通過率バー */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-slate-600">通過率</span>
+                                <span className="text-sm font-bold text-slate-800">{engineer.passRate}%</span>
+                              </div>
+                              <div className="w-full bg-slate-200 rounded-full h-2">
+                                <div 
+                                  className="bg-gradient-to-r from-emerald-400 to-emerald-500 h-2 rounded-full transition-all duration-700 relative"
+                                  style={{ width: `${engineer.passRate}%` }}
+                                >
+                                  <div className="absolute inset-0 bg-white/30 rounded-full group-hover:animate-pulse"></div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* 今月の活動 */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-600">今月活動</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm font-semibold text-slate-800">{engineer.thisMonthActivity}件</span>
+                                {engineer.thisMonthActivity > 0 && (
+                                  <i className="fas fa-fire text-orange-500 animate-pulse"></i>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 最近の面談結果 & スコア */}
+                        <div className="lg:col-span-2">
+                          <div className="flex flex-col items-center gap-2">
+                            {/* 成功度スコア */}
+                            <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              engineer.successScore >= 10 ? 'bg-emerald-100 text-emerald-700' :
+                              engineer.successScore >= 5 ? 'bg-blue-100 text-blue-700' :
+                              'bg-slate-100 text-slate-700'
+                            }`}>
+                              スコア: {engineer.successScore}
+                            </div>
+                            
+                            {/* 最近の面談結果ドット */}
+                            <div className="flex gap-1">
+                              {engineer.recentInterviews.map((interview, idx) => (
+                                <div
+                                  key={`${interview.id}-${idx}`}
+                                  className={`w-3 h-3 rounded-full border border-white shadow-sm ${
+                                    interview.result === 'pass' ? 'bg-emerald-400' :
+                                    interview.result === 'fail' ? 'bg-red-400' :
+                                    interview.result === 'pending' ? 'bg-amber-400' :
+                                    'bg-gray-400'
+                                  }`}
+                                  title={`${interview.client_company} - ${interview.result || '未定'}`}
+                                ></div>
+                              ))}
+                              {Array.from({ length: Math.max(0, 3 - engineer.recentInterviews.length) }).map((_, idx) => (
+                                <div key={`empty-${idx}`} className="w-3 h-3 rounded-full bg-slate-200"></div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ホバー効果 */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-50/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl pointer-events-none"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 月別詳細推移分析 */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-3">
+              <i className="fas fa-chart-area text-blue-500"></i>
+              月別推移分析
+            </h3>
+            
+            <div className="space-y-5">
+              {monthlyData.map((data, index) => (
+                <div key={index} className="bg-gradient-to-r from-slate-50 to-white rounded-xl p-4 border border-slate-100">
+                  {/* 月別ヘッダー */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-800 text-lg">{data.month}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        data.passRate >= 70 ? 'bg-emerald-100 text-emerald-700' :
+                        data.passRate >= 50 ? 'bg-blue-100 text-blue-700' :
+                        data.passRate >= 30 ? 'bg-amber-100 text-amber-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        通過率 {data.passRate}%
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-slate-800 font-semibold">{data.total}件</div>
+                      <div className="text-xs text-slate-500">{data.uniqueEngineers}人が活動</div>
+                    </div>
+                  </div>
+                  
+                  {/* プログレスバー */}
+                  <div className="mb-3">
+                    <div className="flex h-4 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                      {data.total > 0 && (
+                        <>
+                          <div 
+                            className="bg-gradient-to-r from-emerald-400 to-emerald-500 flex items-center justify-center"
+                            style={{ width: `${(data.pass / data.total) * 100}%` }}
+                            title={`合格: ${data.pass}件`}
+                          >
+                            {data.pass > 0 && <span className="text-white text-xs font-bold">{data.pass}</span>}
+                          </div>
+                          <div 
+                            className="bg-gradient-to-r from-red-400 to-red-500 flex items-center justify-center"
+                            style={{ width: `${(data.fail / data.total) * 100}%` }}
+                            title={`不合格: ${data.fail}件`}
+                          >
+                            {data.fail > 0 && <span className="text-white text-xs font-bold">{data.fail}</span>}
+                          </div>
+                          <div 
+                            className="bg-gradient-to-r from-amber-400 to-amber-500 flex items-center justify-center"
+                            style={{ width: `${(data.pending / data.total) * 100}%` }}
+                            title={`保留: ${data.pending}件`}
+                          >
+                            {data.pending > 0 && <span className="text-white text-xs font-bold">{data.pending}</span>}
+                          </div>
+                          {data.canceled > 0 && (
+                            <div 
+                              className="bg-gradient-to-r from-gray-400 to-gray-500 flex items-center justify-center"
+                              style={{ width: `${(data.canceled / data.total) * 100}%` }}
+                              title={`キャンセル: ${data.canceled}件`}
+                            >
+                              <span className="text-white text-xs font-bold">{data.canceled}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 詳細統計 */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-gradient-to-br from-emerald-400 to-emerald-500 rounded-full"></div>
+                      <span className="text-slate-600">合格: <strong className="text-emerald-600">{data.pass}件</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-gradient-to-br from-red-400 to-red-500 rounded-full"></div>
+                      <span className="text-slate-600">不合格: <strong className="text-red-600">{data.fail}件</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full"></div>
+                      <span className="text-slate-600">保留: <strong className="text-amber-600">{data.pending}件</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full"></div>
+                      <span className="text-slate-600">企業: <strong className="text-blue-600">{data.uniqueCompanies}社</strong></span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* 推移サマリー */}
+            <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+              <h4 className="font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                <i className="fas fa-lightbulb text-blue-500"></i>
+                推移分析
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-trending-up text-emerald-500"></i>
+                  <span className="text-slate-600">
+                    最高通過率: <strong className="text-emerald-600">{Math.max(...monthlyData.map(d => d.passRate))}%</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-chart-bar text-blue-500"></i>
+                  <span className="text-slate-600">
+                    月平均: <strong className="text-blue-600">{Math.round(monthlyData.reduce((acc, d) => acc + d.total, 0) / monthlyData.length)}件</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <i className="fas fa-users text-purple-500"></i>
+                  <span className="text-slate-600">
+                    参加エンジニア総数: <strong className="text-purple-600">{Math.max(...monthlyData.map(d => d.uniqueEngineers))}人</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 📈 最近の活動 & 🎯 今後のアクション */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* 最近の活動 */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-3">
+              <i className="fas fa-history text-purple-500"></i>
+              最近の面談活動
+            </h3>
+            
+            <div className="space-y-4">
+              {interviews
+                .sort((a, b) => new Date(b.interview_date) - new Date(a.interview_date))
+                .slice(0, 5)
+                .map(interview => {
+                  const engineer = engineers.find(e => e.id === interview.engineer);
+                  const isRecent = new Date(interview.interview_date) > new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+                  
+                  return (
+                    <div key={interview.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-lg transition-colors duration-200">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                        {engineer?.name.charAt(0) || '?'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-700">{engineer?.name || '不明'}</span>
+                          {isRecent && <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">NEW</span>}
+                        </div>
+                        <p className="text-slate-500 text-sm">{interview.client_company}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          interview.result === 'pass' ? 'bg-emerald-100 text-emerald-700' :
+                          interview.result === 'fail' ? 'bg-red-100 text-red-700' :
+                          interview.result === 'pending' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {interview.result === 'pass' && '合格'}
+                          {interview.result === 'fail' && '不合格'}
+                          {interview.result === 'pending' && '保留'}
+                          {interview.result === 'canceled' && 'キャンセル'}
+                          {!interview.result && '未定'}
+                        </div>
+                        <p className="text-slate-400 text-xs mt-1">
+                          {new Date(interview.interview_date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
+          {/* 今後のアクション */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-3">
+              <i className="fas fa-tasks text-green-500"></i>
+              今後のアクション
+            </h3>
+            
+            <div className="space-y-4">
+              {interviews
+                .filter(interview => interview.next_action && interview.result !== 'pass' && interview.result !== 'fail')
+                .sort((a, b) => new Date(a.interview_date) - new Date(b.interview_date))
+                .slice(0, 5)
+                .map(interview => {
+                  const engineer = engineers.find(e => e.id === interview.engineer);
+                  
+                  return (
+                    <div key={interview.id} className="flex items-start gap-4 p-3 border border-amber-200 bg-amber-50 rounded-lg">
+                      <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                        {engineer?.name.charAt(0) || '?'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-slate-700">{engineer?.name || '不明'}</span>
+                          <span className="text-slate-500 text-xs">{interview.client_company}</span>
+                        </div>
+                        <p className="text-slate-600 text-sm">{interview.next_action}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              
+              {interviews.filter(i => i.next_action && i.result !== 'pass' && i.result !== 'fail').length === 0 && (
+                <div className="text-center py-8 text-slate-500">
+                  <i className="fas fa-check-circle text-4xl text-emerald-400 mb-3"></i>
+                  <p>すべてのアクションが完了しています</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 📋 詳細表示モーダル
+  const renderDetailModal = () => {
+    if (!showDetailModal || !selectedInterview) return null;
+
+    const engineer = engineers.find(e => e.id === selectedInterview.engineer);
+    const statusConfig = {
+      'pass': { color: 'text-emerald-600', bgColor: 'bg-emerald-50', icon: 'fas fa-check-circle', text: '合格' },
+      'fail': { color: 'text-red-600', bgColor: 'bg-red-50', icon: 'fas fa-times-circle', text: '不合格' },
+      'pending': { color: 'text-amber-600', bgColor: 'bg-amber-50', icon: 'fas fa-clock', text: '保留中' },
+      'canceled': { color: 'text-gray-600', bgColor: 'bg-gray-50', icon: 'fas fa-ban', text: 'キャンセル' }
+    };
+    const status = statusConfig[selectedInterview.result] || statusConfig.pending;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          {/* ヘッダー */}
+          <div className="sticky top-0 bg-white border-b border-slate-200 p-6 rounded-t-3xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                <i className="fas fa-clipboard-list text-blue-500"></i>
+                面談詳細情報
+              </h2>
+              <button
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedInterview(null);
+                }}
+                className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors duration-200"
+              >
+                <i className="fas fa-times text-slate-600"></i>
+              </button>
+            </div>
+          </div>
+
+          {/* コンテンツ */}
+          <div className="p-6 space-y-6">
+            {/* エンジニア情報 */}
+            <div className="bg-slate-50 rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                <i className="fas fa-user text-blue-500"></i>
+                エンジニア情報
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-slate-500 text-sm mb-1">名前</p>
+                  <p className="font-semibold text-slate-800">{engineer?.name || '不明なエンジニア'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-sm mb-1">ID</p>
+                  <p className="font-semibold text-slate-800">{engineer?.id || 'N/A'}</p>
+                </div>
+                {engineer?.email && (
+                  <div>
+                    <p className="text-slate-500 text-sm mb-1">メールアドレス</p>
+                    <p className="font-semibold text-slate-800">{engineer.email}</p>
+                  </div>
+                )}
+                {engineer?.phone && (
+                  <div>
+                    <p className="text-slate-500 text-sm mb-1">電話番号</p>
+                    <p className="font-semibold text-slate-800">{engineer.phone}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 面談情報 */}
+            <div className="bg-blue-50 rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                <i className="fas fa-handshake text-blue-500"></i>
+                面談情報
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-slate-500 text-sm mb-1">クライアント企業</p>
+                  <p className="font-semibold text-slate-800">{selectedInterview.client_company || '未設定'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-sm mb-1">面談日時</p>
+                  <p className="font-semibold text-slate-800">
+                    {new Date(selectedInterview.interview_date).toLocaleDateString('ja-JP', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      weekday: 'long'
+                    })}
+                    {selectedInterview.interview_time && ` ${selectedInterview.interview_time}`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-sm mb-1">面談種別</p>
+                  <p className="font-semibold text-slate-800">
+                    {selectedInterview.interview_type === 'customer_interview' ? 'お客様面談' : selectedInterview.interview_type}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-sm mb-1">ステータス</p>
+                  <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${status.bgColor} ${status.color}`}>
+                    <i className={`${status.icon}`}></i>
+                    <span className="font-semibold">{status.text}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* メモ */}
+            {selectedInterview.notes && (
+              <div className="bg-green-50 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <i className="fas fa-comment-alt text-green-500"></i>
+                  メモ
+                </h3>
+                <p className="text-slate-700 leading-relaxed">{selectedInterview.notes}</p>
+              </div>
+            )}
+
+            {/* 次のアクション */}
+            {selectedInterview.next_action && (
+              <div className="bg-amber-50 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <i className="fas fa-tasks text-amber-500"></i>
+                  次のアクション
+                </h3>
+                <p className="text-slate-700 leading-relaxed">{selectedInterview.next_action}</p>
+              </div>
+            )}
+
+            {/* 不合格理由 */}
+            {selectedInterview.result === 'fail' && selectedInterview.rejection_reason && (
+              <div className="bg-red-50 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <i className="fas fa-times-circle text-red-500"></i>
+                  不合格理由
+                </h3>
+                <p className="text-slate-700 leading-relaxed">{selectedInterview.rejection_reason}</p>
+              </div>
+            )}
+
+            {/* アクションボタン */}
+            <div className="flex gap-4 pt-4 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setEditingInterview(selectedInterview);
+                  setFormData({
+                    engineer: selectedInterview.engineer,
+                    interview_date: selectedInterview.interview_date,
+                    interview_type: selectedInterview.interview_type,
+                    client_company: selectedInterview.client_company,
+                    result: selectedInterview.result,
+                    rejection_reason: selectedInterview.rejection_reason || '',
+                    notes: selectedInterview.notes || '',
+                    next_action: selectedInterview.next_action || ''
+                  });
+                  setShowDetailModal(false);
+                  setSelectedInterview(null);
+                  setShowForm(true);
+                }}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-amber-600 hover:to-yellow-700 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                <i className="fas fa-pencil-alt"></i>
+                編集する
+              </button>
+              <button
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedInterview(null);
+                }}
+                className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-semibold hover:bg-slate-200 transition-all duration-200 flex items-center gap-2"
+              >
+                <i className="fas fa-times"></i>
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -213,17 +1211,56 @@ export default function InterviewManager() {
               <p className="text-slate-500">エンジニア別お客様面談記録・分析データ</p>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setShowForm(true);
-              setEditingInterview(null);
-              resetForm();
-            }}
-            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
-          >
-            <i className="fas fa-plus"></i>
-            新規面談記録
-          </button>
+          <div className="flex items-center gap-4">
+            {/* 表示モード切替 */}
+            <div className="flex bg-white rounded-2xl p-2 shadow-lg border border-white/60">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 ${
+                  viewMode === 'list' 
+                    ? 'bg-amber-500 text-white shadow-md' 
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <i className="fas fa-list"></i>
+                リスト
+              </button>
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 ${
+                  viewMode === 'cards' 
+                    ? 'bg-amber-500 text-white shadow-md' 
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <i className="fas fa-th-large"></i>
+                カード
+              </button>
+              <button
+                onClick={() => setViewMode('dashboard')}
+                className={`px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 ${
+                  viewMode === 'dashboard' 
+                    ? 'bg-amber-500 text-white shadow-md' 
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <i className="fas fa-chart-pie"></i>
+                ダッシュボード
+              </button>
+            </div>
+            
+            <button
+              onClick={() => {
+                setShowForm(true);
+                setEditingInterview(null);
+                resetForm();
+              }}
+              className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
+            >
+              <i className="fas fa-plus"></i>
+              新規面談記録
+            </button>
+          </div>
         </div>
       </div>
 
@@ -283,12 +1320,34 @@ export default function InterviewManager() {
       </div>
 
       {/* 面談履歴一覧 */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/60 shadow-luxury overflow-hidden">
-        <div className="p-6 border-b border-stone-200">
-          <h3 className="text-lg font-semibold text-slate-700">面談履歴一覧 ({interviews.length}件)</h3>
+      {viewMode === 'dashboard' ? (
+        <div className="bg-gradient-to-br from-slate-50 to-stone-100 rounded-3xl p-6">
+          {renderDashboardView()}
         </div>
-        
-        {/* エンジニア別面談履歴一覧 */}
+      ) : viewMode === 'cards' ? (
+        <div className="space-y-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/60 shadow-luxury p-6">
+            <h3 className="text-lg font-semibold text-slate-700 mb-6">面談履歴一覧 ({interviews.length}件) - カード表示</h3>
+            {interviews.length > 0 ? (
+              renderCardView()
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <i className="fas fa-comments text-slate-400 text-3xl"></i>
+                </div>
+                <p className="text-slate-500 text-lg">お客様面談履歴がありません</p>
+                <p className="text-slate-400 text-sm mt-2">新規面談記録ボタンから面談情報を追加してください</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/60 shadow-luxury overflow-hidden">
+          <div className="p-6 border-b border-stone-200">
+            <h3 className="text-lg font-semibold text-slate-700">面談履歴一覧 ({interviews.length}件) - リスト表示</h3>
+          </div>
+          
+          {/* エンジニア別面談履歴一覧 */}
         <div className="space-y-6">
           {Object.keys(groupedByEngineer)
             .filter(engineerName => 
@@ -409,7 +1468,8 @@ export default function InterviewManager() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* 面談記録フォームモーダル */}
       {showForm && (
@@ -595,6 +1655,9 @@ export default function InterviewManager() {
           </div>
         </div>
       )}
+
+      {/* 詳細表示モーダル */}
+      {renderDetailModal()}
     </div>
   );
 }

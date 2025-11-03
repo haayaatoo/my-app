@@ -6,14 +6,18 @@ import EngineerList from "./components/EngineerList";
 import SkillSheetManager from "./components/SkillSheetManager";
 import InterviewManager from "./components/InterviewManager";
 import HREvaluation from "./components/HREvaluation";
+import RecruitmentMarketing from "./components/RecruitmentMarketing";
 import Settings from "./components/Settings";
 
 function MainLayout({ page, setPage, handleLogout }) {
   const { user } = useUser();
   
-  // 権限チェック：面談履歴・人事評価ページにアクセス権限がない場合はダッシュボードにリダイレクト
+  // 権限チェック：面談履歴・人事評価・採用マーケティングページにアクセス権限がない場合はダッシュボードにリダイレクト
   React.useEffect(() => {
     if ((page === "interviews" || page === "hr-evaluation") && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp') {
+      setPage("dashboard");
+    }
+    if (page === "recruitment-marketing" && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp' && user.email !== 'a-inagaki@1dr.co.jp') {
       setPage("dashboard");
     }
   }, [page, user, setPage]);
@@ -187,6 +191,35 @@ function MainLayout({ page, setPage, handleLogout }) {
             </button>
           )}
 
+          {/* 採用マーケティング（権限チェック付き） */}
+          {user && (user.email === 'kamiya@1dr.co.jp' || user.email === 'asai@1dr.co.jp' || user.email === 'a-inagaki@1dr.co.jp') && (
+            <button
+              className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+                page === "recruitment-marketing" 
+                  ? "bg-gradient-to-r from-blue-100 to-purple-100 text-slate-700 shadow-lg border border-blue-200/50" 
+                  : "text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
+              }`}
+              onClick={() => setPage("recruitment-marketing")}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                  page === "recruitment-marketing" 
+                    ? "bg-gradient-to-br from-blue-400 to-purple-500 text-white shadow-lg" 
+                    : "bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600"
+                }`}>
+                  <i className="fas fa-bullhorn text-lg"></i>
+                </div>
+                <div>
+                  <span className="font-medium text-lg">採用マーケティング</span>
+                  <p className="text-xs opacity-70 mt-0.5">SNS・採用経路分析</p>
+                </div>
+              </div>
+              {page === "recruitment-marketing" && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-purple-500 rounded-full"></div>
+              )}
+            </button>
+          )}
+
           {/* 設定 */}
           <button
             className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
@@ -245,6 +278,7 @@ function MainLayout({ page, setPage, handleLogout }) {
         {page === "skill-sheets" && <SkillSheetManager />}
         {page === "interviews" && <InterviewManager />}
         {page === "hr-evaluation" && <HREvaluation />}
+        {page === "recruitment-marketing" && <RecruitmentMarketing />}
         {page === "settings" && <Settings />}
       </main>
     </div>
@@ -254,22 +288,22 @@ function MainLayout({ page, setPage, handleLogout }) {
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [page, setPage] = useState("dashboard");
-  const [showLogoutMsg, setShowLogoutMsg] = useState(false);
+  const [showLogoutMsg, setShowLogoutMsg] = useState(null);
 
   const handleLogin = () => {
     setIsLoggedIn(true);
-    setShowLogoutMsg(false);
+    setShowLogoutMsg(null);
     setPage("dashboard"); // ログイン時にダッシュボードに戻る
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setShowLogoutMsg(true);
+    setShowLogoutMsg("ログアウトしました"); // メッセージ文字列を設定
     setPage("dashboard"); // ログアウト時にダッシュボードにリセット
-    // 3秒後にログアウトメッセージを自動的に非表示にする
+    // 4秒後にログアウトメッセージを自動的に非表示にする
     setTimeout(() => {
-      setShowLogoutMsg(false);
-    }, 3000);
+      setShowLogoutMsg(null);
+    }, 4000);
   };
 
   return (

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, Interview
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, Interview, RecruitmentChannel, SocialMediaPost
 
 # SkillSheet用シリアライザ
 class SkillSheetSerializer(serializers.ModelSerializer):
@@ -57,3 +57,22 @@ class EngineerDetailSerializer(serializers.ModelSerializer):
         # エンジニアに関連するメモを取得
         memos = SalesMemo.objects.filter(engineer_name=obj.name)
         return SalesMemoSerializer(memos, many=True).data
+
+
+# 採用経路管理シリアライザ
+class RecruitmentChannelSerializer(serializers.ModelSerializer):
+    channel_display = serializers.ReadOnlyField(source='get_channel_display')
+    status_display = serializers.ReadOnlyField(source='get_status_display')
+    
+    class Meta:
+        model = RecruitmentChannel
+        fields = '__all__'
+
+
+# SNS投稿管理シリアライザ
+class SocialMediaPostSerializer(serializers.ModelSerializer):
+    platform_display = serializers.ReadOnlyField(source='get_platform_display')
+    
+    class Meta:
+        model = SocialMediaPost
+        fields = '__all__'
