@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +21,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-9wx_aj=-gehpx1x)0pf@xuzptgw#(h#mevq%9-$a)10d#ul7e%'
+# 本番環境では環境変数 DJANGO_SECRET_KEY を必ず設定してください
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-9wx_aj=-gehpx1x)0pf@xuzptgw#(h#mevq%9-$a)10d#ul7e%'  # 開発用のみ
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -83,23 +88,20 @@ WSGI_APPLICATION = 'prodia_backend.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # PostgreSQL設定（開発・本番共通）
+# 本番環境では環境変数 DB_PASSWORD, DB_HOST, DB_USER を設定してください
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'prodia_db',
-        'USER': 'postgres',
-        'PASSWORD': 'password',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': os.environ.get('DB_NAME', 'prodia_db'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'password'),  # 本番では環境変数必須
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
         'OPTIONS': {
             'client_encoding': 'UTF8',
         },
     }
 }
-
-# 設定の強制確認（デバッグ用）
-print(f"🔧 DATABASE ENGINE: {DATABASES['default']['ENGINE']}")
-print(f"🔧 DATABASE NAME: {DATABASES['default']['NAME']}")
 
 
 # Password validation
@@ -139,7 +141,6 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # --- ファイルアップロード用設定 ---
-import os
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
