@@ -58,9 +58,6 @@ Thumbs.db
 prodia-backend/prodia_backend/media/
 !prodia-backend/prodia_backend/media/.gitkeep
 
-# Scripts containing sensitive info
-prodia-backend/prodia_backend/create_users.py
-
 # Cache files
 *.cache
 .cache/
