@@ -1,11 +1,12 @@
 /* EngineerCard: Tailwindで装飾するため最低限だけ残す */
 /* フリップアニメーション＋今風デザイン */
 .engineer-card {
-  margin: 1rem;
-  width: 288px;
-  height: 350px; /* メモボタン用にサイズを増加 */
+  margin: 0;
+  width: 100%;
+  min-height: 360px;
+  height: 100%;
   perspective: 1200px;
-  display: inline-block;
+  display: block;
 }
 
 .card-inner {

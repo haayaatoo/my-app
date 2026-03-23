@@ -5,6 +5,13 @@ module.exports = {
   ],
   theme: {
     extend: {
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(circle, var(--tw-gradient-stops))',
+        'gradient-radial-at-t': 'radial-gradient(circle at top, var(--tw-gradient-stops))',
+        'gradient-radial-at-b': 'radial-gradient(circle at bottom, var(--tw-gradient-stops))',
+        'gradient-radial-at-l': 'radial-gradient(circle at left, var(--tw-gradient-stops))',
+        'gradient-radial-at-r': 'radial-gradient(circle at right, var(--tw-gradient-stops))',
+      },
       keyframes: {
         'fade-in': {
           '0%': { opacity: '0' },

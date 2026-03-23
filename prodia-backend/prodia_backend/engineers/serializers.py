@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, Interview, RecruitmentChannel, SocialMediaPost
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment
 
 # SkillSheet用シリアライザ
 class SkillSheetSerializer(serializers.ModelSerializer):
@@ -75,4 +75,34 @@ class SocialMediaPostSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SocialMediaPost
+        fields = '__all__'
+
+
+# 企業マスターシリアライザ
+class CompanySerializer(serializers.ModelSerializer):
+    active_appointment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Company
+        fields = '__all__'
+
+    def get_active_appointment(self, obj):
+        apt = obj.appointments.filter(status='scheduled').first()
+        if apt:
+            return {
+                'id': apt.id,
+                'planner': apt.planner,
+                'date': str(apt.appointment_date),
+                'time': str(apt.appointment_time) if apt.appointment_time else None,
+            }
+        return None
+
+
+# アポイントシリアライザ
+class CompanyAppointmentSerializer(serializers.ModelSerializer):
+    company_name = serializers.ReadOnlyField(source='company.name')
+    status_display = serializers.ReadOnlyField(source='get_status_display')
+
+    class Meta:
+        model = CompanyAppointment
         fields = '__all__'

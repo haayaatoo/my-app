@@ -21,25 +21,30 @@ const SKILL_CATEGORIES = [
 
 // 高級感のあるアニメーションカウンター（モダンラグジュアリー）
 function AnimatedCounter({ end, label, prefix = "", suffix = "", color = "blue", icon }) {
+  const safeEnd = (end !== undefined && end !== null && !isNaN(end) && isFinite(end)) ? Math.max(0, Math.round(end)) : 0;
   const [count, setCount] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
     setIsVisible(true);
+    if (safeEnd === 0) {
+      setCount(0);
+      return;
+    }
     let start = 0;
     const duration = 2000;
-    const stepTime = Math.max(Math.floor(duration / end), 30);
+    const stepTime = Math.max(Math.floor(duration / safeEnd), 30);
     const timer = setInterval(() => {
-      start += Math.ceil(end / (duration / stepTime));
-      if (start >= end) {
-        setCount(end);
+      start += Math.ceil(safeEnd / (duration / stepTime));
+      if (start >= safeEnd) {
+        setCount(safeEnd);
         clearInterval(timer);
       } else {
         setCount(start);
       }
     }, stepTime);
     return () => clearInterval(timer);
-  }, [end]);
+  }, [safeEnd]);
   
   const colorClasses = {
     blue: {
@@ -948,14 +953,18 @@ export default function Dashboard() {
   const advancedMonthlyRevenue = calculateAdvancedRevenue();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-slate-100 relative overflow-hidden opacity-0 animate-fade-in" style={{animationDelay: '0ms', animationFillMode: 'forwards'}}>
-      {/* 背景装飾 */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-amber-200/20 to-transparent rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-stone-200/20 to-transparent rounded-full blur-3xl"></div>
-      
-      <div className="container mx-auto px-6 py-6 relative z-10">
+    <div
+      className="soft-page text-slate-800 opacity-0 animate-fade-in"
+      style={{ animationDelay: '0ms', animationFillMode: 'forwards' }}
+    >
+      <div className="soft-aurora soft-aurora--emerald"></div>
+      <div className="soft-aurora soft-aurora--indigo"></div>
+      <div className="soft-noise"></div>
+
+      <div className="relative z-10">
+        <div className="container mx-auto px-6 py-6">
         {/* モダンヘッダー */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 mb-8 opacity-0 animate-slide-in-from-top" style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
+        <div className="soft-panel soft-panel-accent rounded-3xl p-8 mb-8 opacity-0 animate-slide-in-from-top" style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             {/* タイトル部分 */}
             <div className="flex items-center gap-6">
@@ -1036,7 +1045,7 @@ export default function Dashboard() {
             icon="fas fa-user-clock"
           />
           <AnimatedCounter 
-            end={Math.round((assignedCount / engineers.length) * 100)} 
+            end={engineers.length > 0 ? Math.round((assignedCount / engineers.length) * 100) : 0} 
             label="稼働率" 
             color="purple"
             suffix="%" 
@@ -1235,7 +1244,7 @@ export default function Dashboard() {
         </div>
 
         {/* 市場トレンド - 全幅表示 */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 overflow-hidden">
+        <div className="soft-panel rounded-3xl overflow-hidden">
           <RealTimeMarketTrends />
         </div>
       </div>
@@ -1438,6 +1447,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

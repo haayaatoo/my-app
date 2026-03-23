@@ -1,5 +1,52 @@
 import React, { useState, useEffect } from 'react';
 
+// 日本の祝日を判定する関数
+const isJapaneseHoliday = (date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  
+  // 固定祝日
+  const fixedHolidays = {
+    '1-1': '元日',
+    '2-11': '建国記念の日',
+    '2-23': '天皇誕生日',
+    '4-29': '昭和の日',
+    '5-3': '憲法記念日',
+    '5-4': 'みどりの日',
+    '5-5': 'こどもの日',
+    '8-11': '山の日',
+    '11-3': '文化の日',
+    '11-23': '勤労感謝の日'
+  };
+  
+  const key = `${month}-${day}`;
+  if (fixedHolidays[key]) return true;
+  
+  // ハッピーマンデー（第n月曜日）
+  const weekday = date.getDay();
+  const weekOfMonth = Math.ceil(day / 7);
+  
+  if (weekday === 1) { // 月曜日
+    if (month === 1 && weekOfMonth === 2) return true; // 成人の日
+    if (month === 7 && weekOfMonth === 3) return true; // 海の日
+    if (month === 9 && weekOfMonth === 3) return true; // 敬老の日
+    if (month === 10 && weekOfMonth === 2) return true; // スポーツの日
+  }
+  
+  // 春分の日・秋分の日（簡易計算）
+  if (month === 3) {
+    const shunbun = Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+    if (day === shunbun) return true;
+  }
+  if (month === 9) {
+    const shubun = Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+    if (day === shubun) return true;
+  }
+  
+  return false;
+};
+
 // カウントアップアニメーション用のカスタムフック
 const useCountUp = (end, duration = 1000, delay = 0) => {
   const [count, setCount] = useState(0);
@@ -59,6 +106,17 @@ export default function RecruitmentMarketing() {
   const [snsSortBy, setSnsSortBy] = useState('');
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   
+  // カード面談管理用のstate
+  const [cardInterviews, setCardInterviews] = useState([]);
+  const [interviewFilter, setInterviewFilter] = useState('all');
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState(null);
+  const [interviewViewMode, setInterviewViewMode] = useState('grouped'); // 'grouped', 'list', 'calendar'
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  
   // 新規応募者フォームのstate
   const [newApplicant, setNewApplicant] = useState({
     applicant_name: '',
@@ -71,71 +129,21 @@ export default function RecruitmentMarketing() {
   const [animationsStarted, setAnimationsStarted] = useState(false);
 
   useEffect(() => {
-    const generateData = () => {
-      const apps = [];
-      const posts = [];
-      const now = new Date();
-      const channels = ['sns_instagram', 'sns_x', 'sns_tiktok', 'website', 'referral'];
-      const statuses = ['applied', 'screening', 'interview', 'hired', 'rejected', 'withdrawn'];
-      
-      // 詳細な応募者データ生成
-      for (let i = 0; i < 120; i++) {
-        const monthsAgo = Math.floor(Math.random() * 12);
-        const date = new Date(now.getFullYear(), now.getMonth() - monthsAgo, Math.floor(Math.random() * 28) + 1);
-        const updatedDate = new Date(date.getTime() + Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000);
-        
-        apps.push({
-          id: i + 1,
-          applicant_name: `応募者${i + 1}`,
-          email: `applicant${i + 1}@example.com`,
-          phone: `090-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-          channel: channels[i % channels.length],
-          status: statuses[Math.floor(Math.random() * statuses.length)],
-          experience_years: Math.floor(Math.random() * 10),
-          position_applied: ['フロントエンドエンジニア', 'バックエンドエンジニア', 'フルスタックエンジニア', 'インフラエンジニア'][Math.floor(Math.random() * 4)],
-          created_at: date.toISOString(),
-          updated_at: updatedDate.toISOString()
-        });
-      }
-      
-      // 詳細なSNS投稿データ生成
-      for (let i = 0; i < 80; i++) {
-        const monthsAgo = Math.floor(Math.random() * 12);
-        const date = new Date(now.getFullYear(), now.getMonth() - monthsAgo, Math.floor(Math.random() * 28) + 1);
-        const platform = ['tiktok', 'instagram', 'x'][i % 3];
-        
-        const baseViews = platform === 'tiktok' ? 50000 : platform === 'instagram' ? 20000 : 10000;
-        const views = Math.floor(Math.random() * baseViews) + baseViews / 4;
-        const likes = Math.floor(views * (Math.random() * 0.1 + 0.02)); // 2-12%のエンゲージメント率
-        const comments = Math.floor(likes * (Math.random() * 0.3 + 0.05)); // コメント数
-        const shares = Math.floor(likes * (Math.random() * 0.2 + 0.02)); // シェア数
-        const dm_count = Math.floor(views * (Math.random() * 0.005 + 0.001)); // DM数
-        
-        posts.push({
-          id: i + 1,
-          platform: platform,
-          title: `${platform === 'tiktok' ? 'TikTok' : platform === 'instagram' ? 'Instagram' : 'X'}投稿${i + 1}`,
-          content: `エンジニア採用に関する投稿コンテンツ #エンジニア採用 #プログラマー ${platform === 'tiktok' ? '#転職 #IT' : ''}`,
-          date: date.toISOString(),
-          views_count: views,
-          likes_count: likes,
-          comments_count: comments,
-          shares_count: shares,
-          dm_count: dm_count,
-          impressions_count: Math.floor(views * (Math.random() * 2 + 1.5)), // インプレッション数
-          engagement_rate: ((likes + comments + shares) / views * 100).toFixed(2),
-          reach: Math.floor(views * (Math.random() * 0.8 + 0.6)), // リーチ数
-          saves_count: platform !== 'x' ? Math.floor(likes * (Math.random() * 0.15 + 0.05)) : 0 // 保存数（Xは除く）
-        });
-      }
-      
-      setApplications(apps);
-      setSocialPosts(posts);
-      setLoading(false);
-    };
-    
-    generateData();
+    setLoading(false);
   }, []);
+
+  const goToPreviousCalendarMonth = () => {
+    setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const goToNextCalendarMonth = () => {
+    setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const resetCalendarMonth = () => {
+    const today = new Date();
+    setCalendarMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+  };
 
   const getStatistics = () => {
     // 月別フィルタリングされたデータ
@@ -498,6 +506,7 @@ export default function RecruitmentMarketing() {
             <p className="text-slate-600">
               {viewMode === 'dashboard' ? '採用経路と応募者データの詳細分析' :
                viewMode === 'applications' ? '応募者情報の管理と選考プロセスの追跡' :
+               viewMode === 'interviews' ? 'カード面談の予約管理とWordPress連携デモ' :
                'SNSマーケティングの投稿管理と効果測定'}
             </p>
           </div>
@@ -506,6 +515,7 @@ export default function RecruitmentMarketing() {
             {[
               { key: 'dashboard', icon: 'fa-chart-pie', label: 'ダッシュボード' },
               { key: 'applications', icon: 'fa-users', label: '応募管理' },
+              { key: 'interviews', icon: 'fa-handshake', label: 'カード面談管理' },
               { key: 'posts', icon: 'fa-video', label: 'SNS管理' }
             ].map(mode => (
               <button
@@ -526,9 +536,28 @@ export default function RecruitmentMarketing() {
       </div>
 
       {viewMode === 'dashboard' && (
-        <div className="space-y-8">
+        <div className="space-y-8 relative">
+          {/* 背景装飾 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-purple-50/20 to-pink-50/30 rounded-3xl -z-10 floral-pattern"></div>
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-radial from-blue-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-radial from-purple-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse" style={{animationDelay: '1s'}}></div>
+          
+          {/* 花の装飾 */}
+          <div className="absolute top-10 right-20 text-pink-300/20 text-6xl animate-float-flower" style={{animationDelay: '0s'}}>
+            <i className="fas fa-flower"></i>
+          </div>
+          <div className="absolute bottom-20 left-32 text-purple-300/20 text-5xl animate-float-flower" style={{animationDelay: '2s'}}>
+            <i className="fas fa-spa"></i>
+          </div>
+          <div className="absolute top-1/3 left-10 text-blue-300/20 text-4xl animate-float-flower" style={{animationDelay: '4s'}}>
+            <i className="fas fa-leaf"></i>
+          </div>
+          <div className="absolute bottom-32 right-40 text-rose-300/20 text-5xl animate-float-flower" style={{animationDelay: '1.5s'}}>
+            <i className="fas fa-seedling"></i>
+          </div>
+          
           {/* 月別フィルタ */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-700">期間別分析</h3>
               <div className="flex items-center gap-4">
@@ -596,7 +625,7 @@ export default function RecruitmentMarketing() {
                     <span className="tabular-nums">{screeningInterviewCount.toLocaleString()}</span>
                   </p>
                   <p className="text-purple-200 text-xs mt-1">
-                    書類: {stats.screening} / 面接: {stats.interview}
+                    {/* 書類: {stats.screening} / */} 面接: {stats.interview}
                   </p>
                 </div>
                 <i className="fas fa-clipboard-list text-4xl text-purple-200 animate-spin-slow"></i>
@@ -621,7 +650,7 @@ export default function RecruitmentMarketing() {
 
           {/* SNS詳細統計 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="bg-white rounded-2xl p-6 shadow-lg border-l-4 border-pink-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border-l-4 border-pink-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-600 text-sm">総インプレッション</p>
@@ -633,7 +662,7 @@ export default function RecruitmentMarketing() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-lg border-l-4 border-red-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft" style={{ animationDelay: '0.1s' }}>
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border-l-4 border-red-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft" style={{ animationDelay: '0.1s' }}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-600 text-sm">総いいね数</p>
@@ -645,7 +674,7 @@ export default function RecruitmentMarketing() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-lg border-l-4 border-blue-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft" style={{ animationDelay: '0.2s' }}>
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border-l-4 border-blue-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft" style={{ animationDelay: '0.2s' }}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-600 text-sm">総DM数</p>
@@ -657,7 +686,7 @@ export default function RecruitmentMarketing() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-lg border-l-4 border-green-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft" style={{ animationDelay: '0.3s' }}>
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border-l-4 border-green-500 transform hover:scale-105 transition-all duration-300 hover:shadow-xl animate-slideInLeft" style={{ animationDelay: '0.3s' }}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-600 text-sm">総コメント数</p>
@@ -672,7 +701,7 @@ export default function RecruitmentMarketing() {
 
           {/* 採用経路別実績 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
               <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
                 <i className="fas fa-route text-blue-500"></i>
                 採用経路別実績 詳細分析
@@ -803,14 +832,14 @@ export default function RecruitmentMarketing() {
                   </div>
                   <div>
                     <span className="text-slate-600">選考中: </span>
-                    <span className="font-bold text-amber-600">{stats.screening + stats.interview}件</span>
+                    <span className="font-bold text-amber-600">{/* stats.screening +  */stats.interview}件</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* 採用経路ランキング & 詳細比較 */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
               <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
                 <i className="fas fa-medal text-gold-500"></i>
                 採用経路効率ランキング
@@ -929,7 +958,7 @@ export default function RecruitmentMarketing() {
             </div>
 
             {/* 応募ステータス別統計 */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
               <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
                 <i className="fas fa-tasks text-purple-500"></i>
                 応募ステータス別統計
@@ -943,13 +972,14 @@ export default function RecruitmentMarketing() {
                   <span className="text-xl font-bold text-blue-600">{stats.applied}件</span>
                 </div>
                 
-                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+                {/* 書類選考は一時的に非表示（将来的に使用予定） */}
+                {/* <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
                     <span className="font-medium text-slate-700">書類選考中</span>
                   </div>
                   <span className="text-xl font-bold text-amber-600">{stats.screening}件</span>
-                </div>
+                </div> */}
                 
                 <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
                   <div className="flex items-center gap-3">
@@ -987,7 +1017,7 @@ export default function RecruitmentMarketing() {
           </div>
 
           {/* 採用経路別月次トレンド */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
             <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
               <i className="fas fa-chart-line text-purple-500"></i>
               採用経路別 月次トレンド分析
@@ -1171,9 +1201,25 @@ export default function RecruitmentMarketing() {
       )}
 
       {viewMode === 'applications' && (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
+          {/* 背景装飾 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/30 via-teal-50/20 to-cyan-50/30 rounded-3xl -z-10 floral-pattern"></div>
+          <div className="absolute top-0 left-1/4 w-80 h-80 bg-gradient-radial from-emerald-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse"></div>
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-gradient-radial from-teal-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse" style={{animationDelay: '1.5s'}}></div>
+          
+          {/* 花の装飾 */}
+          <div className="absolute top-16 right-24 text-emerald-300/20 text-6xl animate-float-flower" style={{animationDelay: '0.5s'}}>
+            <i className="fas fa-clover"></i>
+          </div>
+          <div className="absolute bottom-24 left-28 text-teal-300/20 text-5xl animate-float-flower" style={{animationDelay: '2.5s'}}>
+            <i className="fas fa-spa"></i>
+          </div>
+          <div className="absolute top-1/4 right-16 text-cyan-300/20 text-4xl animate-float-flower" style={{animationDelay: '3.5s'}}>
+            <i className="fas fa-leaf"></i>
+          </div>
+          
           {/* 応募者一覧テーブル */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-white/50">
             <div className="p-6 border-b border-slate-200">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex-1">
@@ -1186,7 +1232,7 @@ export default function RecruitmentMarketing() {
                           {(() => {
                             const labels = {
                               applied: '応募受付',
-                              screening: '書類選考中',
+                              // screening: '書類選考中', // 一時的に非表示
                               interview: '面接中',
                               hired: '採用決定',
                               rejected: '不採用',
@@ -1259,7 +1305,8 @@ export default function RecruitmentMarketing() {
                       
                       {[
                         { key: 'applied', label: '応募受付', count: stats.applied, color: 'blue', icon: 'fas fa-envelope' },
-                        { key: 'screening', label: '書類選考', count: stats.screening, color: 'amber', icon: 'fas fa-file-alt' },
+                        // 書類選考は一時的に非表示（将来的に使用予定）
+                        // { key: 'screening', label: '書類選考', count: stats.screening, color: 'amber', icon: 'fas fa-file-alt' },
                         { key: 'interview', label: '面接中', count: stats.interview, color: 'purple', icon: 'fas fa-video' },
                         { key: 'hired', label: '採用決定', count: stats.hired, color: 'emerald', icon: 'fas fa-check-circle' },
                         { key: 'rejected', label: '不採用', count: stats.rejected, color: 'red', icon: 'fas fa-times-circle' },
@@ -1619,9 +1666,588 @@ export default function RecruitmentMarketing() {
           </div>
         </div>
       )}
+
+      {/* カード面談管理セクション */}
+      {viewMode === 'interviews' && (
+        <div className="space-y-6 relative">
+          {/* 背景装飾 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-50/30 via-fuchsia-50/20 to-rose-50/30 rounded-3xl -z-10 floral-pattern"></div>
+          <div className="absolute top-1/4 right-0 w-96 h-96 bg-gradient-radial from-violet-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse"></div>
+          <div className="absolute bottom-1/4 left-0 w-96 h-96 bg-gradient-radial from-fuchsia-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse" style={{animationDelay: '2s'}}></div>
+          
+          {/* 花の装飾 */}
+          <div className="absolute top-12 left-20 text-violet-300/20 text-6xl animate-float-flower" style={{animationDelay: '1s'}}>
+            <i className="fas fa-flower"></i>
+          </div>
+          <div className="absolute bottom-16 right-32 text-fuchsia-300/20 text-5xl animate-float-flower" style={{animationDelay: '3s'}}>
+            <i className="fas fa-spa"></i>
+          </div>
+          <div className="absolute top-2/3 left-16 text-rose-300/20 text-4xl animate-float-flower" style={{animationDelay: '4.5s'}}>
+            <i className="fas fa-seedling"></i>
+          </div>
+          <div className="absolute top-1/2 right-20 text-pink-300/20 text-5xl animate-float-flower" style={{animationDelay: '2.5s'}}>
+            <i className="fas fa-leaf"></i>
+          </div>
+          
+          {/* WordPress連携ステータス */}
+          <div className="bg-gradient-to-r from-green-50/90 to-blue-50/90 backdrop-blur-sm rounded-2xl p-6 border border-green-200/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-700 mb-2 flex items-center gap-2">
+                  <i className="fas fa-link text-green-500"></i>
+                  WordPress連携ステータス
+                </h3>
+                <p className="text-slate-600">予約システムとの連携状況とデータ同期</p>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-sm font-medium text-green-600">連携済み（デモ）</span>
+                </div>
+                <p className="text-xs text-slate-500">最終同期: 2分前</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 面談統計サマリー */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white transform hover:scale-105 transition-all duration-300 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm">今月の予約</p>
+                  <p className="text-2xl font-bold">{cardInterviews.filter(i => new Date(i.created_at).getMonth() === new Date().getMonth()).length}件</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-400 bg-opacity-30 rounded-xl flex items-center justify-center">
+                  <i className="fas fa-calendar-plus text-xl"></i>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl p-6 text-white transform hover:scale-105 transition-all duration-300 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-yellow-100 text-sm">確認待ち</p>
+                  <p className="text-2xl font-bold">{cardInterviews.filter(i => i.status === 'pending').length}件</p>
+                </div>
+                <div className="w-12 h-12 bg-yellow-400 bg-opacity-30 rounded-xl flex items-center justify-center">
+                  <i className="fas fa-clock text-xl"></i>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white transform hover:scale-105 transition-all duration-300 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-100 text-sm">面談完了</p>
+                  <p className="text-2xl font-bold">{cardInterviews.filter(i => i.status === 'completed').length}件</p>
+                </div>
+                <div className="w-12 h-12 bg-green-400 bg-opacity-30 rounded-xl flex items-center justify-center">
+                  <i className="fas fa-check-circle text-xl"></i>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-6 text-white transform hover:scale-105 transition-all duration-300 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-purple-100 text-sm">確定率</p>
+                  <p className="text-2xl font-bold">{Math.round((cardInterviews.filter(i => i.status === 'confirmed' || i.status === 'completed').length / cardInterviews.length) * 100)}%</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-400 bg-opacity-30 rounded-xl flex items-center justify-center">
+                  <i className="fas fa-chart-line text-xl"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* フィルター・検索バー */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
+            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+              <div className="flex flex-wrap gap-2">
+                {['all', 'confirmed', 'completed'].map(status => (
+                  <button
+                    key={status}
+                    onClick={() => setInterviewFilter(status)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      interviewFilter === status 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {status === 'all' ? '全て' : 
+                     status === 'confirmed' ? '予約確定' : '面談完了'}
+                  </button>
+                ))}
+              </div>
+              
+              <div className="flex gap-3">
+                {/* 表示モード切り替え */}
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setInterviewViewMode('grouped')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      interviewViewMode === 'grouped' 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    <i className="fas fa-layer-group mr-1"></i>
+                    日別表示
+                  </button>
+                  <button
+                    onClick={() => setInterviewViewMode('list')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      interviewViewMode === 'list' 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    <i className="fas fa-list mr-1"></i>
+                    リスト
+                  </button>
+                  <button
+                    onClick={() => setInterviewViewMode('calendar')}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                      interviewViewMode === 'calendar' 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    <i className="fas fa-calendar-alt mr-1"></i>
+                    カレンダー
+                  </button>
+                </div>
+                
+                <div className="relative">
+                  <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                  <input
+                    type="text"
+                    placeholder="予約者名・メールで検索"
+                    className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 面談予約表示エリア */}
+          {interviewViewMode === 'grouped' && (
+            <div className="space-y-4">
+              {(() => {
+                const filteredInterviews = cardInterviews.filter(interview => 
+                  interviewFilter === 'all' || interview.status === interviewFilter
+                );
+                
+                // 日付でグループ化
+                const groupedByDate = filteredInterviews.reduce((acc, interview) => {
+                  const date = new Date(interview.interview_date).toDateString();
+                  if (!acc[date]) {
+                    acc[date] = [];
+                  }
+                  acc[date].push(interview);
+                  return acc;
+                }, {});
+                
+                // 日付順でソート
+                const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(a) - new Date(b));
+                
+                return sortedDates.map(dateString => {
+                  const interviews = groupedByDate[dateString];
+                  const date = new Date(dateString);
+                  const isToday = date.toDateString() === new Date().toDateString();
+                  const isPast = date < new Date().setHours(0, 0, 0, 0);
+                  
+                  return (
+                    <div key={dateString} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                      <div className={`p-4 border-b border-gray-200 ${
+                        isToday ? 'bg-gradient-to-r from-blue-50 to-indigo-50' : 
+                        isPast ? 'bg-gray-50' : 'bg-white'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${
+                              isToday ? 'bg-blue-500' : isPast ? 'bg-gray-400' : 'bg-green-500'
+                            }`}></div>
+                            <h3 className="text-lg font-bold text-gray-800">
+                              {date.toLocaleDateString('ja-JP', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                weekday: 'short'
+                              })}
+                              {isToday && <span className="ml-2 text-blue-600">(今日)</span>}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                              {interviews.length}件の面談
+                            </span>
+                            <div className="text-sm text-gray-600">
+                              {interviews.filter(i => i.status === 'confirmed').length}件確定 / 
+                              {interviews.filter(i => i.status === 'completed').length}件完了
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-4">
+                        <div className="grid gap-3">
+                          {interviews.map((interview) => (
+                            <div key={interview.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className="flex-shrink-0">
+                                    <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
+                                      <i className="fas fa-user text-blue-600"></i>
+                                    </div>
+                                  </div>
+                                  <div className="flex-grow">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h4 className="font-semibold text-gray-900">{interview.name}</h4>
+                                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                        interview.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-green-100 text-green-800'
+                                      }`}>
+                                        {interview.status === 'confirmed' ? '予約確定' : '面談完了'}
+                                      </span>
+                                    </div>
+                                    <div className="text-sm text-gray-600">
+                                      <div className="flex items-center gap-4 mb-1">
+                                        <span className="flex items-center gap-1">
+                                          <i className="fas fa-clock text-blue-500"></i>
+                                          18:30
+                                        </span>
+                                        {interview.interviewer && (
+                                          <span className="flex items-center gap-1">
+                                            <i className="fas fa-user-tie text-green-500"></i>
+                                            {interview.interviewer}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1 text-xs">
+                                        <i className={`fas ${interview.sync_source === 'wordpress' ? 'fa-wordpress text-blue-500' : 'fa-edit text-gray-400'}`}></i>
+                                        <span>{interview.email}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedInterview(interview);
+                                      setShowInterviewModal(true);
+                                    }}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="詳細表示"
+                                  >
+                                    <i className="fas fa-eye"></i>
+                                  </button>
+                                  {interview.status === 'pending' && (
+                                    <button 
+                                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                      title="予約確定"
+                                    >
+                                      <i className="fas fa-check"></i>
+                                    </button>
+                                  )}
+                                  <button className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors" title="編集">
+                                    <i className="fas fa-edit"></i>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+          
+          {/* 従来のリスト表示 */}
+          {interviewViewMode === 'list' && (
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <i className="fas fa-list text-blue-500"></i>
+                  面談予約リスト（テーブル形式）
+                </h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">予約者情報</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => {
+                        const sorted = [...cardInterviews].sort((a, b) => new Date(a.registration_date) - new Date(b.registration_date));
+                        setCardInterviews(sorted);
+                      }}>登録日時 <i className="fas fa-sort ml-1"></i></th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => {
+                        const sorted = [...cardInterviews].sort((a, b) => new Date(a.interview_date) - new Date(b.interview_date));
+                        setCardInterviews(sorted);
+                      }}>面談日 <i className="fas fa-sort ml-1"></i></th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">アクション</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {cardInterviews
+                      .filter(interview => interviewFilter === 'all' || interview.status === interviewFilter)
+                      .slice(0, 15)
+                      .map((interview) => (
+                      <tr key={interview.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{interview.name}</div>
+                            <div className="text-sm text-gray-500">{interview.email}</div>
+                            <div className="text-sm text-gray-500">{interview.phone}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {new Date(interview.registration_date).toLocaleDateString('ja-JP', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit'
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {new Date(interview.registration_date).toLocaleTimeString('ja-JP', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {new Date(interview.interview_date).toLocaleDateString('ja-JP', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit'
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            18:30～
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            interview.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                            interview.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {interview.status === 'confirmed' ? '予約確定' : '面談完了'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => {
+                                setSelectedInterview(interview);
+                                setShowInterviewModal(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-900 transition-colors"
+                              title="詳細表示"
+                            >
+                              <i className="fas fa-eye"></i>
+                            </button>
+                            <button className="text-gray-600 hover:text-gray-900 transition-colors ml-2" title="編集">
+                              <i className="fas fa-edit"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          
+          {/* カレンダー表示 */}
+          {interviewViewMode === 'calendar' && (
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+              <div className="p-6 border-b border-gray-200 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <i className="fas fa-calendar-alt text-blue-500"></i>
+                  面談カレンダー
+                </h3>
+                <div className="flex flex-wrap items-center gap-2 text-gray-700">
+                  <button
+                    onClick={goToPreviousCalendarMonth}
+                    className="p-2 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+                    aria-label="前の月"
+                  >
+                    <i className="fas fa-chevron-left"></i>
+                  </button>
+                  <div className="text-lg font-semibold px-3 py-1 rounded-full bg-gray-100">
+                    {calendarMonth.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}
+                  </div>
+                  <button
+                    onClick={goToNextCalendarMonth}
+                    className="p-2 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+                    aria-label="次の月"
+                  >
+                    <i className="fas fa-chevron-right"></i>
+                  </button>
+                  <button
+                    onClick={resetCalendarMonth}
+                    className="px-3 py-1 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    今月
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="grid grid-cols-7 gap-1 mb-4">
+                  {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => {
+                    const colorClass = index === 0 ? 'text-red-500' : index === 6 ? 'text-blue-600' : 'text-gray-600';
+                    return (
+                      <div key={day} className={`p-3 text-center font-semibold bg-gray-50 ${colorClass}`}>
+                        {day}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="grid grid-cols-7 gap-1">
+                  {(() => {
+                    const today = new Date();
+                    const displayMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+                    const firstDay = new Date(displayMonth);
+                    const startDate = new Date(firstDay);
+                    startDate.setDate(startDate.getDate() - firstDay.getDay());
+                    
+                    const days = [];
+                    for (let i = 0; i < 42; i++) {
+                      const currentDate = new Date(startDate);
+                      currentDate.setDate(startDate.getDate() + i);
+                      
+                      const dayInterviews = cardInterviews.filter(interview => {
+                        const interviewDate = new Date(interview.interview_date);
+                        return interviewDate.toDateString() === currentDate.toDateString() && 
+                               (interviewFilter === 'all' || interview.status === interviewFilter);
+                      });
+                      
+                      const isCurrentMonth = currentDate.getMonth() === displayMonth.getMonth() &&
+                        currentDate.getFullYear() === displayMonth.getFullYear();
+                      const isToday = currentDate.toDateString() === today.toDateString();
+                      const weekday = currentDate.getDay();
+                      const isHoliday = isJapaneseHoliday(currentDate);
+                      const dayNumberColor = (() => {
+                        if (isToday) return 'text-blue-600';
+                        if (isHoliday || weekday === 0) return 'text-red-500';
+                        if (weekday === 6) return 'text-blue-600';
+                        return 'text-gray-900';
+                      })();
+                      
+                      days.push(
+                        <div key={i} className={`min-h-[80px] p-2 border border-gray-200 ${
+                          !isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'
+                        } ${isToday ? 'bg-blue-50 border-blue-300' : ''}`}>
+                          <div className={`text-sm font-medium mb-1 ${dayNumberColor}`}>
+                            {currentDate.getDate()}
+                          </div>
+                          {dayInterviews.length > 0 && (
+                            <div className="space-y-1">
+                              <div className="text-xs font-medium text-blue-600">
+                                {dayInterviews.length}件
+                              </div>
+                              {dayInterviews.slice(0, 2).map((interview) => (
+                                <div key={interview.id} className="text-xs p-1 bg-blue-100 text-blue-800 rounded truncate" title={interview.name}>
+                                  18:30 {interview.name.substring(0, 5)}...
+                                </div>
+                              ))}
+                              {dayInterviews.length > 2 && (
+                                <div className="text-xs text-blue-600 font-medium">
+                                  他{dayInterviews.length - 2}件
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return days;
+                  })()
+                }
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* WordPress連携設定パネル */}
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-200">
+            <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <i className="fas fa-cog text-indigo-500"></i>
+              WordPress連携設定（デモ）
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-semibold text-slate-700 mb-2">API設定</h4>
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div className="flex justify-between">
+                    <span>WordPress URL:</span>
+                    <span className="font-mono">https://your-site.com</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>API Key:</span>
+                    <span className="font-mono">wp_****_****</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>同期間隔:</span>
+                    <span>5分毎</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-semibold text-slate-700 mb-2">連携状況</h4>
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div className="flex justify-between">
+                    <span>総同期データ:</span>
+                    <span>{cardInterviews.filter(i => i.sync_source === 'wordpress').length}件</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>手動追加:</span>
+                    <span>{cardInterviews.filter(i => i.sync_source === 'manual').length}件</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>エラー:</span>
+                    <span className="text-green-600">0件</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {viewMode === 'posts' && (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
+          {/* 背景装飾 */}
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-50/30 via-orange-50/20 to-red-50/30 rounded-3xl -z-10 floral-pattern"></div>
+          <div className="absolute top-0 left-0 w-80 h-80 bg-gradient-radial from-amber-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse"></div>
+          <div className="absolute bottom-0 right-0 w-80 h-80 bg-gradient-radial from-orange-200/20 to-transparent rounded-full blur-3xl -z-10 animate-pulse" style={{animationDelay: '1s'}}></div>
+          
+          {/* 花の装飾 */}
+          <div className="absolute top-20 right-16 text-amber-300/20 text-6xl animate-float-flower" style={{animationDelay: '0.8s'}}>
+            <i className="fas fa-spa"></i>
+          </div>
+          <div className="absolute bottom-28 left-24 text-orange-300/20 text-5xl animate-float-flower" style={{animationDelay: '2.8s'}}>
+            <i className="fas fa-leaf"></i>
+          </div>
+          <div className="absolute top-1/3 right-28 text-red-300/20 text-4xl animate-float-flower" style={{animationDelay: '4.2s'}}>
+            <i className="fas fa-seedling"></i>
+          </div>
+          <div className="absolute bottom-1/4 left-32 text-rose-300/20 text-5xl animate-float-flower" style={{animationDelay: '1.8s'}}>
+            <i className="fas fa-clover"></i>
+          </div>
+          
           {/* SNS統計サマリー */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl p-6 text-white animate-gradient transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl animate-fadeInUp">
@@ -1680,7 +2306,7 @@ export default function RecruitmentMarketing() {
           </div>
 
           {/* プラットフォーム別統計 */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
             <h3 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2">
               <i className="fas fa-chart-bar text-purple-500"></i>
               プラットフォーム別パフォーマンス
@@ -1744,8 +2370,8 @@ export default function RecruitmentMarketing() {
           </div>
 
           {/* 投稿一覧 */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="p-6 border-b border-slate-200">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-white/50">
+            <div className="p-6 border-b border-slate-200/50">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-3">
@@ -2771,6 +3397,201 @@ export default function RecruitmentMarketing() {
                 <i className="fas fa-paper-plane"></i>
                 投稿する
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* カード面談詳細モーダル */}
+      {showInterviewModal && selectedInterview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fadeInUp">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-700 flex items-center gap-2">
+                  <i className="fas fa-handshake text-blue-500"></i>
+                  カード面談詳細
+                </h3>
+                <button 
+                  onClick={() => setShowInterviewModal(false)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* 基本情報 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                    <i className="fas fa-user text-green-500"></i>
+                    応募者情報
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">氏名:</span>
+                      <span className="font-medium">{selectedInterview.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">メール:</span>
+                      <span className="font-medium">{selectedInterview.email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">電話番号:</span>
+                      <span className="font-medium">{selectedInterview.phone}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                    <i className="fas fa-calendar text-blue-500"></i>
+                    面談スケジュール
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">希望日時:</span>
+                      <span className="font-medium">
+                        {new Date(selectedInterview.preferred_date).toLocaleDateString('ja-JP', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    {selectedInterview.alternative_date1 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">代替日時1:</span>
+                        <span className="font-medium">
+                          {new Date(selectedInterview.alternative_date1).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {selectedInterview.confirmed_date && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">確定日時:</span>
+                        <span className="font-medium text-green-600">
+                          {new Date(selectedInterview.confirmed_date).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ステータス・担当者 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                    <i className="fas fa-info-circle text-purple-500"></i>
+                    ステータス
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">現在の状況:</span>
+                      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                        selectedInterview.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        selectedInterview.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                        selectedInterview.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        selectedInterview.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-purple-100 text-purple-800'
+                      }`}>
+                        {selectedInterview.status === 'pending' ? '確認待ち' : 
+                         selectedInterview.status === 'confirmed' ? '予約確定' : 
+                         selectedInterview.status === 'completed' ? '面談完了' : 
+                         selectedInterview.status === 'cancelled' ? 'キャンセル' : '日程変更'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">担当者:</span>
+                      <span className="font-medium">{selectedInterview.interviewer || '未設定'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                    <i className="fas fa-database text-indigo-500"></i>
+                    データ管理
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">データ元:</span>
+                      <div className="flex items-center gap-1">
+                        <i className={`fas ${selectedInterview.sync_source === 'wordpress' ? 'fa-wordpress text-blue-500' : 'fa-edit text-gray-500'}`}></i>
+                        <span>{selectedInterview.sync_source === 'wordpress' ? 'WordPress同期' : '手動入力'}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">WordPress ID:</span>
+                      <span className="font-mono text-xs">{selectedInterview.wordpress_id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">登録日時:</span>
+                      <span>{new Date(selectedInterview.created_at).toLocaleDateString('ja-JP')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* メッセージ・備考 */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                  <i className="fas fa-comment text-orange-500"></i>
+                  メッセージ・備考
+                </h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">応募者からのメッセージ:</label>
+                    <div className="p-3 bg-gray-50 rounded-lg text-sm">
+                      {selectedInterview.message || 'メッセージなし'}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">内部備考:</label>
+                    <div className="p-3 bg-gray-50 rounded-lg text-sm">
+                      {selectedInterview.notes || '備考なし'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* アクションボタン */}
+              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                {selectedInterview.status === 'pending' && (
+                  <button className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2">
+                    <i className="fas fa-check"></i>
+                    予約確定
+                  </button>
+                )}
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
+                  <i className="fas fa-edit"></i>
+                  編集
+                </button>
+                <button className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2">
+                  <i className="fas fa-envelope"></i>
+                  メール送信
+                </button>
+                <button className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2">
+                  <i className="fas fa-calendar-plus"></i>
+                  カレンダー追加
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.models import Session
 from django.utils import timezone
 from django.db import transaction
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment
 from .serializers import (
     EngineerSerializer, 
     SkillSheetSerializer, 
@@ -17,7 +17,9 @@ from .serializers import (
     EngineerDetailSerializer,
     InterviewSerializer,
     RecruitmentChannelSerializer,
-    SocialMediaPostSerializer
+    SocialMediaPostSerializer,
+    CompanySerializer,
+    CompanyAppointmentSerializer,
 )
 
 class EngineerViewSet(viewsets.ModelViewSet):
@@ -695,3 +697,118 @@ class SocialMediaPostViewSet(viewsets.ModelViewSet):
             },
             'by_platform': platform_stats
         })
+
+
+# ===============================
+# 企業アポイント管理ViewSet
+# ===============================
+
+class CompanyViewSet(viewsets.ModelViewSet):
+    """企業マスター管理"""
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        queryset = Company.objects.all()
+        name = self.request.query_params.get('name', None)
+        if name:
+            queryset = queryset.filter(name__icontains=name)
+        return queryset
+
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request):
+        """企業名の一括登録"""
+        names = request.data.get('names', [])
+        created = 0
+        skipped = 0
+        for name in names:
+            name = name.strip()
+            if not name:
+                continue
+            _, created_flag = Company.objects.get_or_create(name=name)
+            if created_flag:
+                created += 1
+            else:
+                skipped += 1
+        return Response({'created': created, 'skipped': skipped})
+
+
+class CompanyAppointmentViewSet(viewsets.ModelViewSet):
+    """企業アポイント管理 - 重複防止機能付き"""
+    queryset = CompanyAppointment.objects.select_related('company').all()
+    serializer_class = CompanyAppointmentSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        queryset = CompanyAppointment.objects.select_related('company').all()
+        company_id = self.request.query_params.get('company', None)
+        planner = self.request.query_params.get('planner', None)
+        apt_status = self.request.query_params.get('status', None)
+        if company_id:
+            queryset = queryset.filter(company_id=company_id)
+        if planner:
+            queryset = queryset.filter(planner=planner)
+        if apt_status:
+            queryset = queryset.filter(status=apt_status)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        company_id = request.data.get('company')
+        planner = request.data.get('planner')
+
+        # コンフリクト検出（同企業に別プランナーのアクティブなアポが存在するか確認）
+        conflict_info = None
+        if company_id and planner:
+            conflicts = CompanyAppointment.objects.filter(
+                company_id=company_id,
+                status='scheduled'
+            ).exclude(planner=planner)
+            if conflicts.exists():
+                c = conflicts.first()
+                conflict_info = {
+                    'planner': c.planner,
+                    'date': str(c.appointment_date),
+                }
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+
+        response_data = dict(serializer.data)
+        if conflict_info:
+            response_data['conflict_warning'] = conflict_info
+
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=False, methods=['get'])
+    def check_conflict(self, request):
+        """アポ登録前のコンフリクト確認API"""
+        company_id = request.query_params.get('company')
+        planner = request.query_params.get('planner')
+        exclude_id = request.query_params.get('exclude_id')
+
+        if not company_id or not planner:
+            return Response({'has_conflict': False})
+
+        qs = CompanyAppointment.objects.filter(
+            company_id=company_id,
+            status='scheduled'
+        ).exclude(planner=planner)
+
+        if exclude_id:
+            qs = qs.exclude(id=exclude_id)
+
+        if qs.exists():
+            c = qs.first()
+            return Response({
+                'has_conflict': True,
+                'conflict': {
+                    'planner': c.planner,
+                    'date': str(c.appointment_date),
+                    'time': str(c.appointment_time) if c.appointment_time else None,
+                }
+            })
+
+        return Response({'has_conflict': False})

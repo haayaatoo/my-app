@@ -130,7 +130,7 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
           </div>
 
           {/* カード表 */}
-          <div className={`card-front bg-white rounded-2xl shadow-lg p-6 w-72 h-[330px] flex flex-col items-center justify-between relative transition-all duration-300 ${
+          <div className={`card-front bg-white rounded-2xl shadow-lg p-6 w-full min-h-[360px] flex flex-col items-center justify-between relative transition-all duration-300 ${
             memoCount > 0 
               ? getHighestPriority() === 'urgent' || getHighestPriority() === 'high'
                 ? 'ring-2 ring-red-400 shadow-red-200/50 shadow-2xl'       // 高・緊急：赤
@@ -139,9 +139,6 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
                   : 'ring-2 ring-blue-400 shadow-blue-200/50 shadow-2xl'    // 低：青
               : ''
           }`}>
-            {/* ステータスバッジ（アニメーション削除） */}
-            <span className={`absolute top-4 right-4 px-3 py-1 text-xs font-semibold text-white rounded-full ${status.color}`}>{status.label}</span>
-            
             {/* メイン情報エリア */}
             <div className="flex flex-col items-center flex-grow">
               {/* アイコン */}
@@ -171,7 +168,11 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
               {/* 名前・役職 */}
               <div className="text-center mb-2">
                 <h3 className="text-lg font-bold text-gray-800 mb-1">{name}</h3>
-                {position && <span className="text-sm text-gray-500 font-medium">{position}</span>}
+                {position && <span className="text-sm text-gray-500 font-medium block">{position}</span>}
+                <span className={`mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white rounded-full ${status.color}`}>
+                  <i className="fas fa-briefcase"></i>
+                  {status.label}
+                </span>
                 {/* メモステータス表示 */}
                 {memoCount > 0 && (
                   <div className={`text-xs font-semibold mt-1 px-2 py-1 rounded-full ${
@@ -257,7 +258,7 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
             </div>
           </div>
           {/* カード裏 */}
-          <div className="card-back bg-gradient-to-br from-indigo-100 to-blue-100 rounded-2xl shadow-lg p-4 w-72 h-[330px]">
+          <div className="card-back bg-gradient-to-br from-indigo-100 to-blue-100 rounded-2xl shadow-lg p-4 w-full min-h-[360px]">
             <div className="flex flex-col h-full justify-start">
               {/* スキルセクション */}
               <div className="text-center mb-4">

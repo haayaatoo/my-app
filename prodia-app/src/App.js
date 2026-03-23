@@ -8,19 +8,44 @@ import InterviewManager from "./components/InterviewManager";
 import HREvaluation from "./components/HREvaluation";
 import RecruitmentMarketing from "./components/RecruitmentMarketing";
 import Settings from "./components/Settings";
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import CsCaseManager from "./components/CsCaseManager";
+import Calendar from "./components/Calendar";
+
+const ANALYTICS_ALLOWED = [
+  'kamiya@1dr.co.jp',
+  'asai@1dr.co.jp',
+  't-nukumizu@1dr.co.jp',
+  'h-imamura@1dr.co.jp'
+];
+
+const CS_CASE_ALLOWED = ['y-okada@1dr.co.jp'];
+
+const INTERVIEWS_ALLOWED = ['kamiya@1dr.co.jp', 'asai@1dr.co.jp', 'h-setoyama@1dr.co.jp', 'i-uemae@1dr.co.jp', 't-nukumizu@1dr.co.jp'];
 
 function MainLayout({ page, setPage, handleLogout }) {
   const { user } = useUser();
+  const canViewAnalytics = user && ANALYTICS_ALLOWED.includes(user.email);
+  const canViewCsCases = user && CS_CASE_ALLOWED.includes(user.email);
   
   // 権限チェック：面談履歴・人事評価・採用マーケティングページにアクセス権限がない場合はダッシュボードにリダイレクト
   React.useEffect(() => {
-    if ((page === "interviews" || page === "hr-evaluation") && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp') {
+    if (page === "interviews" && user && !INTERVIEWS_ALLOWED.includes(user.email)) {
+      setPage("dashboard");
+    }
+    if (page === "hr-evaluation" && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp') {
       setPage("dashboard");
     }
     if (page === "recruitment-marketing" && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp' && user.email !== 'a-inagaki@1dr.co.jp') {
       setPage("dashboard");
     }
-  }, [page, user, setPage]);
+    if (page === "analytics" && !canViewAnalytics) {
+      setPage("dashboard");
+    }
+    if (page === "cs-cases" && !canViewCsCases) {
+      setPage("dashboard");
+    }
+  }, [page, user, setPage, canViewAnalytics, canViewCsCases]);
   
   return (
     <div className="flex h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100">
@@ -34,20 +59,15 @@ function MainLayout({ page, setPage, handleLogout }) {
         
         {/* ブランドヘッダー */}
         <div className="p-8 border-b border-amber-200/30 relative z-10">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-stone-500 rounded-2xl flex items-center justify-center">
-              <span className="text-xl font-bold text-white">P</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800 tracking-wider">Prodia</h1>
-            </div>
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-slate-800 tracking-wider">Prodia</h1>
+            <p className="text-slate-500 text-sm font-normal mt-2">Management System</p>
           </div>
-          <p className="text-slate-500 text-sm font-normal">Management System</p>
           <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-amber-300 to-transparent rounded-full mt-4"></div>
         </div>
 
         {user?.name && (
-          <div className="px-8 pt-4 text-sm font-bold text-amber-600">ようこそ {user.name} さん</div>
+          <div className="px-8 pt-4 text-sm font-bold text-amber-600 text-center">ようこそ {user.name} さん</div>
         )}
 
         {/* ナビゲーション */}
@@ -79,6 +99,35 @@ function MainLayout({ page, setPage, handleLogout }) {
             )}
           </button>
 
+          {/* アナリティクスダッシュボード */}
+          {canViewAnalytics && (
+            <button
+              className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+                page === "analytics" 
+                  ? "bg-gradient-to-r from-emerald-200/30 to-blue-200/20 text-white shadow-lg border border-emerald-200/40" 
+                  : "text-slate-200 hover:bg-white/5 hover:text-white/90 hover:shadow-md"
+              }`}
+              onClick={() => setPage("analytics")}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                  page === "analytics" 
+                    ? "bg-gradient-to-br from-emerald-400 to-blue-500 text-white shadow-lg" 
+                    : "bg-slate-800 text-slate-300 group-hover:bg-emerald-500/20 group-hover:text-emerald-200"
+                }`}>
+                  <i className="fas fa-chart-line text-lg"></i>
+                </div>
+                <div>
+                  <span className="font-medium text-lg">Analytics</span>
+                  <p className="text-xs opacity-70 mt-0.5">経営指標ビュー</p>
+                </div>
+              </div>
+              {page === "analytics" && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-emerald-400 to-blue-500 rounded-full"></div>
+              )}
+            </button>
+          )}
+
           {/* エンジニア管理 */}
           <button
             className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
@@ -107,6 +156,7 @@ function MainLayout({ page, setPage, handleLogout }) {
           </button>
 
           {/* スキルシート */}
+          {user && !['h-setoyama@1dr.co.jp', 'i-uemae@1dr.co.jp'].includes(user.email) && (
           <button
             className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
               page === "skill-sheets" 
@@ -132,9 +182,10 @@ function MainLayout({ page, setPage, handleLogout }) {
               <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-amber-400 to-stone-400 rounded-full"></div>
             )}
           </button>
+          )}
 
           {/* お客様面談履歴（権限チェック付き） */}
-          {user && (user.email === 'kamiya@1dr.co.jp' || user.email === 'asai@1dr.co.jp') && (
+          {user && (['kamiya@1dr.co.jp', 'asai@1dr.co.jp', 'h-setoyama@1dr.co.jp', 'i-uemae@1dr.co.jp', 't-nukumizu@1dr.co.jp'].includes(user.email)) && (
             <button
               className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
                 page === "interviews" 
@@ -220,6 +271,62 @@ function MainLayout({ page, setPage, handleLogout }) {
             </button>
           )}
 
+          {/* CS案件管理（岡田さん専用） */}
+          {canViewCsCases && (
+            <button
+              className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+                page === "cs-cases" 
+                  ? "bg-gradient-to-r from-emerald-100 to-teal-100 text-slate-700 shadow-lg border border-emerald-200/50" 
+                  : "text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
+              }`}
+              onClick={() => setPage("cs-cases")}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                  page === "cs-cases" 
+                    ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-lg" 
+                    : "bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600"
+                }`}>
+                  <i className="fas fa-clipboard-list text-lg"></i>
+                </div>
+                <div>
+                  <span className="font-medium text-lg">CS案件管理</span>
+                  <p className="text-xs opacity-70 mt-0.5">CS専用案件ボード</p>
+                </div>
+              </div>
+              {page === "cs-cases" && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full"></div>
+              )}
+            </button>
+          )}
+
+          {/* カレンダー */}
+          <button
+            className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
+              page === "calendar" 
+                ? "bg-gradient-to-r from-blue-100 to-cyan-100 text-slate-700 shadow-lg border border-blue-200/50" 
+                : "text-slate-600 hover:bg-white/60 hover:text-slate-700 hover:shadow-md"
+            }`}
+            onClick={() => setPage("calendar")}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                page === "calendar" 
+                  ? "bg-gradient-to-br from-blue-400 to-cyan-500 text-white shadow-lg" 
+                  : "bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600"
+              }`}>
+                <i className="fas fa-calendar-alt text-lg"></i>
+              </div>
+              <div>
+                <span className="font-medium text-lg">カレンダー</span>
+                <p className="text-xs opacity-70 mt-0.5">スケジュール管理</p>
+              </div>
+            </div>
+            {page === "calendar" && (
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></div>
+            )}
+          </button>
+
           {/* 設定 */}
           <button
             className={`group w-full text-left p-5 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] ${
@@ -274,11 +381,14 @@ function MainLayout({ page, setPage, handleLogout }) {
       {/* メイン画面 */}
       <main className="flex-1 overflow-auto">
         {page === "dashboard" && <Dashboard />}
+        {page === "analytics" && <AnalyticsDashboard />}
         {page === "engineers" && <EngineerList />}
         {page === "skill-sheets" && <SkillSheetManager />}
         {page === "interviews" && <InterviewManager />}
         {page === "hr-evaluation" && <HREvaluation />}
         {page === "recruitment-marketing" && <RecruitmentMarketing />}
+        {page === "cs-cases" && <CsCaseManager />}
+        {page === "calendar" && <Calendar />}
         {page === "settings" && <Settings />}
       </main>
     </div>

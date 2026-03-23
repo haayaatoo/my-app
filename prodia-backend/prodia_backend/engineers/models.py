@@ -482,3 +482,54 @@ class MonthlyRevenueSummary(models.Model):
     
     def __str__(self):
         return f"{self.year_month.strftime('%Y年%m月')} - {self.actual_revenue:,}円"
+
+
+# ===============================
+# 企業アポイント管理モデル
+# ===============================
+
+class Company(models.Model):
+    """企業マスターリスト"""
+    name = models.CharField(max_length=200, unique=True, verbose_name='企業名')
+    memo = models.TextField(blank=True, null=True, verbose_name='備考')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "企業"
+        verbose_name_plural = "企業一覧"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class CompanyAppointment(models.Model):
+    """企業アポイント管理 - プランナー間の重複アポを防止"""
+    STATUS_CHOICES = [
+        ('scheduled', '予定'),
+        ('completed', '完了'),
+        ('cancelled', 'キャンセル'),
+    ]
+
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE,
+        related_name='appointments', verbose_name='企業'
+    )
+    planner = models.CharField(max_length=100, verbose_name='プランナー')
+    appointment_date = models.DateField(verbose_name='日程')
+    appointment_time = models.TimeField(null=True, blank=True, verbose_name='時間')
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES,
+        default='scheduled', verbose_name='ステータス'
+    )
+    notes = models.TextField(blank=True, null=True, verbose_name='メモ')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "アポイント"
+        verbose_name_plural = "アポイント一覧"
+        ordering = ['appointment_date', 'appointment_time']
+
+    def __str__(self):
+        return f"{self.company.name} - {self.planner} ({self.appointment_date})"

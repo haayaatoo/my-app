@@ -36,3 +36,77 @@
     transform: rotate(360deg);
   }
 }
+
+/* Shared soft-gradient helpers so non-analytics pages inherit the same aura */
+.soft-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(16, 185, 129, 0.15), transparent 55%),
+    radial-gradient(circle at 88% 6%, rgba(79, 70, 229, 0.14), transparent 48%),
+    linear-gradient(135deg, #fdfbf7 0%, #f7fbff 45%, #f4f9ff 100%);
+}
+
+.soft-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.08), transparent 65%);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.soft-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, rgba(16, 185, 129, 0.08), rgba(59, 130, 246, 0.08));
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.soft-aurora {
+  position: absolute;
+  width: 460px;
+  height: 460px;
+  filter: blur(65px);
+  opacity: 0.55;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.soft-aurora--emerald {
+  top: -18%;
+  left: -6%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.35), transparent 60%);
+}
+
+.soft-aurora--indigo {
+  bottom: -12%;
+  right: -10%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.32), transparent 58%);
+}
+
+.soft-noise {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px);
+  background-size: 140px 140px;
+  opacity: 0.4;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.soft-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.92));
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 25px 45px rgba(15, 23, 42, 0.08), 0 10px 20px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(18px);
+}
+
+.soft-panel-accent {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(79, 70, 229, 0.16));
+  border-color: rgba(79, 70, 229, 0.3);
+  box-shadow: 0 25px 40px rgba(79, 70, 229, 0.12);
+}

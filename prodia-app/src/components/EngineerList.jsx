@@ -6,6 +6,9 @@ import EngineerStats from "./EngineerStats";
 import DeleteDropZone from "./DeleteDropZone";
 import EngineerMemo from "./EngineerMemo";
 import CSVImporter from "./CSVImporter";
+import PPSalesProgress from "./PPSalesProgress";
+import BPProgress from "./BPProgress";
+import CompanyAppointmentManager from "./CompanyAppointmentManager";
 
 // モダン・ラグジュアリーローディング
 function AnimatedLoader() {
@@ -39,10 +42,12 @@ function AnimatedLoader() {
 // モダン・ラグジュアリーヘッダーコンポーネント
 function EngineerListHeader({ engineersCount, onAddNew, showStats, onToggleStats }) {
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-white via-stone-50 to-amber-50/30 p-8 rounded-3xl shadow-2xl border border-white/80 mb-8 backdrop-blur-sm" 
-         style={{
-           boxShadow: '0 25px 70px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
-         }}>
+    <div
+      className="relative overflow-hidden soft-panel soft-panel-accent p-8 rounded-3xl mb-8"
+      style={{
+        boxShadow: '0 25px 70px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
+      }}
+    >
       
       {/* 上品な装飾要素 */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300"></div>
@@ -50,29 +55,43 @@ function EngineerListHeader({ engineersCount, onAddNew, showStats, onToggleStats
       <div className="absolute bottom-4 left-6 w-2 h-2 bg-stone-200/50 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
       <div className="absolute top-8 left-12 w-1 h-1 bg-amber-300/60 rounded-full animate-ping" style={{animationDelay: '2s'}}></div>
       
-      <div className="relative z-10 flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-medium text-slate-700 mb-3 tracking-wide">
-            <span className="inline-block hover:scale-105 transition-transform duration-300 font-display">
-              エンジニア管理
-            </span>
-          </h1>
-          <p className="text-slate-500 text-lg font-normal">
-            登録数: <span className="text-amber-600 font-medium text-xl">{engineersCount}</span>名のプロフェッショナル
-          </p>
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-4xl font-medium text-slate-700 mb-3 tracking-wide">
+              <span className="inline-block hover:scale-105 transition-transform duration-300 font-display">
+                エンジニア管理
+              </span>
+            </h1>
+            <p className="text-slate-500 text-lg font-normal">
+              登録数: <span className="text-amber-600 font-medium text-xl">{engineersCount}</span>名のプロフェッショナル
+            </p>
+          </div>
         </div>
         
-        <div className="flex space-x-4">
+        {/* タブナビゲーション */}
+        <div className="flex bg-white rounded-2xl p-1 shadow-lg">
           <button
-            onClick={onToggleStats}
-            className="group relative overflow-hidden bg-gradient-to-br from-white/80 via-stone-50 to-amber-50/50 text-slate-700 px-8 py-4 rounded-2xl font-medium transition-all duration-500 transform hover:scale-105 shadow-lg border border-white/60 backdrop-blur-sm hover:shadow-amber-200/50 whitespace-nowrap min-w-fit text-sm"
-            style={{
-              boxShadow: '0 10px 30px rgba(0,0,0,0.08), 0 4px 15px rgba(0,0,0,0.06)'
-            }}
+            onClick={() => onToggleStats()}
+            className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+              showStats
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+            }`}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-100/30 to-transparent -skew-x-12 -translate-x-full group-hover:animate-shimmer"></div>
-            <i className="fas fa-chart-bar mr-3 text-amber-600"></i>
-            {showStats ? '統計を隠す' : '統計を表示'}
+            <i className="fas fa-tachometer-alt"></i>
+            ダッシュボード
+          </button>
+          <button
+            onClick={() => onToggleStats()}
+            className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+              !showStats
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <i className="fas fa-users"></i>
+            エンジニアリスト
           </button>
         </div>
       </div>
@@ -91,8 +110,8 @@ export default function EngineerList() {
   const [selectedEngineers, setSelectedEngineers] = useState([]);
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
-  const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
-  const [showStats, setShowStats] = useState(true); // 統計表示の切り替え
+  const [displayMode, setDisplayMode] = useState('card'); // 'card' or 'table'（カード/テーブル表示切り替え）
+  const [activeTab, setActiveTab] = useState('dashboard'); // タブ切り替え用の状態（初期表示はダッシュボード）
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [selectedEngineerForMemo, setSelectedEngineerForMemo] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // メモ変更時のカード更新トリガー
@@ -398,40 +417,124 @@ export default function EngineerList() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 opacity-0 animate-fade-in" style={{animationDelay: '0ms', animationFillMode: 'forwards'}}>
-      {/* モダン・ラグジュアリー通知 */}
-      {notification && (
-        <div className={`fixed top-6 right-6 z-50 px-8 py-4 rounded-3xl backdrop-blur-sm text-white font-medium animate-bounce-in flex items-center gap-4 border border-white/20 ${
-          notification.type === 'success' 
-            ? 'bg-gradient-to-r from-emerald-500 to-green-500' 
-            : 'bg-gradient-to-r from-red-500 to-rose-500'
-        }`} style={{
-          boxShadow: '0 20px 50px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.1)'
-        }}>
-          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-            <i className={`fas text-sm ${notification.type === 'success' ? 'fa-check' : 'fa-exclamation'}`}></i>
+    <div
+      className="soft-page opacity-0 animate-fade-in"
+      style={{ animationDelay: '0ms', animationFillMode: 'forwards' }}
+    >
+      <div className="soft-aurora soft-aurora--emerald"></div>
+      <div className="soft-aurora soft-aurora--indigo"></div>
+      <div className="soft-noise"></div>
+
+      <div className="relative z-10">
+        {/* モダン・ラグジュアリー通知 */}
+        {notification && (
+          <div className={`fixed top-6 right-6 z-50 px-8 py-4 rounded-3xl backdrop-blur-sm text-white font-medium animate-bounce-in flex items-center gap-4 border border-white/20 ${
+            notification.type === 'success' 
+              ? 'bg-gradient-to-r from-emerald-500 to-green-500' 
+              : 'bg-gradient-to-r from-red-500 to-rose-500'
+          }`} style={{
+            boxShadow: '0 20px 50px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.1)'
+          }}>
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+              <i className={`fas text-sm ${notification.type === 'success' ? 'fa-check' : 'fa-exclamation'}`}></i>
+            </div>
+            <span className="text-lg tracking-wide">{notification.message}</span>
           </div>
-          <span className="text-lg tracking-wide">{notification.message}</span>
-        </div>
-      )}
+        )}
 
-      <div className="container mx-auto px-6 py-8">
-        {/* 新しいスタイリッシュヘッダー */}
+        <div className="container mx-auto px-6 py-8">
+        {/* 新しいスタイリッシュヘッダー with タブナビゲーション */}
         <div className="opacity-0 animate-slide-in-from-top" style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
-          <EngineerListHeader 
-            engineersCount={engineers.length}
-            onAddNew={() => setShowForm(true)}
-            showStats={showStats}
-            onToggleStats={() => setShowStats(!showStats)}
-          />
+          <div
+            className="relative overflow-hidden soft-panel soft-panel-accent p-8 rounded-3xl mb-8"
+            style={{
+              boxShadow: '0 25px 70px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
+            }}
+          >
+            {/* 上品な装飾要素 */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300"></div>
+            <div className="absolute top-4 right-6 w-3 h-3 bg-amber-200/40 rounded-full animate-pulse"></div>
+            <div className="absolute bottom-4 left-6 w-2 h-2 bg-stone-200/50 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
+            <div className="absolute top-8 left-12 w-1 h-1 bg-amber-300/60 rounded-full animate-ping" style={{animationDelay: '2s'}}></div>
+            
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              {/* タイトル部分 */}
+              <div>
+                <h1 className="text-4xl font-medium text-slate-700 mb-3 tracking-wide">
+                  <span className="inline-block hover:scale-105 transition-transform duration-300 font-display">
+                    {activeTab === 'dashboard' ? 'エンジニア統計ダッシュボード' : 
+                     activeTab === 'pp-sales' ? 'PP営業進捗管理' : 
+                     activeTab === 'bp-progress' ? 'BP進捗管理' : 
+                     activeTab === 'apo-kanri' ? 'アポ管理' : 'エンジニア管理'}
+                  </span>
+                </h1>
+                <p className="text-slate-500 text-lg font-normal">
+                  {activeTab === 'dashboard' ? 'リアルタイム人材管理システム' : 
+                   activeTab === 'pp-sales' ? '面談の進捗状況と営業活動を一元管理' : 
+                   activeTab === 'bp-progress' ? 'プランナー別面談件数とBP見込み案件を管理' : 
+                   activeTab === 'apo-kanri' ? 'プランナー間のアポ重複を防止・一元管理' :
+                   `登録数: ${engineers.length}名のプロフェッショナル`}
+                </p>
+              </div>
+              
+              {/* タブナビゲーション */}
+              <div className="flex bg-white rounded-2xl p-1 shadow-lg">
+                {[
+                  { key: 'dashboard', icon: 'fa-tachometer-alt', label: 'ダッシュボード' },
+                  { key: 'engineers', icon: 'fa-users', label: 'エンジニアリスト' },
+                  { key: 'pp-sales', icon: 'fa-handshake', label: 'PP営業進捗' },
+                  { key: 'bp-progress', icon: 'fa-project-diagram', label: 'BP進捗' },
+                  { key: 'apo-kanri', icon: 'fa-calendar-check', label: 'アポ管理' },
+                ].map(mode => (
+                  <button
+                    key={mode.key}
+                    onClick={() => setActiveTab(mode.key)}
+                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+                      activeTab === mode.key
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-md'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    <i className={`fas ${mode.icon}`}></i>
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* 統計情報（条件付き表示） */}
-        {showStats && (
-          <div className="mb-8 transform transition-all duration-500 ease-in-out opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+        {/* ダッシュボード表示 - エンジニア統計 */}
+        {activeTab === 'dashboard' && (
+          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
             <EngineerStats engineers={engineers} />
           </div>
         )}
+
+        {/* PP営業進捗表示 */}
+        {activeTab === 'pp-sales' && (
+          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+            <PPSalesProgress />
+          </div>
+        )}
+
+        {/* BP進捗表示 */}
+        {activeTab === 'bp-progress' && (
+          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+            <BPProgress />
+          </div>
+        )}
+
+        {/* アポ管理表示 */}
+        {activeTab === 'apo-kanri' && (
+          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+            <CompanyAppointmentManager />
+          </div>
+        )}
+
+        {/* エンジニアリスト表示 */}
+        {activeTab === 'engineers' && (
+          <>
 
       {/* モダン・ラグジュアリー一括操作バー */}
       {selectedEngineers.length > 0 && (
@@ -517,9 +620,9 @@ export default function EngineerList() {
             boxShadow: '0 8px 25px rgba(0,0,0,0.06)'
           }}>
             <button
-              onClick={() => setViewMode('card')}
+              onClick={() => setDisplayMode('card')}
               className={`px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 whitespace-nowrap min-w-fit ${
-                viewMode === 'card' 
+                displayMode === 'card' 
                   ? 'bg-gradient-to-r from-amber-100 to-stone-100 text-slate-700 shadow-lg border border-amber-200/50' 
                   : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
               }`}
@@ -528,9 +631,9 @@ export default function EngineerList() {
               カード
             </button>
             <button
-              onClick={() => setViewMode('table')}
+              onClick={() => setDisplayMode('table')}
               className={`px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 whitespace-nowrap min-w-fit ${
-                viewMode === 'table' 
+                displayMode === 'table' 
                   ? 'bg-gradient-to-r from-amber-100 to-stone-100 text-slate-700 shadow-lg border border-amber-200/50' 
                   : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
               }`}
@@ -578,7 +681,7 @@ export default function EngineerList() {
         </div>
       </div>
       {/* モダン・ラグジュアリー検索フィルタ + ソート */}
-      <div className="mb-10 p-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-white/90 opacity-0 animate-slide-in-from-bottom" style={{
+      <div className="soft-panel mb-10 p-8 rounded-3xl opacity-0 animate-slide-in-from-bottom" style={{
         boxShadow: '0 20px 50px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.04)',
         animationDelay: '600ms',
         animationFillMode: 'forwards'
@@ -716,11 +819,11 @@ export default function EngineerList() {
         </div>
       </div>
       {/* エンジニア一覧 - スタイリッシュアニメーション付き */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
         {filtered.map((e, index) => (
           <div 
             key={e.id}
-            className="transform transition-all duration-700 ease-out hover:scale-105"
+            className="h-full transform transition-all duration-700 ease-out hover:scale-105"
             style={{
               animationDelay: `${index * 0.1}s`,
               animation: 'slideInUp 0.8s ease-out forwards'
@@ -795,7 +898,10 @@ export default function EngineerList() {
 
       {/* 削除ドロップゾーン */}
       <DeleteDropZone onDrop={handleDropDelete} />
+          </>
+        )}
       </div>
     </div>
+  </div>
   );
 }

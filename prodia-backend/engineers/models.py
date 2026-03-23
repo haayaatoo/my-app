@@ -31,7 +31,7 @@ class RecruitmentChannel(models.Model):
     
     STATUS_CHOICES = [
         ('applied', '応募'),
-        ('screening', '書類選考中'),
+        # ('screening', '書類選考中'),  # 一時的に非表示（将来的に使用予定）
         ('interview', '面接中'),
         ('hired', '採用'),
         ('rejected', '不採用'),
