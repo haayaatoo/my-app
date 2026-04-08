@@ -40,7 +40,7 @@
 /* Shared soft-gradient helpers so non-analytics pages inherit the same aura */
 .soft-page {
   position: relative;
-  min-height: 100vh;
+  min-height: 100%;
   overflow: hidden;
   background-image:
     radial-gradient(circle at 12% 18%, rgba(16, 185, 129, 0.15), transparent 55%),

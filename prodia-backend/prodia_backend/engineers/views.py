@@ -1,14 +1,16 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.models import Session
 from django.utils import timezone
 from django.db import transaction
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord
 from .serializers import (
     EngineerSerializer, 
     SkillSheetSerializer, 
@@ -20,13 +22,46 @@ from .serializers import (
     SocialMediaPostSerializer,
     CompanySerializer,
     CompanyAppointmentSerializer,
+    DealSerializer,
+    DealActivitySerializer,
+    ProjectSerializer,
+    ProjectAssignmentSerializer,
 )
+
+from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer
 
 class EngineerViewSet(viewsets.ModelViewSet):
     queryset = Engineer.objects.all()
     serializer_class = EngineerSerializer
-    
-    @action(detail=False, methods=['post'])
+
+    def _detect_extension(self, instance, new_end_date_str, date_field):
+        """project_end_date が延長されたか検知"""
+        from datetime import date
+        old_val = getattr(instance, date_field)
+        if not new_end_date_str or old_val is None:
+            return False
+        try:
+            new_val = date.fromisoformat(str(new_end_date_str))
+            return new_val > old_val
+        except (ValueError, TypeError):
+            return False
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        extend = self._detect_extension(instance, request.data.get('project_end_date'), 'project_end_date')
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        if extend:
+            serializer.save(contract_extended_at=timezone.now(), last_user_updated_at=timezone.now())
+        else:
+            serializer.save(last_user_updated_at=timezone.now())
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
     def bulk_create(self, request):
         """CSV一括登録API"""
         engineers_data = request.data.get('engineers', [])
@@ -44,19 +79,28 @@ class EngineerViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 for index, engineer_data in enumerate(engineers_data):
                     try:
-                        # 重複チェック（メールアドレス）
-                        if Engineer.objects.filter(email=engineer_data.get('email')).exists():
+                        # 重複チェック（名前）
+                        if Engineer.objects.filter(name=engineer_data.get('name', '').strip()).exists():
                             skipped_count += 1
                             continue
                         
                         # データの前処理
+                        email_val = engineer_data.get('email', '').strip() or None
+                        monthly_rate_val = engineer_data.get('monthly_rate', '').strip() or None
+                        project_start_val = engineer_data.get('project_start_date', '').strip() or None
+                        project_end_val = engineer_data.get('project_end_date', '').strip() or None
                         processed_data = {
                             'name': engineer_data.get('name', '').strip(),
-                            'email': engineer_data.get('email', '').strip(),
+                            'email': email_val,
                             'position': engineer_data.get('position', '').strip() or None,
                             'project_name': engineer_data.get('project_name', '').strip(),
                             'planner': engineer_data.get('planner', '').strip(),
                             'engineer_status': engineer_data.get('engineer_status', 'unassigned').strip(),
+                            'client_company': engineer_data.get('client_company', '').strip() or None,
+                            'monthly_rate': monthly_rate_val,
+                            'project_start_date': project_start_val,
+                            'project_end_date': project_end_val,
+                            'project_location': engineer_data.get('project_location', '').strip() or None,
                         }
                         
                         # スキルの処理（文字列、リスト、または空）
@@ -84,10 +128,6 @@ class EngineerViewSet(viewsets.ModelViewSet):
                         # バリデーション
                         if not processed_data['name']:
                             errors.append(f'行 {index + 1}: 名前は必須です')
-                            continue
-                            
-                        if not processed_data['email'] or '@' not in processed_data['email']:
-                            errors.append(f'行 {index + 1}: 有効なメールアドレスが必要です')
                             continue
                             
                         if not processed_data['project_name']:
@@ -213,44 +253,49 @@ class MemoAttachmentViewSet(viewsets.ModelViewSet):
 @permission_classes([AllowAny])
 @csrf_exempt
 def login_view(request):
-    """メールアドレスとパスワードでログイン"""
+    """メールアドレスとパスワードでログイン → JWTトークンを返す"""
     email = request.data.get('email')
     password = request.data.get('password')
-    
+
     if not email or not password:
         return Response({
             'error': 'メールアドレスとパスワードを入力してください'
         }, status=status.HTTP_400_BAD_REQUEST)
-    
+
     try:
-        # ProdiaUserテーブルからメールアドレスを検索
         user = ProdiaUser.objects.get(email=email)
-        
-        # アクティブユーザーかチェック
+
         if not user.is_active:
             return Response({
                 'error': 'アカウントが無効です'
             }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # パスワード認証
-        if user.check_password(password):
-            # ログイン時刻を記録
-            user.last_login = timezone.now()
-            user.save()
-            
-            return Response({
-                'success': True,
-                'user': {
-                    'id': user.id,
-                    'name': user.name,
-                    'email': user.email,
-                }
-            }, status=status.HTTP_200_OK)
-        else:
+
+        if not user.check_password(password):
             return Response({
                 'error': 'パスワードが正しくありません'
             }, status=status.HTTP_401_UNAUTHORIZED)
-            
+
+        # ログイン時刻を記録
+        user.last_login = timezone.now()
+        user.save()
+
+        # JWTトークンをProdiaユーザーIDからカスタム生成
+        refresh = RefreshToken()
+        refresh['user_id'] = user.id
+        refresh['email'] = user.email
+        refresh['name'] = user.name
+
+        return Response({
+            'success': True,
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'name': user.name,
+                'email': user.email,
+            }
+        }, status=status.HTTP_200_OK)
+
     except ProdiaUser.DoesNotExist:
         return Response({
             'error': 'メールアドレスが見つかりません'
@@ -260,7 +305,14 @@ def login_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def logout_view(request):
-    """ログアウト"""
+    """リフレッシュトークンをブラックリストに追加してログアウト"""
+    refresh_token = request.data.get('refresh')
+    if refresh_token:
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            pass  # すでに無効なトークンは無視
     return Response({
         'success': True,
         'message': 'ログアウトしました'
@@ -716,7 +768,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(name__icontains=name)
         return queryset
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulk_create(self, request):
         """企業名の一括登録"""
         names = request.data.get('names', [])
@@ -732,6 +784,52 @@ class CompanyViewSet(viewsets.ModelViewSet):
             else:
                 skipped += 1
         return Response({'created': created, 'skipped': skipped})
+
+    @action(detail=False, methods=['get'], url_path='teleapo-status')
+    def teleapo_status(self, request):
+        """企業ごとのテレアポ状況を返す（架電リスト用）"""
+        from collections import defaultdict
+
+        companies = Company.objects.all().order_by('name')
+
+        # TeleapoRecord を全件取得して company_name でグルーピング
+        all_records = list(
+            TeleapoRecord.objects.values(
+                'company_name', 'planner', 'call_date', 'result'
+            ).order_by('-call_date', '-created_at')
+        )
+
+        call_data = defaultdict(list)
+        for r in all_records:
+            call_data[r['company_name']].append(r)
+
+        result = []
+        search = request.query_params.get('search', '').strip()
+        status_filter = request.query_params.get('status', 'all')  # all / uncalled / called
+
+        for company in companies:
+            if search and search.lower() not in company.name.lower():
+                continue
+
+            records = call_data.get(company.name, [])
+            call_count = len(records)
+
+            if status_filter == 'uncalled' and call_count > 0:
+                continue
+            if status_filter == 'called' and call_count == 0:
+                continue
+
+            result.append({
+                'id': company.id,
+                'name': company.name,
+                'call_count': call_count,
+                'last_call_date': str(records[0]['call_date']) if records else None,
+                'last_result': records[0]['result'] if records else None,
+                'last_planner': records[0]['planner'] if records else None,
+                'callers': list({r['planner'] for r in records}),
+            })
+
+        return Response(result)
 
 
 class CompanyAppointmentViewSet(viewsets.ModelViewSet):
@@ -812,3 +910,248 @@ class CompanyAppointmentViewSet(viewsets.ModelViewSet):
             })
 
         return Response({'has_conflict': False})
+
+
+# ===============================
+# 案件パイプライン（かんばんボード）
+# ===============================
+
+class DealViewSet(viewsets.ModelViewSet):
+    """案件パイプライン管理"""
+    queryset = Deal.objects.prefetch_related('proposed_engineers', 'activities').all()
+    serializer_class = DealSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        queryset = Deal.objects.prefetch_related('proposed_engineers', 'activities').all()
+        stage = self.request.query_params.get('stage')
+        assigned_to = self.request.query_params.get('assigned_to')
+        if stage:
+            queryset = queryset.filter(stage=stage)
+        if assigned_to:
+            queryset = queryset.filter(assigned_to=assigned_to)
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def pipeline(self, request):
+        """かんばんボード用：ステージ別案件一覧"""
+        stages = ['open_system', 'web', 'embedded', 'infrastructure', 'support_other', 'low_skill']
+        stage_labels = {
+            'open_system':    'オープン系',
+            'web':            'Web系',
+            'embedded':       '組み込み',
+            'infrastructure': 'インフラ',
+            'support_other':  '開発支援・その他',
+            'low_skill':      'ロースキル',
+        }
+        pipeline = {}
+        for s in stages:
+            deals = Deal.objects.prefetch_related('proposed_engineers', 'activities').filter(stage=s)
+            pipeline[s] = {
+                'label': stage_labels[s],
+                'deals': DealSerializer(deals, many=True).data,
+                'count': deals.count(),
+                'total_amount': sum(
+                    float(d.expected_monthly_rate or 0) for d in deals
+                ),
+            }
+        return Response(pipeline)
+
+    @action(detail=True, methods=['post'])
+    def add_activity(self, request, pk=None):
+        """案件に活動履歴を追加"""
+        deal = self.get_object()
+        data = request.data.copy()
+        data['deal'] = deal.id
+        serializer = DealActivitySerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            new_stage = request.data.get('new_stage')
+            if new_stage:
+                deal.stage = new_stage
+                deal.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch'])
+    def move_stage(self, request, pk=None):
+        """ドラッグ＆ドロップによるステージ変更"""
+        deal = self.get_object()
+        new_stage = request.data.get('stage')
+        if not new_stage:
+            return Response({'error': 'stage is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        old_stage = deal.stage
+        deal.stage = new_stage
+        if new_stage == 'won':
+            from django.utils.timezone import now
+            deal.won_at = now().date()
+        elif new_stage == 'lost':
+            from django.utils.timezone import now
+            deal.lost_at = now().date()
+            deal.lost_reason = request.data.get('lost_reason', '')
+        deal.save()
+
+        DealActivity.objects.create(
+            deal=deal,
+            activity_type='stage_move',
+            content=f'ステージを「{old_stage}」→「{new_stage}」に変更',
+            created_by=request.data.get('updated_by', 'システム'),
+        )
+        return Response(DealSerializer(deal).data)
+
+
+# ===============================
+# 元請案件管理（参画中プロジェクト）
+# ===============================
+
+class ProjectViewSet(viewsets.ModelViewSet):
+    """元請案件管理"""
+    queryset = Project.objects.all().prefetch_related('assignments__engineer')
+    serializer_class = ProjectSerializer
+    permission_classes = [AllowAny]
+
+    @action(detail=False, methods=['get'])
+    def by_client(self, request):
+        """元請企業別に案件をグルーピングして返す"""
+        projects = self.get_queryset()
+        result = {}
+        for project in projects:
+            key = project.client_company
+            if key not in result:
+                result[key] = {
+                    'client_company': key,
+                    'projects': [],
+                    'total_engineers': 0,
+                    'active_count': 0,
+                }
+            serialized = ProjectSerializer(project).data
+            result[key]['projects'].append(serialized)
+            result[key]['total_engineers'] += project.assignments.count()
+            if project.status == 'active':
+                result[key]['active_count'] += 1
+
+        return Response(list(result.values()))
+
+    @action(detail=True, methods=['post'])
+    def add_assignment(self, request, pk=None):
+        """エンジニアを案件に参画登録"""
+        project = self.get_object()
+        engineer_id = request.data.get('engineer_id')
+        if not engineer_id:
+            return Response({'error': 'engineer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            engineer = Engineer.objects.get(pk=engineer_id)
+        except Engineer.DoesNotExist:
+            return Response({'error': 'Engineer not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        assignment, created = ProjectAssignment.objects.get_or_create(
+            project=project,
+            engineer=engineer,
+            defaults={
+                'start_date': request.data.get('start_date'),
+                'end_date': request.data.get('end_date'),
+                'monthly_rate': request.data.get('monthly_rate'),
+                'role': request.data.get('role', ''),
+                'notes': request.data.get('notes', ''),
+            }
+        )
+        if not created:
+            for field in ['start_date', 'end_date', 'monthly_rate', 'role', 'notes', 'is_active']:
+                if field in request.data:
+                    setattr(assignment, field, request.data[field])
+            assignment.save()
+
+        return Response(ProjectSerializer(project).data)
+
+    @action(detail=True, methods=['delete'], url_path=r'remove_assignment/(?P<assignment_id>[^/.]+)')
+    def remove_assignment(self, request, pk=None, assignment_id=None):
+        """参画登録を削除"""
+        project = self.get_object()
+        try:
+            assignment = ProjectAssignment.objects.get(pk=assignment_id, project=project)
+            assignment.delete()
+        except ProjectAssignment.DoesNotExist:
+            return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ProjectSerializer(project).data)
+
+
+class ProjectAssignmentViewSet(viewsets.ModelViewSet):
+    queryset = ProjectAssignment.objects.all()
+    serializer_class = ProjectAssignmentSerializer
+    permission_classes = [AllowAny]
+
+
+class PartnerEngineerViewSet(viewsets.ModelViewSet):
+    queryset = PartnerEngineer.objects.all().order_by('-updated_at')
+    serializer_class = PartnerEngineerSerializer
+    permission_classes = [AllowAny]
+
+    def _detect_extension(self, instance, new_end_date_str):
+        """contract_end が延長されたか検知"""
+        from datetime import date
+        if not new_end_date_str or instance.contract_end is None:
+            return False
+        try:
+            new_val = date.fromisoformat(str(new_end_date_str))
+            return new_val > instance.contract_end
+        except (ValueError, TypeError):
+            return False
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+        extend = self._detect_extension(instance, data.get('contract_end'))
+        partial = kwargs.get('partial', False)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        if extend:
+            serializer.save(contract_extended_at=timezone.now(), last_user_updated_at=timezone.now())
+        else:
+            serializer.save(last_user_updated_at=timezone.now())
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+
+# ===============================
+# テレアポ記録 ViewSet
+# ===============================
+
+class TeleapoRecordViewSet(viewsets.ModelViewSet):
+    """テレアポ（架電）履歴管理"""
+    queryset = TeleapoRecord.objects.all()
+    serializer_class = TeleapoRecordSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        qs = TeleapoRecord.objects.all()
+        planner = self.request.query_params.get('planner')
+        company = self.request.query_params.get('company')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        result = self.request.query_params.get('result')
+        if planner:
+            qs = qs.filter(planner=planner)
+        if company:
+            qs = qs.filter(company_name__icontains=company)
+        if date_from:
+            qs = qs.filter(call_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(call_date__lte=date_to)
+        if result:
+            qs = qs.filter(result=result)
+        return qs
+
+    @action(detail=False, methods=['get'])
+    def company_history(self, request):
+        """企業名で架電履歴を検索"""
+        company = request.query_params.get('company', '').strip()
+        if not company:
+            return Response({'error': 'company パラメータが必要です'}, status=status.HTTP_400_BAD_REQUEST)
+        records = TeleapoRecord.objects.filter(
+            company_name__icontains=company
+        ).order_by('-call_date', '-created_at')
+        return Response(TeleapoRecordSerializer(records, many=True).data)

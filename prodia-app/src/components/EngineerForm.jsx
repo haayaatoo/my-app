@@ -11,10 +11,13 @@ const POSITION_OPTIONS = [
 
 // 担当プランナー選択肢
 const PLANNER_OPTIONS = [
-  "温水マネージャー",
-  "熊谷",
+  "温水",
   "瀬戸山",
-  "上前"
+  "上前",
+  "岡田",
+  "野田",
+  "服部",
+  "山口"
 ];
 
 const SKILL_OPTIONS = [
@@ -38,17 +41,29 @@ const PHASE_OPTIONS = [
   "要件定義", "基本設計", "詳細設計", "製造", "テスト", "運用・保守"
 ];
 
+const formatRate = (v) => {
+  const raw = String(v ?? "").replace(/,/g, "").replace(/[^0-9]/g, "");
+  return raw ? Number(raw).toLocaleString() : "";
+};
+
 export default function EngineerForm({ onSubmit, onCancel, initialData }) {
   const [form, setForm] = useState(
-    initialData || {
-      name: "",
-      position: "",
-      project_name: "",
-      planner: "",
-      skills: [],
-      engineer_status: "",
-      phase: [],
-    }
+    initialData
+      ? { ...initialData, monthly_rate: formatRate(initialData.monthly_rate) }
+      : {
+          name: "",
+          position: "",
+          project_name: "",
+          planner: "",
+          skills: [],
+          engineer_status: "",
+          phase: [],
+          client_company: "",
+          monthly_rate: "",
+          project_start_date: "",
+          project_end_date: "",
+          project_location: "",
+        }
   );
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,6 +82,12 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
     } else {
       setForm({ ...form, [name]: value });
     }
+  };
+
+  const handleRateChange = (e) => {
+    if (error) setError("");
+    if (successMessage) setSuccessMessage("");
+    setForm({ ...form, monthly_rate: formatRate(e.target.value) });
   };
 
   const handleSubmit = async (e, continueAfter = false) => {
@@ -90,6 +111,9 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
         email: uniqueEmail,
         skills: form.skills,
         phase: form.phase,
+        monthly_rate: form.monthly_rate ? form.monthly_rate.replace(/,/g, "") : "",
+        project_start_date: form.project_start_date || null,
+        project_end_date: form.project_end_date || null,
       }, continueAfter);
       
       // 成功メッセージを表示
@@ -105,6 +129,11 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
           skills: [],
           engineer_status: "",
           phase: [],
+          client_company: "",
+          monthly_rate: "",
+          project_start_date: "",
+          project_end_date: "",
+          project_location: "",
         });
         
         // 成功メッセージを3秒後に消去
@@ -227,7 +256,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
             {/* プロジェクト名 */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                プロジェクト名
+                プロジェクト内容
               </label>
               <div className="relative">
                 <input 
@@ -235,9 +264,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   value={form.project_name} 
                   onChange={handleChange} 
                   className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
-                  style={{
-                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)'
-                  }}
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
                   placeholder="ECサイト開発"
                 />
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -257,9 +284,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   value={form.planner} 
                   onChange={handleChange} 
                   className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium appearance-none cursor-pointer pr-12"
-                  style={{
-                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)'
-                  }}
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
                 >
                   <option value="">選択してください</option>
                   {PLANNER_OPTIONS.map((option) => (
@@ -268,6 +293,104 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                   <i className="fas fa-chevron-down text-slate-400"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* クライアント先企業名 */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                クライアント先企業名
+              </label>
+              <div className="relative">
+                <input
+                  name="client_company"
+                  value={form.client_company}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                  placeholder="株式会社○○"
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <i className="fas fa-building text-slate-300"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* 月単価 */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                月単価（円）
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  name="monthly_rate"
+                  value={form.monthly_rate}
+                  onChange={handleRateChange}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                  placeholder="650,000"
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <i className="fas fa-yen-sign text-slate-300"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* 参画開始日（プロジェクト内容入力時のみ表示） */}
+            {form.project_name && (
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  参画開始日
+                </label>
+                <input
+                  type="date"
+                  name="project_start_date"
+                  value={form.project_start_date}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium"
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                />
+              </div>
+            )}
+
+            {/* 契約終了予定日（プロジェクト内容入力時のみ表示） */}
+            {form.project_name && (
+              <div className="relative">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-2">
+                  契約終了予定日
+                  <span className="text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-normal">アラート対象</span>
+                </label>
+                <input
+                  type="date"
+                  name="project_end_date"
+                  value={form.project_end_date}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-200 outline-none transition-all bg-white/80 text-lg font-medium"
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                />
+                <p className="text-[11px] text-slate-400 mt-1.5">設定すると稼働率ダッシュボードのアラートに表示されます</p>
+              </div>
+            )}
+
+            {/* プロジェクト所在地 */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                プロジェクト所在地
+              </label>
+              <div className="relative">
+                <input
+                  name="project_location"
+                  value={form.project_location}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                  placeholder="例: 名古屋市中区 / フルリモート"
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <i className="fas fa-map-marker-alt text-slate-300"></i>
                 </div>
               </div>
             </div>
@@ -361,7 +484,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   >
                     <div className="flex items-center justify-center gap-2">
                       <i className={`fas ${opt.icon}`}></i>
-                      <span className="font-medium">{opt.label}</span>
+                      <span className="font-medium whitespace-nowrap">{opt.label}</span>
                     </div>
                   </button>
                 ))}

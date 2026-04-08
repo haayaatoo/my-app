@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
+import { useToast } from './Toast';
 
 // エンジニア個別メモ管理コンポーネント
 export default function EngineerMemo({ engineerName, onClose, onMemoChange }) {
+  const toast = useToast();
   const [memos, setMemos] = useState([]);
   const [newMemo, setNewMemo] = useState({
     title: '',
@@ -42,7 +44,7 @@ export default function EngineerMemo({ engineerName, onClose, onMemoChange }) {
   // 新規メモ作成
   const createMemo = async () => {
     if (!newMemo.title.trim() || !newMemo.content.trim()) {
-      alert('タイトルと内容を入力してください');
+      toast.warning('タイトルと内容を入力してください');
       return;
     }
 
@@ -78,7 +80,7 @@ export default function EngineerMemo({ engineerName, onClose, onMemoChange }) {
       }
     } catch (error) {
       console.error('メモ作成エラー:', error);
-      alert('メモの作成に失敗しました');
+      toast.error('メモの作成に失敗しました');
     } finally {
       setIsSubmitting(false);
     }

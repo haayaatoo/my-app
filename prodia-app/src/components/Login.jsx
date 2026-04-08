@@ -6,10 +6,10 @@ export default function Login({ onLogin, logoutMsg }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
   const [showLogoutMsg, setShowLogoutMsg] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [isFormFocused, setIsFormFocused] = useState(false);
 
   useEffect(() => {
     if (logoutMsg) {
@@ -53,22 +53,22 @@ export default function Login({ onLogin, logoutMsg }) {
         const data = await response.json();
 
         if (response.ok && data.success) {
-          setUser(data.user);
+          setUser(data.user, { access: data.access, refresh: data.refresh });
           setTimeout(() => {
             setIsLoading(false);
             onLogin();
           }, 1500);
         } else {
           setIsLoading(false);
-          alert(data.error || "ログインに失敗しました");
+          setLoginError(data.error || "ログインに失敗しました");
         }
       } catch (error) {
         setIsLoading(false);
-        alert("ネットワークエラーが発生しました");
+        setLoginError("ネットワークエラーが発生しました");
         console.error("Login error:", error);
       }
     } else {
-      alert("メールアドレスとパスワードを入力してください");
+      setLoginError("メールアドレスとパスワードを入力してください");
     }
   };
 
@@ -111,57 +111,38 @@ export default function Login({ onLogin, logoutMsg }) {
             <div className="mb-10">
               <div className="inline-block relative mb-6">
                 <div className="bg-gradient-to-br from-white/90 to-white/70 rounded-3xl p-8 border border-white/60 backdrop-blur-sm animate-fadeInUp">
-                  <h1 className="text-6xl lg:text-7xl font-black bg-gradient-to-r from-amber-600 via-amber-500 to-stone-600 bg-clip-text text-transparent">
+                  <h1 className="text-6xl lg:text-7xl font-black text-amber-500">
                     Prodia
                   </h1>
                 </div>
               </div>
               
               <h2 className="text-4xl font-bold text-slate-700 mb-4 animate-fadeInUp animate-delay-300">
-                エンジニア管理の
-                <span className="bg-gradient-to-r from-amber-500 to-amber-400 bg-clip-text text-transparent"> 未来 </span>
+                チームの力を、
+                <span className="bg-gradient-to-r from-amber-500 to-amber-400 bg-clip-text text-transparent">成果に変える</span>
               </h2>
               <p className="text-xl text-slate-600 max-w-2xl mx-auto lg:mx-0 animate-fadeInUp animate-delay-500">
-                革新的なテクノロジーで、チーム管理とプロジェクトの効率を最大化
+                営業・人事・PRチームを一元管理する、ビジネスプラットフォーム
               </p>
             </div>
 
-            {/* 特徴カード */}
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="bg-emerald-50 border border-emerald-200/50 rounded-2xl p-6 animate-fadeInUp animate-delay-700 transform hover:scale-105 transition-all duration-300">
-                <i className="fas fa-rocket text-emerald-600 text-xl mb-3"></i>
-                <p className="font-semibold text-emerald-800">高速処理</p>
-                <p className="text-sm text-emerald-600">リアルタイム管理</p>
+            {/* 対象チームバッジ */}
+            <div className="flex flex-wrap gap-3 animate-fadeInUp animate-delay-700">
+              <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200/60 rounded-full">
+                <i className="fas fa-chart-line text-amber-500 text-sm"></i>
+                <span className="text-sm font-medium text-amber-700">営業支援</span>
               </div>
-              
-              <div className="bg-blue-50 border border-blue-200/50 rounded-2xl p-6 animate-fadeInUp animate-delay-800 transform hover:scale-105 transition-all duration-300">
-                <i className="fas fa-shield-alt text-blue-600 text-xl mb-3"></i>
-                <p className="font-semibold text-blue-800">セキュア</p>
-                <p className="text-sm text-blue-600">最高レベル暗号化</p>
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200/60 rounded-full">
+                <i className="fas fa-users text-blue-500 text-sm"></i>
+                <span className="text-sm font-medium text-blue-700">人事・採用</span>
               </div>
-              
-              <div className="bg-purple-50 border border-purple-200/50 rounded-2xl p-6 animate-fadeInUp animate-delay-900 transform hover:scale-105 transition-all duration-300">
-                <i className="fas fa-users text-purple-600 text-xl mb-3"></i>
-                <p className="font-semibold text-purple-800">チーム連携</p>
-                <p className="text-sm text-purple-600">シームレス協働</p>
+              <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-200/60 rounded-full">
+                <i className="fas fa-bullhorn text-purple-500 text-sm"></i>
+                <span className="text-sm font-medium text-purple-700">PRチーム</span>
               </div>
-              
-              <div className="bg-amber-50 border border-amber-200/50 rounded-2xl p-6 animate-fadeInUp animate-delay-1000 transform hover:scale-105 transition-all duration-300">
-                <i className="fas fa-chart-line text-amber-600 text-xl mb-3"></i>
-                <p className="font-semibold text-amber-800">AI分析</p>
-                <p className="text-sm text-amber-600">スマート洞察</p>
-              </div>
-            </div>
-
-            {/* ステータス */}
-            <div className="flex items-center justify-center lg:justify-start gap-6">
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200/50 rounded-full">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-emerald-700">システム正常</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200/50 rounded-full">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-sm font-medium text-blue-700">99.9% 稼働</span>
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200/60 rounded-full">
+                <i className="fas fa-tasks text-emerald-500 text-sm"></i>
+                <span className="text-sm font-medium text-emerald-700">マネジメント</span>
               </div>
             </div>
           </div>
@@ -192,8 +173,6 @@ export default function Login({ onLogin, logoutMsg }) {
                       placeholder="yamada@prodia.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      onFocus={() => setIsFormFocused(true)}
-                      onBlur={() => setIsFormFocused(false)}
                       className="w-full pl-12 pr-4 py-4 border-2 border-stone-200 rounded-xl focus:border-amber-400 focus:ring-4 focus:ring-amber-100/50 transition-all duration-300 text-slate-700 placeholder-slate-400 bg-white/95"
                     />
                   </div>
@@ -204,15 +183,13 @@ export default function Login({ onLogin, logoutMsg }) {
                   <label className="block text-sm font-semibold text-slate-600">パスワード</label>
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-                      <i className="fas fa-lock text-slate-600"></i>
+                      <i className="fas fa-lock text-amber-600"></i>
                     </div>
                     <input
                       type={showPassword ? "text" : "password"}
                       placeholder="パスワードを入力"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      onFocus={() => setIsFormFocused(true)}
-                      onBlur={() => setIsFormFocused(false)}
                       className="w-full pl-12 pr-12 py-4 border-2 border-stone-200 rounded-xl focus:border-amber-400 focus:ring-4 focus:ring-amber-100/50 transition-all duration-300 text-slate-700 placeholder-slate-400 bg-white/95"
                     />
                     <button
@@ -225,12 +202,20 @@ export default function Login({ onLogin, logoutMsg }) {
                   </div>
                 </div>
 
+                {/* エラーメッセージ */}
+                {loginError && (
+                  <div className="flex items-center gap-2 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">
+                    <i className="fas fa-exclamation-circle flex-shrink-0"></i>
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
                 {/* ログインボタン */}
                 <div className="pt-4">
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-500 hover:via-amber-600 hover:to-amber-500 text-white py-4 rounded-xl font-bold text-lg transition-all duration-500 transform hover:scale-105 disabled:opacity-70"
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-105 disabled:opacity-70"
                   >
                     {isLoading ? (
                       <div className="flex items-center justify-center gap-3">
@@ -247,24 +232,7 @@ export default function Login({ onLogin, logoutMsg }) {
                 </div>
               </form>
 
-              {/* サポート情報 */}
-              <div className="mt-8 text-center">
-                <div className="flex items-center justify-center text-xs text-slate-500 gap-2 mb-4">
-                  <i className="fas fa-shield-alt text-emerald-500"></i>
-                  <span>SSL暗号化通信で保護</span>
-                </div>
-                
-                <div className="bg-blue-50/50 border border-blue-200/30 rounded-xl p-4">
-                  <div className="flex items-center justify-center gap-2 text-blue-700 mb-2">
-                    <i className="fas fa-info-circle text-sm"></i>
-                    <span className="text-sm font-medium">ログインでお困りですか？</span>
-                  </div>
-                  <div className="text-xs text-blue-600 space-y-1">
-                    <div>📧 support@prodia.com</div>
-                    <div>📞 内線: 1001 (平日 9:00-18:00)</div>
-                  </div>
-                </div>
-              </div>
+
             </div>
           </div>
         </div>

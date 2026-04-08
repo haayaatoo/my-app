@@ -3,12 +3,20 @@ import React, { useState, useEffect } from "react";
 import "./EngineerCard.css";
 
 function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemoClick, refreshTrigger }) {
-  const { name, position, skills, planner, engineer_status, phase, project } = engineer || {};
+  const { name, position, skills, planner, engineer_status, phase, project, project_location } = engineer || {};
   const [isDragging, setIsDragging] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [memoCount, setMemoCount] = useState(0);
   const [memoStats, setMemoStats] = useState({ total: 0, urgent: 0, high: 0, pending: 0 });
   const [isMemoAreaHovered, setIsMemoAreaHovered] = useState(false);
+
+  // NEW / 延長バッジ判定
+  // last_user_updated_at は新規登録時はnull、更新時のみセットされる
+  const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const isNew = engineer?.last_user_updated_at &&
+    (now - new Date(engineer.last_user_updated_at).getTime()) < ONE_MONTH_MS;
+  const isExtended = engineer?.contract_extended_at && (now - new Date(engineer.contract_extended_at).getTime()) < ONE_MONTH_MS;
   
   // skillsが配列でなければ配列化
   let skillsArray = [];
@@ -168,6 +176,21 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
               {/* 名前・役職 */}
               <div className="text-center mb-2">
                 <h3 className="text-lg font-bold text-gray-800 mb-1">{name}</h3>
+                {/* NEW / 延長バッジ */}
+                {(isExtended || isNew) && (
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    {isExtended && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500 text-white flex items-center gap-1">
+                        <i className="fas fa-calendar-check text-[8px]"></i>延長
+                      </span>
+                    )}
+                    {isNew && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white animate-pulse">
+                        NEW
+                      </span>
+                    )}
+                  </div>
+                )}
                 {position && <span className="text-sm text-gray-500 font-medium block">{position}</span>}
                 <span className={`mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white rounded-full ${status.color}`}>
                   <i className="fas fa-briefcase"></i>
@@ -196,9 +219,14 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
               </div>
               {/* プランナー */}
               <div className="text-xs text-gray-400 mb-2">担当プランナー: {planner}</div>
-              {/* プロジェクト名 */}
-              {project && (
-                <div className="text-xs text-blue-500 font-semibold mb-2">プロジェクト: {project}</div>
+              {/* プロジェクト内容 */}
+              <div className="text-xs text-blue-500 font-semibold mb-2">プロジェクト内容: {project || 'なし'}</div>
+              {/* プロジェクト所在地 */}
+              {project_location && (
+                <div className="text-xs text-slate-500 font-medium mb-2">
+                  <i className="fas fa-map-marker-alt mr-1 text-rose-400"></i>
+                  {project_location}
+                </div>
               )}
             </div>
 

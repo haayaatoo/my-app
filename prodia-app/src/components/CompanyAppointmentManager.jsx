@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
+import TeleapoManager from "./TeleapoManager";
 
 const API_BASE = "http://localhost:8000/api";
 
-const PLANNERS = ["温水", "瀬戸山", "上前", "岡田"];
+const PLANNERS = ["温水", "瀬戸山", "上前", "岡田", "野田", "服部", "山口"];
 
 // テーマはインデックス順で自動割り当て — PLANNERS に名前を追加するだけでOK
 const THEME_PALETTE = [
@@ -115,16 +116,44 @@ function AppointmentModal({ mode, initialData, companies, onClose, onSave }) {
     setShowCompanyDropdown(false);
   };
 
+  // 入力テキストから企業を完全一致で自動選択（大文字小文字無視）
+  const autoMatchCompany = () => {
+    if (form.company || !companySearch.trim()) return;
+    const matched = companies.find(
+      (c) => c.name.toLowerCase() === companySearch.trim().toLowerCase()
+    );
+    if (matched) handleCompanySelect(matched);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.company || !form.planner || !form.appointment_date) {
-      setError("企業・プランナー・日程は必須です");
+    // 未選択の場合、入力テキストで再マッチを試みる
+    let companyId = form.company;
+    if (!companyId && companySearch.trim()) {
+      const matched = companies.find(
+        (c) => c.name.toLowerCase() === companySearch.trim().toLowerCase()
+      );
+      if (matched) {
+        companyId = matched.id;
+        setForm((f) => ({ ...f, company: matched.id }));
+      }
+    }
+    if (!companyId) {
+      setError("企業名をドロップダウンから選択してください（未登録の場合は企業マスタ管理から先に登録）");
+      return;
+    }
+    if (!form.planner) {
+      setError("プランナーを選択してください");
+      return;
+    }
+    if (!form.appointment_date) {
+      setError("日程を入力してください");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      await onSave(form, conflictInfo);
+      await onSave({ ...form, company: companyId }, conflictInfo);
     } catch (err) {
       setError(err.message || "保存に失敗しました");
     } finally {
@@ -197,6 +226,7 @@ function AppointmentModal({ mode, initialData, companies, onClose, onSave }) {
                 setForm((f) => ({ ...f, company: "" }));
               }}
               onFocus={() => setShowCompanyDropdown(true)}
+              onBlur={autoMatchCompany}
               placeholder="企業名を検索..."
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-transparent text-slate-700 bg-slate-50"
             />
@@ -324,8 +354,8 @@ function AppointmentModal({ mode, initialData, companies, onClose, onSave }) {
               disabled={saving}
               className={`flex-1 px-6 py-3 rounded-xl font-medium text-white transition-all ${
                 conflictInfo
-                  ? "bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600"
-                  : "bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700"
+                  ? "bg-red-500 hover:bg-red-600"
+                  : "bg-amber-500 hover:bg-amber-600"
               } shadow-md disabled:opacity-60`}
             >
               {saving ? (
@@ -514,10 +544,26 @@ function CompanyMasterModal({ onClose, onRefresh }) {
 
 // ─── メインコンポーネント ─────────────────────────────────────
 export default function CompanyAppointmentManager() {
+  const [mainTab, setMainTab] = useState("teleapo"); // "apo" | "teleapo"
   const [appointments, setAppointments] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
+
+  // 月ナビゲーション
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedMonthNum, setSelectedMonthNum] = useState(now.getMonth() + 1);
+
+  const handlePrevMonth = () => {
+    if (selectedMonthNum === 1) { setSelectedYear(y => y - 1); setSelectedMonthNum(12); }
+    else setSelectedMonthNum(m => m - 1);
+  };
+  const handleNextMonth = () => {
+    if (selectedMonthNum === 12) { setSelectedYear(y => y + 1); setSelectedMonthNum(1); }
+    else setSelectedMonthNum(m => m + 1);
+  };
+  const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonthNum === now.getMonth() + 1;
 
   // フィルター
   const [filterPlanner, setFilterPlanner] = useState("");
@@ -528,6 +574,10 @@ export default function CompanyAppointmentManager() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(null);
   const [showCompanyMaster, setShowCompanyMaster] = useState(false);
+
+  // ページネーション
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
 
   // 通知
   const showNotification = (message, type = "success") => {
@@ -571,14 +621,22 @@ export default function CompanyAppointmentManager() {
     new Date(a.appointment_date) - new Date(b.appointment_date)
   );
 
-  // 統計
+  // ページネーション
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedSorted = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // 選択月のアポだけに絞り込んで統計
+  const monthPrefix = `${selectedYear}-${String(selectedMonthNum).padStart(2, '0')}`;
+  const monthlyApts = appointments.filter((a) => a.appointment_date?.startsWith(monthPrefix));
+
   const stats = {
-    total: appointments.filter((a) => a.status === "scheduled").length,
-    totalCompleted: appointments.filter((a) => a.status === "completed").length,
+    total: monthlyApts.filter((a) => a.status === "scheduled").length,
+    totalCompleted: monthlyApts.filter((a) => a.status === "completed").length,
     byPlanner: PLANNERS.map((p) => ({
       name: p,
-      count: appointments.filter((a) => a.planner === p && a.status === "scheduled").length,
-      completed: appointments.filter((a) => a.planner === p && a.status === "completed").length,
+      count: monthlyApts.filter((a) => a.planner === p && a.status === "scheduled").length,
+      completed: monthlyApts.filter((a) => a.planner === p && a.status === "completed").length,
     })),
   };
 
@@ -592,6 +650,9 @@ export default function CompanyAppointmentManager() {
     });
     return Object.values(byCompany).filter((apts) => apts.length > 1);
   })();
+
+  // フィルター変更時にページリセット
+  useEffect(() => { setCurrentPage(1); }, [filterPlanner, filterStatus, searchCompany]);
 
   // アポ保存
   const handleSaveAppointment = async (formData, conflictInfo) => {
@@ -672,6 +733,37 @@ export default function CompanyAppointmentManager() {
     <div className="space-y-6">
       <Notification notification={notification} />
 
+      {/* メインタブ: テレアポ / アポ管理 */}
+      <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1 w-fit">
+        <button
+          onClick={() => setMainTab("teleapo")}
+          className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 ${
+            mainTab === "teleapo" ? "bg-white shadow-sm text-indigo-700" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <i className="fas fa-phone" />
+          テレアポ
+        </button>
+        <button
+          onClick={() => setMainTab("apo")}
+          className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 ${
+            mainTab === "apo" ? "bg-white shadow-sm text-amber-700" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <i className="fas fa-calendar-check" />
+          アポ管理
+        </button>
+      </div>
+
+      {/* テレアポタブ */}
+      {mainTab === "teleapo" && (
+        <TeleapoManager />
+      )}
+
+      {/* アポ管理タブ */}
+      {mainTab === "apo" && (
+        <>
+
       {showAddModal && (
         <AppointmentModal
           mode="add"
@@ -749,6 +841,32 @@ export default function CompanyAppointmentManager() {
           <div className="absolute top-4 left-1/2 w-2 h-2 bg-amber-400/40 rounded-full animate-ping"></div>
           <div className="relative z-10 flex items-center justify-between">
             <div>
+              {/* 月ナビゲーション */}
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  onClick={handlePrevMonth}
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
+                >
+                  <i className="fas fa-chevron-left text-xs"></i>
+                </button>
+                <span className="text-white font-bold text-base min-w-[7rem] text-center">
+                  {selectedYear}年{selectedMonthNum}月
+                </span>
+                <button
+                  onClick={handleNextMonth}
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
+                >
+                  <i className="fas fa-chevron-right text-xs"></i>
+                </button>
+                {!isCurrentMonth && (
+                  <button
+                    onClick={() => { setSelectedYear(now.getFullYear()); setSelectedMonthNum(now.getMonth() + 1); }}
+                    className="ml-1 px-2.5 py-1 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 text-xs font-semibold transition-colors"
+                  >
+                    今月
+                  </button>
+                )}
+              </div>
               <p className="text-slate-400 text-xs tracking-widest uppercase mb-2">Total Active Pipeline</p>
               <div className="flex items-end gap-3 mb-2">
                 <span className="text-6xl font-black text-white leading-none">{stats.total}</span>
@@ -762,10 +880,11 @@ export default function CompanyAppointmentManager() {
                 <span className="text-slate-400">累計 {stats.total + stats.totalCompleted}件</span>
               </div>
             </div>
-            <div className="hidden md:flex flex-col items-end gap-1">
-              {[...[...stats.byPlanner].sort((a,b) => b.count - a.count)].map((p, i) => (
+            <div className="hidden md:flex flex-col items-end gap-1.5">
+              <p className="text-slate-500 text-xs tracking-widest uppercase mb-1">Top 3</p>
+              {[...stats.byPlanner].sort((a,b) => b.count - a.count).slice(0, 3).map((p, i) => (
                 <div key={p.name} className="flex items-center gap-2 text-sm">
-                  <span className="text-slate-400">{['🥇','🥈','🥉'][i] ?? `${i + 1}.`}</span>
+                  <span>{['🥇','🥈','🥉'][i]}</span>
                   <span className="text-slate-300 font-medium">{p.name}</span>
                   <span className="text-white font-bold">{p.count}件</span>
                 </div>
@@ -940,7 +1059,7 @@ export default function CompanyAppointmentManager() {
           {/* アポ追加 */}
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 text-white font-medium text-sm flex items-center gap-2 hover:from-amber-600 hover:to-yellow-700 shadow-md transition-all"
+            className="px-5 py-2.5 rounded-xl bg-amber-500 text-white font-medium text-sm flex items-center gap-2 hover:bg-amber-600 shadow-md transition-all"
           >
             <i className="fas fa-plus"></i>
             アポを追加
@@ -975,7 +1094,7 @@ export default function CompanyAppointmentManager() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((apt, idx) => {
+              {paginatedSorted.map((apt, idx) => {
                 // 同企業での重複チェック
                 const isConflict = conflicts.some((c) => c.some((a) => a.id === apt.id));
                 const statusStyle = STATUS_LABELS[apt.status] || STATUS_LABELS.scheduled;
@@ -1033,6 +1152,16 @@ export default function CompanyAppointmentManager() {
                             <i className="fas fa-check"></i>
                           </button>
                         )}
+                        {/* 完了取り消しボタン */}
+                        {apt.status === "completed" && (
+                          <button
+                            onClick={() => handleStatusChange(apt, "scheduled")}
+                            className="p-2 rounded-lg hover:bg-amber-50 text-amber-500 hover:text-amber-600 transition-colors"
+                            title="予定に戻す"
+                          >
+                            <i className="fas fa-rotate-left"></i>
+                          </button>
+                        )}
                         {/* 編集ボタン */}
                         <button
                           onClick={() => setEditingAppointment(apt)}
@@ -1066,10 +1195,71 @@ export default function CompanyAppointmentManager() {
               })}
             </tbody>
           </table>
-          <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-400">
-            {sorted.length}件表示（全{appointments.length}件）
+          <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-xs text-slate-400">
+              {sorted.length === 0 ? '0件' : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, sorted.length)}件 / 全${sorted.length}件`}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safePage === 1}
+                  className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                >
+                  <i className="fas fa-angles-left"></i>
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                >
+                  <i className="fas fa-chevron-left"></i>
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                  .reduce((acc, p, idx, arr) => {
+                    if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    item === '...' ? (
+                      <span key={`dots-${idx}`} className="w-7 text-center text-slate-400 text-xs">⋯</span>
+                    ) : (
+                      <button
+                        key={item}
+                        onClick={() => setCurrentPage(item)}
+                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${
+                          safePage === item
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )
+                }
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                >
+                  <i className="fas fa-chevron-right"></i>
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safePage === totalPages}
+                  className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                >
+                  <i className="fas fa-angles-right"></i>
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

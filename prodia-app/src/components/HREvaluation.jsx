@@ -656,67 +656,42 @@ export default function HREvaluation() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 min-h-screen">
-      {/* ヘッダー */}
-      <div className="mb-8">
+    <div className="flex flex-col h-full bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100">
+      {/* ページヘッダー */}
+      <div className="px-6 pt-5 pb-4 border-b border-slate-200/60 bg-white/70 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-2xl flex items-center justify-center shadow-luxury">
-              <i className="fas fa-star text-white text-xl"></i>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center shadow-sm">
+              <i className="fas fa-star text-white text-sm"></i>
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-700 font-display">人事評価</h1>
-              <p className="text-slate-500">エンジニア別評価面談記録・人事考課データ</p>
+              <h1 className="text-xl font-bold text-slate-800">人事評価</h1>
+              <p className="text-xs text-slate-400 mt-0.5">エンジニア別評価面談記録・人事考課データ</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            {/* ビューモード切り替えボタン */}
-            <div className="flex bg-white rounded-2xl p-1 shadow-lg">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
-                  viewMode === 'list'
-                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                <i className="fas fa-list"></i>
-                リスト
+          <div className="flex items-center gap-2">
+            <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200">
+              <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === 'list' ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                <i className="fas fa-list text-[10px]"></i>リスト
               </button>
-              <button
-                onClick={() => setViewMode('dashboard')}
-                className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
-                  viewMode === 'dashboard'
-                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                <i className="fas fa-chart-bar"></i>
-                ダッシュボード
+              <button onClick={() => setViewMode('dashboard')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === 'dashboard' ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                <i className="fas fa-chart-bar text-[10px]"></i>ダッシュボード
               </button>
             </div>
-
-            <button
-              onClick={() => {
-                setShowForm(true);
-                setEditingEvaluation(null);
-                resetForm();
-              }}
-              className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-3"
-            >
-              <i className="fas fa-plus"></i>
-              新規評価記録
+            <button onClick={() => { setShowForm(true); setEditingEvaluation(null); resetForm(); }} className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all flex items-center gap-1.5">
+              <i className="fas fa-plus text-[10px]"></i>新規評価記録
             </button>
           </div>
         </div>
       </div>
+      <div className="flex-1 overflow-auto px-6 py-5">
 
       {/* エラー表示 */}
       {error && (
@@ -1165,6 +1140,7 @@ export default function HREvaluation() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

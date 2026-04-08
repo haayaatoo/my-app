@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { useUser } from '../contexts/UserContext';
+import { useToast } from './Toast';
 import EngineerMemo from './EngineerMemo';
 
 // APIエンドポイント
@@ -10,7 +11,7 @@ const API_BASE = 'http://localhost:8000/api/skillsheets/';
 // 統一されたローディングコンポーネント
 function AnimatedLoader() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 flex items-center justify-center">
+    <div className="h-full bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 flex items-center justify-center">
       <div className="text-center p-16 bg-white/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/80" style={{
         boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)'
       }}>
@@ -26,7 +27,7 @@ function AnimatedLoader() {
           <div className="w-3 h-3 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0.6s'}}></div>
         </div>
         
-        <h2 className="text-3xl font-medium text-slate-700 mb-4 tracking-wide font-display">スキルシートデータを読み込み中...</h2>
+        <h2 className="text-2xl font-medium text-slate-700 mb-4 tracking-wide font-display">スキルシートデータを読み込み中...</h2>
         <p className="text-slate-500 animate-pulse font-normal text-lg">エンジニア情報を取得しています</p>
       </div>
     </div>
@@ -35,6 +36,7 @@ function AnimatedLoader() {
 
 // 標準ファイルアップロードコンポーネント
 function SkillSheetUpload({ onUpload }) {
+  const toast = useToast();
   const fileInputRef = useRef();
   const [fileName, setFileName] = useState("");
   const [engineerName, setEngineerName] = useState("");
@@ -58,7 +60,7 @@ function SkillSheetUpload({ onUpload }) {
 
   const handleUploadClick = () => {
     if (!engineerName.trim()) {
-      alert("エンジニア名を入力してください");
+      toast.warning("エンジニア名を入力してください");
       return;
     }
     fileInputRef.current && fileInputRef.current.click();
@@ -66,7 +68,7 @@ function SkillSheetUpload({ onUpload }) {
 
   const handleManualUpload = () => {
     if (!fileName || !engineerName.trim()) {
-      alert("エンジニア名とファイルの両方を選択してください");
+      toast.warning("エンジニア名とファイルの両方を選択してください");
       return;
     }
     const file = fileInputRef.current.files[0];
@@ -224,6 +226,7 @@ function PreviewModal({ fileName, url, onClose }) {
 }
 
 export default function SkillSheetManager() {
+  const toast = useToast();
   const [skillSheets, setSkillSheets] = useState([]);  // 全スキルシート
   const [loading, setLoading] = useState(true);
   const [uploadMessage, setUploadMessage] = useState("");
@@ -613,80 +616,38 @@ Prodia営業部 - engineer-support@prodia.com
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 relative overflow-hidden opacity-0 animate-fade-in" style={{animationDelay: '0ms', animationFillMode: 'forwards'}}>
-      <div className="container mx-auto px-6 py-8 space-y-8">
-        {/* 🎨 エレガントなヘッダー（ダッシュボードと同じスタイル） */}
-        <div className="flex justify-between items-center p-8 bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/80 relative overflow-hidden opacity-0 animate-slide-in-from-top" style={{
-          boxShadow: '0 25px 60px rgba(0,0,0,0.08), 0 10px 25px rgba(0,0,0,0.06)',
-          animationDelay: '200ms',
-          animationFillMode: 'forwards'
-        }}>
-          {/* 動的背景パターン */}
-          <div className="absolute inset-0 opacity-5">
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-stone-500 transform rotate-12 scale-150"></div>
-          </div>
-          
-          <div className="relative z-10">
-            <h1 className="text-4xl font-medium text-slate-700 tracking-wide flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-stone-500 rounded-2xl flex items-center justify-center transform hover:rotate-12 transition-transform duration-300">
-                <i className="fas fa-file-alt text-white text-xl"></i>
-              </div>
-              スキルシート管理
-            </h1>
-            <p className="text-slate-500 mt-2 font-normal tracking-wide">登録・承認・検索・営業支援システム</p>
-            
-            {/* 統計情報表示 */}
-            <div className="mt-4 p-4 bg-gradient-to-r from-amber-50 to-stone-50 rounded-2xl border border-amber-200/50">
-              <div className="flex items-center gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <i className="fas fa-users text-emerald-600"></i>
-                  <span className="text-slate-700">エンジニア数: <strong>{stats.totalEngineers}</strong></span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="fas fa-database text-amber-600"></i>
-                  <span className="text-slate-700">スキルシート数: <strong>{stats.total}</strong></span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <i className="fas fa-calendar text-emerald-600"></i>
-                  <span className="text-slate-700">今月: <strong>+{stats.thisMonth}</strong></span>
-                </div>
-                {stats.topSkills.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <i className="fas fa-star text-blue-600"></i>
-                    <span className="text-slate-700">人気スキル: <strong>{stats.topSkills[0].name}</strong></span>
-                  </div>
-                )}
-              </div>
+    <div className="flex flex-col h-full bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 relative">
+      {/* ページヘッダー */}
+      <div className="px-6 pt-5 pb-4 border-b border-slate-200/60 bg-white/70 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-stone-500 flex items-center justify-center shadow-sm">
+              <i className="fas fa-file-alt text-white text-sm"></i>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">スキルシート管理</h1>
+              <p className="text-xs text-slate-400 mt-0.5">登録・承認・検索・営業支援システム</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4 relative z-10">
-            {/* ログインユーザー表示 */}
-            <div className="flex items-center gap-2 text-white mr-4">
-              <i className="fas fa-user-circle text-xl"></i>
-              <span className="text-sm font-medium">
-                {user?.name || user?.email || '未ログイン'}
-              </span>
-            </div>
-            
-            {/* 営業支援ボタン */}
-            <button 
+          <div className="flex items-center gap-2">
+            <button
               onClick={generateSalesReport}
-              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:shadow-md transition-all duration-200 flex items-center gap-1.5"
             >
-              <i className="fas fa-handshake mr-2"></i>
+              <i className="fas fa-handshake text-xs"></i>
               営業支援
             </button>
-            {/* エクスポートボタン */}
-            <button 
+            <button
               onClick={exportToExcel}
-              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+              className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg text-sm font-medium hover:shadow-md transition-all duration-200 flex items-center gap-1.5"
             >
-              <i className="fas fa-file-excel mr-2"></i>
+              <i className="fas fa-file-excel text-xs"></i>
               Excel出力
             </button>
           </div>
         </div>
+      </div>
+      <div className="flex-1 overflow-auto px-6 py-5 space-y-6">
 
         {/* アップロードメッセージ */}
         {uploadMessage && (
@@ -698,9 +659,9 @@ Prodia営業部 - engineer-support@prodia.com
         )}
 
         {/* 営業支援ダッシュボード */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           {/* 統計カード */}
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '600ms', animationFillMode: 'forwards'}}>
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.total}</div>
@@ -710,7 +671,7 @@ Prodia営業部 - engineer-support@prodia.com
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '700ms', animationFillMode: 'forwards'}}>
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.totalEngineers}</div>
@@ -720,7 +681,7 @@ Prodia営業部 - engineer-support@prodia.com
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.topSkills.length}</div>
@@ -730,7 +691,7 @@ Prodia営業部 - engineer-support@prodia.com
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '900ms', animationFillMode: 'forwards'}}>
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-6 rounded-xl shadow-lg hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-3xl font-bold">{stats.thisMonth}</div>
@@ -742,7 +703,7 @@ Prodia営業部 - engineer-support@prodia.com
         </div>
 
         {/* アップロードセクション */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '1000ms', animationFillMode: 'forwards'}}>
+        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <h2 className="text-2xl font-semibold text-slate-700 mb-6">
             新しいスキルシートをアップロード
           </h2>
@@ -780,7 +741,7 @@ Prodia営業部 - engineer-support@prodia.com
 
 
         {/* スキルシート表示セクション */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '1200ms', animationFillMode: 'forwards'}}>
+        <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold text-slate-700 flex items-center gap-3">
               <i className="fas fa-folder-open text-emerald-600"></i>

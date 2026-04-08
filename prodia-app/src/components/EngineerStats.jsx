@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
+import { useToast } from './Toast';
 import DetailedAnalytics from './DetailedAnalytics';
 
 // 決定実績データ（月別） - APIから取得予定
@@ -56,7 +57,14 @@ const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMon
   const ppProgress = ppGoal > 0 ? (ppAchieved / ppGoal) * 100 : 0;
   const bpProgress = bpGoal > 0 ? (bpAchieved / bpGoal) * 100 : 0;
   const totalRemaining = (ppGoal - ppAchieved) + (bpGoal - bpAchieved);
-  const daysLeft = 23; // TODO: 実際の残り日数を計算
+
+  // 残り日数を実際の月末から計算
+  const now = new Date();
+  const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const isCurrentMonth = selectedMonth === currentYM;
+  const [selYear, selMonthNum] = selectedMonth.split('-').map(Number);
+  const lastDay = new Date(selYear, selMonthNum, 0).getDate();
+  const daysLeft = isCurrentMonth ? lastDay - now.getDate() : 0;
 
   const ppChange = ppAchieved - ppPrevMonth;
   const bpChange = bpAchieved - bpPrevMonth;
@@ -67,11 +75,13 @@ const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMon
     return { icon: 'fa-minus', color: 'text-gray-400' };
   };
 
-  const months = [
-    { value: '2026-02', label: '2026年2月（今月）' },
-    { value: '2026-01', label: '2026年1月' },
-    { value: '2025-12', label: '2025年12月' }
-  ];
+  // 過去3ヶ月分を動的生成
+  const months = Array.from({ length: 3 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = `${d.getFullYear()}年${d.getMonth() + 1}月${i === 0 ? '（今月）' : ''}`;
+    return { value: val, label };
+  });
 
   return (
     <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-2xl p-6 mb-6 shadow-xl">
@@ -94,7 +104,10 @@ const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMon
           </select>
         </div>
         <div className="text-white/80 text-sm">
-          残り<span className="text-xl font-bold text-white mx-1">{daysLeft}</span>日
+          {isCurrentMonth
+            ? <>残り<span className="text-xl font-bold text-white mx-1">{daysLeft}</span>日</>
+            : <span className="text-white/60 text-sm">過去月</span>
+          }
         </div>
       </div>
       
@@ -162,7 +175,7 @@ const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMon
         </div>
       </div>
 
-      {totalRemaining > 0 && selectedMonth === '2026-02' && (
+      {totalRemaining > 0 && isCurrentMonth && (
         <div className="mt-4 pt-4 border-t border-white/20">
           <p className="text-white/90 text-sm flex items-center gap-2">
             <i className="fas fa-fire text-yellow-300"></i>
@@ -281,7 +294,7 @@ const ModernKpiCard = ({ icon, label, value, sub, gradient, onClick, change, uni
 };
 
 // プランナーリスト（定数として外部定義）
-const PLANNERS = ['熊谷', '瀬戸山', '上前', '岡田', '温水'];
+const PLANNERS = ['熊谷', '瀬戸山', '上前', '岡田', '温水', '野田', '服部', '山口'];
 
 // 個人別決定ランキング
 const DecisionRankingSection = ({ decisions, onDetailClick, onOpenDetailAnalytics }) => {
@@ -473,6 +486,7 @@ const WaitingEngineersList = ({ waitingEngineers }) => {
 };
 
 const EngineerStats = ({ engineers }) => {
+  const toast = useToast();
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [modalData, setModalData] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -480,19 +494,6 @@ const EngineerStats = ({ engineers }) => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [isDetailAnalyticsOpen, setIsDetailAnalyticsOpen] = useState(false);
-
-  // 選択月のデータ
-  const currentMonthDecisions = DECISIONS_BY_MONTH[selectedMonth] || [];
-  
-  // 前月のデータ（比較用）
-  const getPreviousMonth = (month) => {
-    const date = new Date(month + '-01');
-    date.setMonth(date.getMonth() - 1);
-    return date.toISOString().slice(0, 7);
-  };
-  
-  const prevMonth = getPreviousMonth(selectedMonth);
-  const prevMonthDecisions = DECISIONS_BY_MONTH[prevMonth] || [];
 
   // ダッシュボードで参照する派生データをまとめて計算
   const stats = useMemo(() => {
@@ -573,7 +574,7 @@ const EngineerStats = ({ engineers }) => {
     }));
 
     if (csvData.length === 0) {
-      alert('エクスポートできるエンジニアがまだ登録されていません');
+      toast.warning('エクスポートできるエンジニアがまだ登録されていません');
       return;
     }
 
@@ -590,7 +591,7 @@ const EngineerStats = ({ engineers }) => {
   };
 
   const handleGenerateReport = () => {
-    alert('レポート機能は開発中です！');
+    toast.info('レポート機能は開発中です！');
   };
 
   const handleDetailClick = (planner, type, details) => {
@@ -621,26 +622,67 @@ const EngineerStats = ({ engineers }) => {
     return () => clearInterval(interval);
   }, []);
   
+  // BP進捗からリアルデータを取得
+  const [bpProspects, setBpProspects] = React.useState([]);
+
+  React.useEffect(() => {
+    const loadBPProspects = () => {
+      const savedData = localStorage.getItem('bpProspects');
+      if (savedData) {
+        try {
+          setBpProspects(JSON.parse(savedData));
+        } catch (e) {
+          console.error('BP見込みデータの読み込みに失敗しました', e);
+        }
+      }
+    };
+    loadBPProspects();
+    const interval = setInterval(loadBPProspects, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 選択月のデータ（PP・BP実データから統合）
+  const currentMonthDecisions = React.useMemo(() => {
+    const ppWon = ppInterviews
+      .filter(i => i.status === '成約' && i.start_month === selectedMonth)
+      .map(i => ({ ...i, planner: i.sales_person, type: 'PP' }));
+    const bpWon = bpProspects
+      .filter(p => p.status === '成約' && typeof p.interview_date === 'string' && p.interview_date.substring(0, 7) === selectedMonth)
+      .map(p => ({ ...p, planner: p.main_planner, type: 'BP' }));
+    return [...ppWon, ...bpWon];
+  }, [ppInterviews, bpProspects, selectedMonth]);
+
   // 営業データ統計 - PP営業進捗の実データを使用
   const currentMonthStr = selectedMonth;
   const ppDecisions = ppInterviews.filter(i => 
     i.status === '成約' && i.start_month === currentMonthStr
   ).length;
   
-  // BPは従来のサンプルデータを使用（後でBP進捗と統合）
-  const bpDecisions = currentMonthDecisions.filter(d => d.type === 'BP').length;
+  // BP進捗の実データを使用（面談日が当月の成約件数）
+  const bpDecisions = bpProspects.filter(p =>
+    p.status === '成約' &&
+    typeof p.interview_date === 'string' &&
+    p.interview_date.substring(0, 7) === currentMonthStr
+  ).length;
   const inProgressCount = ppInterviews.filter(i => 
     ['日程調整中', '面談予定', '面談済み', '回答待ち'].includes(i.status) &&
-    (selectedMonth === '2026-02' || i.start_month === selectedMonth)
+    i.start_month === currentMonthStr
   ).length;
   
-  // 前月データ - PP営業進捗の実データを使用
-  const prevMonthStr = selectedMonth === '2026-02' ? '2026-01' : 
-                       selectedMonth === '2026-01' ? '2025-12' : '2025-11';
+  // 前月データ - PP/BP両方の実データを使用
+  const prevMonthStr = (() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const prev = new Date(y, m - 2, 1); // m-1が現在月(0-indexed)なのでm-2が前月
+    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+  })();
   const ppPrevMonth = ppInterviews.filter(i => 
     i.status === '成約' && i.start_month === prevMonthStr
   ).length;
-  const bpPrevMonth = prevMonthDecisions.filter(d => d.type === 'BP').length;
+  const bpPrevMonth = bpProspects.filter(p =>
+    p.status === '成約' &&
+    typeof p.interview_date === 'string' &&
+    p.interview_date.substring(0, 7) === prevMonthStr
+  ).length;
   
   // 前月比
   const ppChange = ppDecisions - ppPrevMonth;
@@ -847,7 +889,7 @@ const EngineerStats = ({ engineers }) => {
               CSVエクスポート
             </button>
             <button
-              onClick={() => alert('データ同期機能は開発中です')}
+              onClick={() => toast.info('データ同期機能は開発中です')}
               className="bg-gradient-to-r from-purple-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
             >
               <i className="fas fa-sync-alt"></i>

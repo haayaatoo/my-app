@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 const Calendar = () => {
+  const toast = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [events, setEvents] = useState([]);
@@ -27,6 +29,177 @@ const Calendar = () => {
   const [bpProspects, setBpProspects] = useState([]);
   const [draggedEvent, setDraggedEvent] = useState(null);
   const [allAssignees, setAllAssignees] = useState([]);
+
+  // Google Calendar 連携
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleEvents, setGoogleEvents] = useState([]);
+  const [googleSyncing, setGoogleSyncing] = useState(false);
+
+  // データ抽出パネル
+  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [exportSettings, setExportSettings] = useState({
+    startDate: '',
+    endDate: '',
+    keyword: '',
+    format: 'csv',
+    fields: {
+      title: true,
+      date: true,
+      start_time: true,
+      end_time: true,
+      description: true,
+      location: true,
+      organizer: false,
+      status: false,
+    },
+  });
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportPreview, setExportPreview] = useState(null); // JSON プレビュー用
+
+  // 編集中のイベント
+  const [editingEvent, setEditingEvent] = useState(null);
+
+  // Google認証状態の確認
+  useEffect(() => {
+    fetch('http://localhost:8000/api/calendar/oauth/status/', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setGoogleConnected(data.connected);
+        if (data.connected) fetchGoogleEvents();
+      })
+      .catch(() => {});
+  }, []);
+
+  // ポップアップからのメッセージ受信（OAuth完了通知）
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === 'GOOGLE_AUTH_SUCCESS') {
+        setGoogleConnected(true);
+        fetchGoogleEvents();
+      } else if (e.data?.type === 'GOOGLE_AUTH_ERROR') {
+        toast.error('Google認証に失敗しました: ' + e.data.error);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  // GoogleカレンダーイベントをProdiaのフォーマットに変換
+  const convertGoogleEvent = (gEvent) => {
+    const start = gEvent.start?.dateTime || gEvent.start?.date || '';
+    const date = start.substring(0, 10);
+    const time = start.length > 10 ? start.substring(11, 16) : '';
+    const endRaw = gEvent.end?.dateTime || gEvent.end?.date || '';
+    const endTime = endRaw.length > 10 ? endRaw.substring(11, 16) : '';
+    return {
+      id: `google-${gEvent.id}`,
+      googleId: gEvent.id,
+      title: gEvent.summary || '（タイトルなし）',
+      type: 'google',
+      date,
+      time,
+      endTime,
+      description: gEvent.description || '',
+      assignee: '',
+      reminder: 'none',
+      isRecurring: false,
+    };
+  };
+
+  // Googleカレンダーのイベントを取得
+  const fetchGoogleEvents = () => {
+    setGoogleSyncing(true);
+    fetch('http://localhost:8000/api/calendar/events/', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.events) {
+          setGoogleEvents(data.events.map(convertGoogleEvent));
+        }
+      })
+      .catch(() => toast.error('Googleカレンダーの取得に失敗しました'))
+      .finally(() => setGoogleSyncing(false));
+  };
+
+  // Google連携開始
+  const connectGoogle = () => {
+    fetch('http://localhost:8000/api/calendar/oauth/start/', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.auth_url) {
+          window.open(data.auth_url, 'google_auth', 'width=500,height=650,left=200,top=100');
+        }
+      })
+      .catch(() => toast.error('Google連携の開始に失敗しました'));
+  };
+
+  // Google連携解除
+  const disconnectGoogle = () => {
+    if (!window.confirm('Googleカレンダーの連携を解除しますか？')) return;
+    fetch('http://localhost:8000/api/calendar/oauth/disconnect/', { credentials: 'include' })
+      .then(() => {
+        setGoogleConnected(false);
+        setGoogleEvents([]);
+      });
+  };
+
+  // Googleカレンダー データ抽出
+  const handleExport = () => {
+    const selectedFields = Object.entries(exportSettings.fields)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+      .join(',');
+
+    if (!selectedFields) {
+      toast.warning('出力する項目を1つ以上選択してください');
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (exportSettings.startDate) params.set('start_date', exportSettings.startDate);
+    if (exportSettings.endDate) params.set('end_date', exportSettings.endDate);
+    if (exportSettings.keyword) params.set('keyword', exportSettings.keyword);
+    params.set('fields', selectedFields);
+    params.set('format', exportSettings.format);
+
+    const url = `http://localhost:8000/api/calendar/events/export/?${params.toString()}`;
+
+    if (exportSettings.format === 'json') {
+      setExportLoading(true);
+      fetch(url, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            toast.error('抽出エラー: ' + data.error);
+          } else {
+            setExportPreview(data);
+          }
+        })
+        .catch(() => toast.error('データ抽出に失敗しました'))
+        .finally(() => setExportLoading(false));
+    } else {
+      // CSVはリンクを動的に作成してダウンロード
+      setExportLoading(true);
+      fetch(url, { credentials: 'include' })
+        .then(res => {
+          if (!res.ok) return res.json().then(d => Promise.reject(d.error || '抽出失敗'));
+          return res.blob();
+        })
+        .then(blob => {
+          const blobUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          const startStr = exportSettings.startDate || 'all';
+          const endStr = exportSettings.endDate || 'all';
+          a.download = `google_calendar_${startStr}_${endStr}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(blobUrl);
+        })
+        .catch(err => toast.error('データ抽出に失敗しました: ' + err))
+        .finally(() => setExportLoading(false));
+    }
+  };
 
   // PP面談データ取得
   useEffect(() => {
@@ -248,6 +421,13 @@ const Calendar = () => {
         });
     }
 
+    // Googleカレンダーイベント
+    if (googleConnected && (filterType === 'all' || filterType === 'google')) {
+      googleEvents
+        .filter(e => e.date === dateStr)
+        .forEach(e => allEvents.push(e));
+    }
+
     // カスタムイベント（定期予定を含む）
     if (filterType === 'all' || filterType === 'other' || filterType === 'important') {
       const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -305,50 +485,134 @@ const Calendar = () => {
     setCurrentDate(new Date());
   };
 
+  // イベント追加・更新共通のフォームリセット
+  const resetEventForm = () => {
+    setNewEvent({
+      title: '', type: 'other', date: '', time: '', endTime: '',
+      description: '', assignee: '', reminder: 'none',
+      isRecurring: false, recurringType: 'none', recurringEndDate: ''
+    });
+    setEditingEvent(null);
+    setShowEventModal(false);
+  };
+
   // イベント追加
   const handleAddEvent = () => {
     if (!newEvent.title || !newEvent.date) {
-      alert('タイトルと日付は必須です');
+      toast.warning('タイトルと日付は必須です');
       return;
     }
 
-    const eventToAdd = {
-      id: `custom-${Date.now()}`,
-      ...newEvent
-    };
+    // 編集モード
+    if (editingEvent) {
+      handleUpdateEvent();
+      return;
+    }
 
-    const updatedEvents = [...events, eventToAdd];
-    saveEvents(updatedEvents);
+    if (googleConnected) {
+      // Google連携中はGoogleカレンダーのみに保存（localStorageには保存しない）
+      fetch('http://localhost:8000/api/calendar/events/create/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEvent),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.event) {
+            setGoogleEvents(prev => [...prev, convertGoogleEvent(data.event)]);
+          }
+        })
+        .catch(() => {
+          // Googleへの追加失敗時はlocalStorageに保存
+          const eventToAdd = { id: `custom-${Date.now()}`, ...newEvent };
+          saveEvents([...events, eventToAdd]);
+          toast.warning('Googleカレンダーへの追加に失敗したため、Prodia内に保存しました');
+        });
+    } else {
+      // Google未連携時はlocalStorageに保存
+      const eventToAdd = { id: `custom-${Date.now()}`, ...newEvent };
+      saveEvents([...events, eventToAdd]);
+    }
 
     // プランナーリストを更新
     if (newEvent.assignee && !allAssignees.includes(newEvent.assignee)) {
       setAllAssignees([...allAssignees, newEvent.assignee]);
     }
 
+    resetEventForm();
+  };
+
+  // イベント編集モード開始
+  const handleEditEvent = (event) => {
+    setEditingEvent(event);
     setNewEvent({
-      title: '',
-      type: 'other',
-      date: '',
-      time: '',
-      endTime: '',
-      description: '',
-      assignee: '',
-      reminder: 'none',
-      isRecurring: false,
-      recurringType: 'none',
-      recurringEndDate: ''
+      title: event.title || '',
+      type: event.type === 'google' ? 'other' : (event.type || 'other'),
+      date: event.date || '',
+      time: event.time || '',
+      endTime: event.endTime || '',
+      description: event.description || '',
+      assignee: event.assignee || '',
+      reminder: event.reminder || 'none',
+      isRecurring: event.isRecurring || false,
+      recurringType: event.recurringType || 'none',
+      recurringEndDate: event.recurringEndDate || '',
     });
-    setShowEventModal(false);
+    setShowDetailModal(false);
+    setShowEventModal(true);
+  };
+
+  // イベント更新
+  const handleUpdateEvent = () => {
+    if (!editingEvent) return;
+
+    if (editingEvent.id.startsWith('google-')) {
+      const googleId = editingEvent.googleId;
+      fetch(`http://localhost:8000/api/calendar/events/${googleId}/update/`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEvent),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.event) {
+            setGoogleEvents(prev =>
+              prev.map(e => e.id === editingEvent.id ? convertGoogleEvent(data.event) : e)
+            );
+          }
+        })
+        .catch(() => toast.error('Google予定の更新に失敗しました'));
+    } else if (editingEvent.id.startsWith('custom-')) {
+      const updatedEvents = events.map(e =>
+        e.id === editingEvent.id ? { ...e, ...newEvent } : e
+      );
+      saveEvents(updatedEvents);
+    }
+
+    resetEventForm();
   };
 
   // イベント削除
   const handleDeleteEvent = (eventId) => {
-    if (eventId.startsWith('custom-')) {
+    if (eventId.startsWith('google-')) {
+      const googleId = eventId.replace('google-', '');
+      fetch(`http://localhost:8000/api/calendar/events/${googleId}/delete/`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+        .then(() => {
+          setGoogleEvents(prev => prev.filter(e => e.id !== eventId));
+          setShowDetailModal(false);
+        })
+        .catch(() => toast.error('Googleカレンダーからの削除に失敗しました'));
+    } else if (eventId.startsWith('custom-')) {
       const updatedEvents = events.filter(e => e.id !== eventId);
       saveEvents(updatedEvents);
       setShowDetailModal(false);
     } else {
-      alert('PP/BP予定は元の画面から削除してください');
+      toast.warning('PP/BP予定は元の画面から削除してください');
     }
   };
 
@@ -368,7 +632,7 @@ const Calendar = () => {
   const handleDrop = (e, targetDate) => {
     e.preventDefault();
     if (!draggedEvent || !draggedEvent.id.startsWith('custom-')) {
-      alert('カスタムイベントのみ移動可能です');
+      toast.warning('カスタムイベントのみ移動可能です');
       setDraggedEvent(null);
       return;
     }
@@ -393,6 +657,8 @@ const Calendar = () => {
         return 'bg-amber-500 border-amber-600';
       case 'important':
         return 'bg-red-500 border-red-600';
+      case 'google':
+        return 'bg-teal-500 border-teal-600';
       case 'other':
       default:
         return 'bg-green-500 border-green-600';
@@ -418,128 +684,92 @@ const Calendar = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-6">
-      {/* ヘッダー */}
-      <div className="bg-white rounded-3xl shadow-xl border-2 border-slate-200 p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <i className="fas fa-calendar-alt text-white text-3xl"></i>
+    <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+      {/* ページヘッダー */}
+      <div className="px-6 pt-5 pb-3 border-b border-slate-200/60 bg-white/80 backdrop-blur-sm flex-shrink-0 space-y-3">
+        {/* Row 1: タイトル + Google + 予定追加 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-sm">
+              <i className="fas fa-calendar-alt text-white text-sm"></i>
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-800">カレンダー</h1>
-              <p className="text-slate-600">スケジュール管理 - Salesforce風</p>
+              <h1 className="text-xl font-bold text-slate-800">カレンダー</h1>
+              <p className="text-xs text-slate-400 mt-0.5">スケジュール管理</p>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setNewEvent({ ...newEvent, date: todayStr });
-              setShowEventModal(true);
-            }}
-            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
-          >
-            <i className="fas fa-plus mr-2"></i>
-            予定を追加
-          </button>
-        </div>
-
-        {/* 表示モード切り替えとナビゲーション */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            {/* 表示モード切り替え */}
-            <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
-              <button
-                onClick={() => setViewMode('month')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  viewMode === 'month' 
-                    ? 'bg-white text-blue-600 shadow-md' 
-                    : 'text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                <i className="fas fa-calendar mr-2"></i>月
+          <div className="flex items-center gap-2">
+            {googleConnected ? (
+              <div className="flex items-center gap-1.5">
+                <button onClick={fetchGoogleEvents} disabled={googleSyncing} className="px-3 py-1.5 bg-teal-100 text-teal-700 hover:bg-teal-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
+                  <i className={`fas fa-sync-alt ${googleSyncing ? 'animate-spin' : ''} text-[10px]`}></i>
+                  同期
+                </button>
+                <button onClick={disconnectGoogle} className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
+                  <img src="https://www.google.com/favicon.ico" alt="Google" className="w-3 h-3" />
+                  連携中
+                </button>
+                <button onClick={() => { setShowExportPanel(p => !p); setExportPreview(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${showExportPanel ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}>
+                  <i className="fas fa-file-export text-[10px]"></i>
+                  データ抽出
+                </button>
+              </div>
+            ) : (
+              <button onClick={connectGoogle} className="px-3 py-1.5 bg-white border border-slate-200 hover:border-teal-400 text-slate-700 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm">
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-3 h-3" />
+                Googleカレンダーと連携
               </button>
-              <button
-                onClick={() => setViewMode('week')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  viewMode === 'week' 
-                    ? 'bg-white text-blue-600 shadow-md' 
-                    : 'text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                <i className="fas fa-calendar-week mr-2"></i>週
-              </button>
-              <button
-                onClick={() => setViewMode('day')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  viewMode === 'day' 
-                    ? 'bg-white text-blue-600 shadow-md' 
-                    : 'text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                <i className="fas fa-calendar-day mr-2"></i>日
-              </button>
-            </div>
-
-            {/* ナビゲーション */}
+            )}
             <button
-              onClick={() => changeDate(-1)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              onClick={() => { setNewEvent({ ...newEvent, date: todayStr }); setShowEventModal(true); }}
+              className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all"
             >
-              <i className="fas fa-chevron-left"></i>
-            </button>
-            <h2 className="text-2xl font-bold text-slate-800 min-w-[200px] text-center">
-              {getDateRangeText()}
-            </h2>
-            <button
-              onClick={() => changeDate(1)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-            >
-              <i className="fas fa-chevron-right"></i>
-            </button>
-            <button
-              onClick={goToToday}
-              className="px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg font-semibold transition-colors"
-            >
-              <i className="fas fa-home mr-2"></i>今日
+              <i className="fas fa-plus mr-1.5 text-[10px]"></i>予定を追加
             </button>
           </div>
         </div>
-
-        {/* フィルター */}
+        {/* Row 2: 表示モード + ナビゲーション + フィルター */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600 font-semibold">種類:</span>
-            {['all', 'pp', 'bp', 'important', 'other'].map(type => (
-              <button
-                key={type}
-                onClick={() => setFilterType(type)}
-                className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${
-                  filterType === type
-                    ? type === 'all' ? 'bg-slate-700 text-white' :
-                      type === 'pp' ? 'bg-blue-500 text-white' :
-                      type === 'bp' ? 'bg-amber-500 text-white' :
-                      type === 'important' ? 'bg-red-500 text-white' :
-                      'bg-green-500 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {type === 'all' ? 'すべて' :
-                 type === 'pp' ? 'PP' :
-                 type === 'bp' ? 'BP' :
-                 type === 'important' ? '重要' :
-                 'その他'}
-              </button>
-            ))}
+            <div className="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+              {[
+                { key: 'month', icon: 'fa-calendar',      label: '月' },
+                { key: 'week',  icon: 'fa-calendar-week', label: '週' },
+                { key: 'day',   icon: 'fa-calendar-day',  label: '日' },
+              ].map(({ key, icon, label }) => (
+                <button key={key} onClick={() => setViewMode(key)} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${viewMode === key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}>
+                  <i className={`fas ${icon} mr-1`}></i>{label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => changeDate(-1)} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors text-slate-600">
+              <i className="fas fa-chevron-left text-xs"></i>
+            </button>
+            <span className="text-sm font-bold text-slate-800 min-w-[160px] text-center">{getDateRangeText()}</span>
+            <button onClick={() => changeDate(1)} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors text-slate-600">
+              <i className="fas fa-chevron-right text-xs"></i>
+            </button>
+            <button onClick={goToToday} className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs font-semibold transition-colors">
+              <i className="fas fa-home mr-1"></i>今日
+            </button>
           </div>
-
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600 font-semibold">担当者:</span>
-            <select
-              value={filterAssignee}
-              onChange={(e) => setFilterAssignee(e.target.value)}
-              className="px-3 py-1 border-2 border-slate-200 rounded-lg text-sm font-semibold focus:border-blue-500 focus:outline-none"
-            >
-              <option value="all">すべて</option>
+            <div className="flex items-center gap-1">
+              {[
+                { key: 'all',       label: 'すべて', color: 'bg-slate-700' },
+                { key: 'pp',        label: 'PP',     color: 'bg-blue-500' },
+                { key: 'bp',        label: 'BP',     color: 'bg-amber-500' },
+                { key: 'important', label: '重要',   color: 'bg-red-500' },
+                { key: 'other',     label: 'その他', color: 'bg-green-500' },
+                ...(googleConnected ? [{ key: 'google', label: 'Google', color: 'bg-teal-500' }] : []),
+              ].map(({ key, label, color }) => (
+                <button key={key} onClick={() => setFilterType(key)} className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${filterType === key ? `${color} text-white` : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-xs focus:border-blue-500 focus:outline-none">
+              <option value="all">全担当者</option>
               {allAssignees.sort().map(assignee => (
                 <option key={assignee} value={assignee}>{assignee}</option>
               ))}
@@ -547,6 +777,74 @@ const Calendar = () => {
           </div>
         </div>
       </div>
+      <div className="flex-1 overflow-auto px-6 py-4">
+
+        {/* データ抽出パネル */}
+        {showExportPanel && googleConnected && (
+          <div className="mb-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-5">
+            <h3 className="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">
+              <i className="fas fa-file-export text-indigo-600"></i>
+              Googleカレンダー データ抽出
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">抽出期間（開始）</label>
+                <input type="date" value={exportSettings.startDate} onChange={e => setExportSettings(s => ({ ...s, startDate: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">抽出期間（終了）</label>
+                <input type="date" value={exportSettings.endDate} onChange={e => setExportSettings(s => ({ ...s, endDate: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">キーワード絞り込み <span className="ml-2 text-xs font-normal text-slate-500">カンマ区切りでAND検索（例: 面談,田中）</span></label>
+                <input type="text" value={exportSettings.keyword} onChange={e => setExportSettings(s => ({ ...s, keyword: e.target.value }))} placeholder="キーワードなしで全件抽出" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">出力する項目</label>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { key: 'title', label: 'タイトル' }, { key: 'date', label: '日付' },
+                  { key: 'start_time', label: '開始時刻' }, { key: 'end_time', label: '終了時刻' },
+                  { key: 'description', label: '説明' }, { key: 'location', label: '場所' },
+                  { key: 'organizer', label: '主催者メール' }, { key: 'status', label: 'ステータス' },
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm hover:border-indigo-300 transition-colors">
+                    <input type="checkbox" checked={exportSettings.fields[key]} onChange={e => setExportSettings(s => ({ ...s, fields: { ...s.fields, [key]: e.target.checked } }))} className="accent-indigo-500" />
+                    <span className="font-medium text-slate-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-slate-700">出力形式:</label>
+                <label className="flex items-center gap-1 cursor-pointer text-sm">
+                  <input type="radio" value="csv" checked={exportSettings.format === 'csv'} onChange={() => { setExportSettings(s => ({ ...s, format: 'csv' })); setExportPreview(null); }} className="accent-indigo-500" />
+                  CSV（Excel対応）
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer text-sm">
+                  <input type="radio" value="json" checked={exportSettings.format === 'json'} onChange={() => { setExportSettings(s => ({ ...s, format: 'json' })); setExportPreview(null); }} className="accent-indigo-500" />
+                  JSON（プレビュー）
+                </label>
+              </div>
+              <button onClick={handleExport} disabled={exportLoading} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-60">
+                {exportLoading ? <><i className="fas fa-spinner animate-spin"></i> 抽出中...</> : <><i className="fas fa-download"></i> {exportSettings.format === 'csv' ? 'CSVダウンロード' : 'データ取得'}</>}
+              </button>
+            </div>
+            {exportPreview && (
+              <div className="mt-4 bg-white border border-indigo-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-indigo-700"><i className="fas fa-list mr-1"></i>{exportPreview.count}件 取得</span>
+                  <button onClick={() => setExportPreview(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕ 閉じる</button>
+                </div>
+                <div className="overflow-auto max-h-64 text-xs font-mono text-slate-700 bg-slate-50 rounded-lg p-3">
+                  <pre>{JSON.stringify(exportPreview.events, null, 2)}</pre>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* 月表示カレンダーグリッド */}
       {viewMode === 'month' && (
@@ -994,8 +1292,8 @@ const Calendar = () => {
                 onClick={handleAddEvent}
                 className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-bold hover:shadow-xl transition-all"
               >
-                <i className="fas fa-plus mr-2"></i>
-                追加
+                <i className={`fas ${editingEvent ? 'fa-save' : 'fa-plus'} mr-2`}></i>
+                {editingEvent ? '更新' : '追加'}
               </button>
             </div>
           </div>
@@ -1089,6 +1387,43 @@ const Calendar = () => {
                 </>
               )}
 
+              {selectedEvent.type === 'google' && (
+                <>
+                  {selectedEvent.endTime && (
+                    <div className="bg-teal-50 rounded-xl p-4">
+                      <p className="text-sm text-teal-700 mb-1">時間</p>
+                      <p className="font-bold text-teal-900">
+                        {selectedEvent.time} - {selectedEvent.endTime}
+                      </p>
+                    </div>
+                  )}
+                  {selectedEvent.description && (
+                    <div className="bg-slate-50 rounded-xl p-4">
+                      <p className="text-sm text-slate-600 mb-1">詳細</p>
+                      <p className="text-slate-800 whitespace-pre-wrap">{selectedEvent.description}</p>
+                    </div>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleEditEvent(selectedEvent)}
+                      className="flex-1 px-6 py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-bold transition-colors"
+                    >
+                      <i className="fas fa-edit mr-2"></i>編集
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('この予定をGoogleカレンダーから削除しますか?')) {
+                          handleDeleteEvent(selectedEvent.id);
+                        }
+                      }}
+                      className="flex-1 px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors"
+                    >
+                      <i className="fas fa-trash mr-2"></i>削除
+                    </button>
+                  </div>
+                </>
+              )}
+
               {(selectedEvent.type === 'other' || selectedEvent.type === 'important') && (
                 <>
                   {selectedEvent.endTime && (
@@ -1144,23 +1479,31 @@ const Calendar = () => {
                       <p className="text-slate-800 whitespace-pre-wrap">{selectedEvent.description}</p>
                     </div>
                   )}
-                  <button
-                    onClick={() => {
-                      if (window.confirm('この予定を削除しますか?')) {
-                        handleDeleteEvent(selectedEvent.id);
-                      }
-                    }}
-                    className="w-full px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors"
-                  >
-                    <i className="fas fa-trash mr-2"></i>
-                    削除
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleEditEvent(selectedEvent)}
+                      className="flex-1 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-colors"
+                    >
+                      <i className="fas fa-edit mr-2"></i>編集
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('この予定を削除しますか?')) {
+                          handleDeleteEvent(selectedEvent.id);
+                        }
+                      }}
+                      className="flex-1 px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors"
+                    >
+                      <i className="fas fa-trash mr-2"></i>削除
+                    </button>
+                  </div>
                 </>
               )}
             </div>
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

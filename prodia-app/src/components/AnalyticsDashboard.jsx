@@ -70,7 +70,7 @@ export default function AnalyticsDashboard() {
         <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-emerald-200/70">Executive View</p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight">
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight">
               Analytics Dashboard
             </h1>
             <p className="mt-3 text-slate-300">

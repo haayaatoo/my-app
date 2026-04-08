@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from "react";
+import { useToast } from "./Toast";
 import EngineerCard from "./EngineerCard";
 import EngineerForm from "./EngineerForm";
 import EngineerStats from "./EngineerStats";
@@ -9,6 +10,7 @@ import CSVImporter from "./CSVImporter";
 import PPSalesProgress from "./PPSalesProgress";
 import BPProgress from "./BPProgress";
 import CompanyAppointmentManager from "./CompanyAppointmentManager";
+import PartnerEngineerList from "./PartnerEngineerList";
 
 // モダン・ラグジュアリーローディング
 function AnimatedLoader() {
@@ -32,7 +34,7 @@ function AnimatedLoader() {
         </div>
         
         {/* テキスト */}
-        <h2 className="text-3xl font-medium text-slate-700 mb-4 tracking-wide font-display">エンジニアデータを読み込み中...</h2>
+        <h2 className="text-2xl font-medium text-slate-700 mb-4 tracking-wide font-display">エンジニアデータを読み込み中...</h2>
         <p className="text-slate-500 animate-pulse font-normal text-lg">エンジニア情報を取得しています</p>
       </div>
     </div>
@@ -51,15 +53,12 @@ function EngineerListHeader({ engineersCount, onAddNew, showStats, onToggleStats
       
       {/* 上品な装飾要素 */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300"></div>
-      <div className="absolute top-4 right-6 w-3 h-3 bg-amber-200/40 rounded-full animate-pulse"></div>
-      <div className="absolute bottom-4 left-6 w-2 h-2 bg-stone-200/50 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
-      <div className="absolute top-8 left-12 w-1 h-1 bg-amber-300/60 rounded-full animate-ping" style={{animationDelay: '2s'}}></div>
       
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-4xl font-medium text-slate-700 mb-3 tracking-wide">
-              <span className="inline-block hover:scale-105 transition-transform duration-300 font-display">
+            <h1 className="text-2xl font-medium text-slate-700 mb-3 tracking-wide">
+              <span className="font-display">
                 エンジニア管理
               </span>
             </h1>
@@ -101,6 +100,7 @@ function EngineerListHeader({ engineersCount, onAddNew, showStats, onToggleStats
 
 
 export default function EngineerList() {
+  const toast = useToast();
   const [engineers, setEngineers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -116,6 +116,8 @@ export default function EngineerList() {
   const [selectedEngineerForMemo, setSelectedEngineerForMemo] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // メモ変更時のカード更新トリガー
   const [showCSVImporter, setShowCSVImporter] = useState(false); // CSVインポートモーダル
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 12;
 
   const fetchEngineers = () => {
     setLoading(true);
@@ -172,6 +174,12 @@ export default function EngineerList() {
     }
   });
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // フィルター変更時にページをリセット
+  useEffect(() => { setCurrentPage(1); }, [search, sortBy, sortOrder]);
+
   // 新規登録・編集
   const handleSubmit = async (form, continueAfter = false) => {
     const url = editingEngineer 
@@ -226,11 +234,10 @@ export default function EngineerList() {
       fetchEngineers();
       
       // 成功メッセージ
-      showNotification(
+      toast.success(
         continueAfter 
           ? "登録完了！続けて登録できます" 
-          : (editingEngineer ? "更新完了!" : "登録完了!"), 
-        "success"
+          : (editingEngineer ? "更新完了!" : "登録完了!") 
       );
       
     } catch (err) {
@@ -272,9 +279,9 @@ export default function EngineerList() {
       .then(res => {
         if (!res.ok) throw new Error("削除に失敗しました");
         fetchEngineers();
-        showNotification("削除完了!", "error");
+        toast.success("削除完了!");
       })
-      .catch(err => alert(err.message));
+      .catch(err => toast.error(err.message));
   };
 
   // ドロップゾーンからの削除
@@ -283,13 +290,6 @@ export default function EngineerList() {
     if (engineer && window.confirm(`${engineer.name}さんを削除しますか？`)) {
       handleDelete(engineerId);
     }
-  };
-
-  // 通知表示
-  const [notification, setNotification] = useState(null);
-  const showNotification = (message, type = "success") => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
   };
 
   // フォームのキャンセル
@@ -304,11 +304,10 @@ export default function EngineerList() {
   };
 
   const handleCSVImportComplete = (result) => {
-    showNotification(
+    toast.success(
       `${result.created_count}名のエンジニアを登録しました${
         result.skipped_count > 0 ? `（${result.skipped_count}名は重複のためスキップ）` : ''
-      }`, 
-      "success"
+      }`
     );
     fetchEngineers(); // データを再取得
   };
@@ -345,8 +344,8 @@ export default function EngineerList() {
       ).then(() => {
         fetchEngineers();
         setSelectedEngineers([]);
-        showNotification(`${selectedEngineers.length}件のエンジニアを削除しました`, "success");
-      }).catch(err => alert("一括削除に失敗しました"));
+        toast.success(`${selectedEngineers.length}件のエンジニアを削除しました`);
+      }).catch(err => toast.error("一括削除に失敗しました"));
     }
   };
 
@@ -365,34 +364,43 @@ export default function EngineerList() {
     ).then(() => {
       fetchEngineers();
       setSelectedEngineers([]);
-      showNotification(`${selectedEngineers.length}件のステータスを更新しました`, "success");
-    }).catch(err => alert("一括更新に失敗しました"));
+      toast.success(`${selectedEngineers.length}件のステータスを更新しました`);
+    }).catch(err => toast.error("一括更新に失敗しました"));
   };
 
   // CSV エクスポート
   const handleExportCSV = () => {
+    if (filtered.length === 0) { toast.error("出力するデータがありません"); return; }
     const csvData = filtered.map(e => ({
-      名前: e.name,
-      役職: e.position || '',
-      プロジェクト: e.project_name || '',
-      プランナー: e.planner || '',
-      スキル: Array.isArray(e.skills) ? e.skills.join(', ') : '',
-      ステータス: e.engineer_status,
-      フェーズ: Array.isArray(e.phase) ? e.phase.join(', ') : ''
+      name: e.name || '',
+      position: e.position || '',
+      project_name: e.project_name || '',
+      planner: e.planner || '',
+      skills: Array.isArray(e.skills) ? e.skills.join(',') : (e.skills || ''),
+      engineer_status: e.engineer_status || '',
+      phase: Array.isArray(e.phase) ? e.phase.join(',') : (e.phase || ''),
+      client_company: e.client_company || '',
+      monthly_rate: e.monthly_rate || '',
+      project_start_date: e.project_start_date || '',
+      project_end_date: e.project_end_date || '',
+      project_location: e.project_location || '',
     }));
-    
+
+    const headers = Object.keys(csvData[0]);
+    const escape = (val) => `"${String(val).replace(/"/g, '""')}"`;
     const csvContent = [
-      Object.keys(csvData[0]).join(','),
-      ...csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+      headers.join(','),
+      ...csvData.map(row => headers.map(h => escape(row[h])).join(','))
     ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `engineers_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    
-    showNotification("CSVファイルをダウンロードしました", "success");
+    URL.revokeObjectURL(link.href);
+    toast.success("CSVファイルをダウンロードしました");
   };
 
   if (loading) return <AnimatedLoader />;
@@ -404,7 +412,7 @@ export default function EngineerList() {
         <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-8">
           <i className="fas fa-exclamation-triangle text-3xl text-white"></i>
         </div>
-        <h2 className="text-3xl font-medium text-slate-700 mb-6 tracking-wide font-display">エラーが発生しました</h2>
+        <h2 className="text-2xl font-medium text-slate-700 mb-6 tracking-wide font-display">エラーが発生しました</h2>
         <p className="text-slate-500 text-lg font-normal">{error}</p>
         <button 
           onClick={() => window.location.reload()} 
@@ -418,117 +426,106 @@ export default function EngineerList() {
 
   return (
     <div
-      className="soft-page opacity-0 animate-fade-in"
-      style={{ animationDelay: '0ms', animationFillMode: 'forwards' }}
+      className="flex flex-col h-full soft-page"
     >
       <div className="soft-aurora soft-aurora--emerald"></div>
       <div className="soft-aurora soft-aurora--indigo"></div>
       <div className="soft-noise"></div>
 
-      <div className="relative z-10">
-        {/* モダン・ラグジュアリー通知 */}
-        {notification && (
-          <div className={`fixed top-6 right-6 z-50 px-8 py-4 rounded-3xl backdrop-blur-sm text-white font-medium animate-bounce-in flex items-center gap-4 border border-white/20 ${
-            notification.type === 'success' 
-              ? 'bg-gradient-to-r from-emerald-500 to-green-500' 
-              : 'bg-gradient-to-r from-red-500 to-rose-500'
-          }`} style={{
-            boxShadow: '0 20px 50px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.1)'
-          }}>
-            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-              <i className={`fas text-sm ${notification.type === 'success' ? 'fa-check' : 'fa-exclamation'}`}></i>
+      {/* ページヘッダー */}
+      <div className="relative z-10 px-6 pt-5 pb-4 border-b border-slate-200/60 bg-white/70 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shadow-sm">
+              <i className="fas fa-users text-white text-sm"></i>
             </div>
-            <span className="text-lg tracking-wide">{notification.message}</span>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">
+                {activeTab === 'dashboard' ? 'エンジニア統計ダッシュボード' :
+                 activeTab === 'pp-sales' ? 'PP営業進捗管理' :
+                 activeTab === 'bp-progress' ? 'BP進捗管理' :
+                 activeTab === 'apo-kanri' ? 'アポ管理' : 'エンジニア管理'}
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {activeTab === 'engineers' ? `登録数: ${engineers.length}名` : 'リアルタイム人材管理システム'}
+              </p>
+            </div>
           </div>
-        )}
-
-        <div className="container mx-auto px-6 py-8">
-        {/* 新しいスタイリッシュヘッダー with タブナビゲーション */}
-        <div className="opacity-0 animate-slide-in-from-top" style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
-          <div
-            className="relative overflow-hidden soft-panel soft-panel-accent p-8 rounded-3xl mb-8"
-            style={{
-              boxShadow: '0 25px 70px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
-            }}
-          >
-            {/* 上品な装飾要素 */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300"></div>
-            <div className="absolute top-4 right-6 w-3 h-3 bg-amber-200/40 rounded-full animate-pulse"></div>
-            <div className="absolute bottom-4 left-6 w-2 h-2 bg-stone-200/50 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
-            <div className="absolute top-8 left-12 w-1 h-1 bg-amber-300/60 rounded-full animate-ping" style={{animationDelay: '2s'}}></div>
-            
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-              {/* タイトル部分 */}
-              <div>
-                <h1 className="text-4xl font-medium text-slate-700 mb-3 tracking-wide">
-                  <span className="inline-block hover:scale-105 transition-transform duration-300 font-display">
-                    {activeTab === 'dashboard' ? 'エンジニア統計ダッシュボード' : 
-                     activeTab === 'pp-sales' ? 'PP営業進捗管理' : 
-                     activeTab === 'bp-progress' ? 'BP進捗管理' : 
-                     activeTab === 'apo-kanri' ? 'アポ管理' : 'エンジニア管理'}
-                  </span>
-                </h1>
-                <p className="text-slate-500 text-lg font-normal">
-                  {activeTab === 'dashboard' ? 'リアルタイム人材管理システム' : 
-                   activeTab === 'pp-sales' ? '面談の進捗状況と営業活動を一元管理' : 
-                   activeTab === 'bp-progress' ? 'プランナー別面談件数とBP見込み案件を管理' : 
-                   activeTab === 'apo-kanri' ? 'プランナー間のアポ重複を防止・一元管理' :
-                   `登録数: ${engineers.length}名のプロフェッショナル`}
-                </p>
-              </div>
-              
-              {/* タブナビゲーション */}
-              <div className="flex bg-white rounded-2xl p-1 shadow-lg">
-                {[
-                  { key: 'dashboard', icon: 'fa-tachometer-alt', label: 'ダッシュボード' },
-                  { key: 'engineers', icon: 'fa-users', label: 'エンジニアリスト' },
-                  { key: 'pp-sales', icon: 'fa-handshake', label: 'PP営業進捗' },
-                  { key: 'bp-progress', icon: 'fa-project-diagram', label: 'BP進捗' },
-                  { key: 'apo-kanri', icon: 'fa-calendar-check', label: 'アポ管理' },
-                ].map(mode => (
-                  <button
-                    key={mode.key}
-                    onClick={() => setActiveTab(mode.key)}
-                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
-                      activeTab === mode.key
-                        ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-md'
-                        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-                    }`}
-                  >
-                    <i className={`fas ${mode.icon}`}></i>
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-200 gap-0.5">
+            {[
+              { key: 'dashboard',         icon: 'fa-tachometer-alt', label: 'ダッシュボード',  color: 'bg-amber-500' },
+              { key: 'engineers',         icon: 'fa-users',          label: 'IDRエンジニア',   color: 'bg-amber-500' },
+              { key: 'partner-engineers', icon: 'fa-user-tie',       label: 'BPエンジニア',    color: 'bg-indigo-600' },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === tab.key
+                    ? `${tab.color} text-white shadow-sm`
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <i className={`fas ${tab.icon} text-[10px]`}></i>
+                {tab.label}
+              </button>
+            ))}
+            <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0"></div>
+            {[
+              { key: 'pp-sales',    icon: 'fa-handshake',       label: 'PP営業進捗' },
+              { key: 'bp-progress', icon: 'fa-project-diagram', label: 'BP進捗管理' },
+              { key: 'apo-kanri',   icon: 'fa-calendar-check',  label: 'アポ管理'   },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === tab.key
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <i className={`fas ${tab.icon} text-[10px]`}></i>
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
+      <div className="relative z-10 flex-1 overflow-auto px-6 py-5">
 
         {/* ダッシュボード表示 - エンジニア統計 */}
         {activeTab === 'dashboard' && (
-          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+          <div>
             <EngineerStats engineers={engineers} />
           </div>
         )}
 
         {/* PP営業進捗表示 */}
         {activeTab === 'pp-sales' && (
-          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+          <div>
             <PPSalesProgress />
           </div>
         )}
 
         {/* BP進捗表示 */}
         {activeTab === 'bp-progress' && (
-          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+          <div>
             <BPProgress />
           </div>
         )}
 
         {/* アポ管理表示 */}
         {activeTab === 'apo-kanri' && (
-          <div className="opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '400ms', animationFillMode: 'forwards'}}>
+          <div>
             <CompanyAppointmentManager />
+          </div>
+        )}
+
+        {/* パートナーエンジニアリスト表示 */}
+        {activeTab === 'partner-engineers' && (
+          <div>
+            <PartnerEngineerList />
           </div>
         )}
 
@@ -538,10 +535,8 @@ export default function EngineerList() {
 
       {/* モダン・ラグジュアリー一括操作バー */}
       {selectedEngineers.length > 0 && (
-        <div className="mb-10 p-6 bg-gradient-to-r from-amber-50 via-white to-stone-50 backdrop-blur-sm rounded-3xl border border-amber-200/50 opacity-0 animate-slide-in-from-bottom" style={{
-          boxShadow: '0 15px 40px rgba(0,0,0,0.08), 0 6px 16px rgba(251,191,36,0.15)',
-          animationDelay: '500ms',
-          animationFillMode: 'forwards'
+        <div className="mb-10 p-6 bg-gradient-to-r from-amber-50 via-white to-stone-50 backdrop-blur-sm rounded-3xl border border-amber-200/50" style={{
+          boxShadow: '0 15px 40px rgba(0,0,0,0.08), 0 6px 16px rgba(251,191,36,0.15)'
         }}>
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -600,7 +595,7 @@ export default function EngineerList() {
       {/* モダン・ラグジュアリータイトル & アクション */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-10 gap-6">
         <div className="space-y-2">
-          <h2 className="text-4xl font-medium tracking-wide text-slate-700 flex items-center gap-4 font-display">
+          <h2 className="text-2xl font-medium tracking-wide text-slate-700 flex items-center gap-4 font-display">
             <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-stone-400 rounded-2xl flex items-center justify-center">
               <i className="fas fa-users text-white text-xl"></i>
             </div>
@@ -611,6 +606,9 @@ export default function EngineerList() {
               {filtered.length}件表示中
             </span>
             <span className="text-slate-500 font-normal">/ 総数 {engineers.length}件</span>
+            {totalPages > 1 && (
+              <span className="text-slate-400 text-sm">{currentPage} / {totalPages}ページ</span>
+            )}
           </div>
         </div>
         
@@ -669,7 +667,7 @@ export default function EngineerList() {
           
           {/* 新規登録 - プレミアム */}
           <button
-            className="px-8 py-3 bg-amber-400 hover:bg-amber-500 text-white rounded-2xl font-semibold flex items-center gap-3 transition-all duration-300 transform hover:scale-105 backdrop-blur-sm shadow-luxury whitespace-nowrap min-w-fit text-sm"
+            className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-semibold flex items-center gap-3 transition-all duration-300 transform hover:scale-105 backdrop-blur-sm shadow-luxury whitespace-nowrap min-w-fit text-sm"
             style={{
               boxShadow: '0 8px 32px 0 rgba(245, 158, 11, 0.18), 0 2px 8px 0 rgba(120, 113, 108, 0.10), 0 1.5px 0 rgba(255,255,255,0.7) inset'
             }}
@@ -681,10 +679,8 @@ export default function EngineerList() {
         </div>
       </div>
       {/* モダン・ラグジュアリー検索フィルタ + ソート */}
-      <div className="soft-panel mb-10 p-8 rounded-3xl opacity-0 animate-slide-in-from-bottom" style={{
-        boxShadow: '0 20px 50px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.04)',
-        animationDelay: '600ms',
-        animationFillMode: 'forwards'
+      <div className="soft-panel mb-10 p-8 rounded-3xl" style={{
+        boxShadow: '0 20px 50px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.04)'
       }}>
         <div className="flex flex-col gap-8">
           {/* 全選択チェックボックス - エレガント */}
@@ -818,19 +814,125 @@ export default function EngineerList() {
           )}
         </div>
       </div>
-      {/* エンジニア一覧 - スタイリッシュアニメーション付き */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
-        {filtered.map((e, index) => (
+      {/* エンジニア一覧 */}
+      {displayMode === 'table' ? (
+        /* ── テーブル表示 ── */
+        <div className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gradient-to-r from-amber-50 to-stone-50 border-b border-stone-200">
+                  <th className="px-4 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedEngineers.length === filtered.length && filtered.length > 0}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 text-amber-600 rounded"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap">名前</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap">役職</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap">ステータス</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap">スキル</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap">プランナー</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600 whitespace-nowrap">プロジェクト</th>
+                  <th className="px-4 py-3 text-center font-semibold text-slate-600 whitespace-nowrap">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16 text-slate-400">
+                      <i className="fas fa-search text-3xl block mb-3"></i>
+                      該当するエンジニアがいません
+                    </td>
+                  </tr>
+                ) : paginated.map((e) => {
+                  const statusMap = {
+                    'アサイン済': { color: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
+                    '未アサイン': { color: 'bg-red-100 text-red-600',   dot: 'bg-red-400'   },
+                  };
+                  const st = statusMap[e.engineer_status] || { color: 'bg-gray-100 text-gray-500', dot: 'bg-gray-400' };
+                  const skillsArr = Array.isArray(e.skills) ? e.skills : (e.skills || '').split(',').map(s => s.trim()).filter(Boolean);
+                  return (
+                    <tr key={e.id} className={`hover:bg-amber-50/40 transition-colors ${selectedEngineers.includes(e.id) ? 'bg-amber-50' : ''}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedEngineers.includes(e.id)}
+                          onChange={(ev) => handleSelectEngineer(e.id, ev.target.checked)}
+                          className="w-4 h-4 text-amber-600 rounded"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-300 to-blue-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {e.name?.charAt(0)}
+                          </div>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap">{e.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{e.position || '―'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${st.color}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}></span>
+                          {e.engineer_status || '不明'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          {skillsArr.slice(0, 4).map((s, i) => (
+                            <span key={i} className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-full">{s}</span>
+                          ))}
+                          {skillsArr.length > 4 && <span className="text-[10px] text-slate-400">+{skillsArr.length - 4}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{e.planner || '―'}</td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[160px] truncate">{e.project_name || '―'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleMemoClick(e.name)}
+                            className="w-7 h-7 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition-colors"
+                            title="メモ"
+                          >
+                            <i className="fas fa-sticky-note text-xs"></i>
+                          </button>
+                          <button
+                            onClick={() => handleEdit(e)}
+                            className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
+                            title="編集"
+                          >
+                            <i className="fas fa-pen text-xs"></i>
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`${e.name}さんを削除しますか？`)) handleDelete(e.id);
+                            }}
+                            className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition-colors"
+                            title="削除"
+                          >
+                            <i className="fas fa-trash text-xs"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* ── カード表示 ── */
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch">
+          {paginated.map((e, index) => (
           <div 
             key={e.id}
-            className="h-full transform transition-all duration-700 ease-out hover:scale-105"
-            style={{
-              animationDelay: `${index * 0.1}s`,
-              animation: 'slideInUp 0.8s ease-out forwards'
-            }}
+            className="h-full"
           >
             <EngineerCard 
-              engineer={{ ...e, project: e.project_name }}
+              engineer={{ ...e, project: e.project_name, project_location: e.project_location }}
               onEdit={handleEdit}
               onDelete={handleDelete}
               isSelected={selectedEngineers.includes(e.id)}
@@ -841,8 +943,8 @@ export default function EngineerList() {
           </div>
         ))}
         
-        {/* 空の状態もスタイリッシュに */}
-        {filtered.length === 0 && (
+          {/* 空の状態もスタイリッシュに */}
+          {paginated.length === 0 && filtered.length === 0 && (
           <div className="col-span-full text-center py-16">
             <div className="relative">
               {/* 背景の装飾 */}
@@ -859,7 +961,7 @@ export default function EngineerList() {
                 <p className="text-gray-400 text-lg mb-4">検索条件を変更してみてください</p>
                 <button 
                   onClick={() => setSearch({ status: '', skill: '', planner: '' })}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-2xl font-semibold hover:scale-105 transform transition-all duration-300 shadow-lg hover:shadow-blue-500/50"
+                  className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-semibold hover:scale-105 transform transition-all duration-300 shadow-md"
                 >
                   <i className="fas fa-refresh mr-2"></i>
                   検索をクリア
@@ -868,7 +970,66 @@ export default function EngineerList() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
+
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-slate-500 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
+          >
+            <i className="fas fa-angle-double-left text-xs"></i>
+          </button>
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-slate-500 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
+          >
+            <i className="fas fa-angle-left text-xs"></i>
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+            .reduce((acc, p, idx, arr) => {
+              if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((item, idx) =>
+              item === '...' ? (
+                <span key={`ellipsis-${idx}`} className="w-9 h-9 flex items-center justify-center text-slate-400 text-sm">…</span>
+              ) : (
+                <button
+                  key={item}
+                  onClick={() => setCurrentPage(item)}
+                  className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all shadow-sm ${
+                    currentPage === item
+                      ? 'bg-gradient-to-br from-amber-400 to-stone-400 text-white border-0 shadow-md scale-105'
+                      : 'bg-white border border-stone-200 text-slate-600 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600'
+                  }`}
+                >
+                  {item}
+                </button>
+              )
+            )}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-slate-500 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
+          >
+            <i className="fas fa-angle-right text-xs"></i>
+          </button>
+          <button
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-slate-500 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
+          >
+            <i className="fas fa-angle-double-right text-xs"></i>
+          </button>
+        </div>
+      )}
       
       {/* 新規登録・編集モーダル */}
       {showForm && (
@@ -901,7 +1062,6 @@ export default function EngineerList() {
           </>
         )}
       </div>
-    </div>
   </div>
   );
 }

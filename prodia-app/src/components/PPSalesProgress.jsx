@@ -4,8 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 const KANBAN_COLUMNS = [
   { id: 'scheduling', title: '日程調整中', icon: 'fa-calendar-plus', color: 'from-slate-500 to-slate-600' },
   { id: 'scheduled', title: '面談予定', icon: 'fa-calendar-check', color: 'from-blue-500 to-blue-600' },
-  { id: 'completed', title: '面談済み', icon: 'fa-handshake', color: 'from-indigo-500 to-indigo-600' },
-  { id: 'waiting', title: '回答待ち', icon: 'fa-clock', color: 'from-amber-500 to-amber-600' },
+  { id: 'completed', title: '面談済み／回答待ち', icon: 'fa-handshake', color: 'from-indigo-500 to-indigo-600' },
   { id: 'won', title: '成約', icon: 'fa-trophy', color: 'from-emerald-500 to-emerald-600' },
   { id: 'lost', title: '見送り', icon: 'fa-times-circle', color: 'from-red-500 to-red-600' }
 ];
@@ -15,7 +14,8 @@ const STATUS_TO_COLUMN = {
   '日程調整中': 'scheduling',
   '面談予定': 'scheduled',
   '面談済み': 'completed',
-  '回答待ち': 'waiting',
+  '回答待ち': 'completed',
+  '面談済み／回答待ち': 'completed',
   '成約': 'won',
   '見送り': 'lost'
 };
@@ -23,8 +23,7 @@ const STATUS_TO_COLUMN = {
 const COLUMN_TO_STATUS = {
   'scheduling': '日程調整中',
   'scheduled': '面談予定',
-  'completed': '面談済み',
-  'waiting': '回答待ち',
+  'completed': '面談済み／回答待ち',
   'won': '成約',
   'lost': '見送り'
 };
@@ -40,14 +39,22 @@ const formatUnitPrice = (val) => {
 };
 
 export default function PPSalesProgress() {
-  const [interviews, setInterviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [interviews, setInterviews] = useState(() => {
+    try {
+      const savedData = localStorage.getItem('ppInterviews');
+      return savedData ? JSON.parse(savedData) : [];
+    } catch (e) {
+      console.error('データの読み込みに失敗しました', e);
+      return [];
+    }
+  });
+  const [loading] = useState(false);
   const [showNewInterviewModal, setShowNewInterviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [editingInterview, setEditingInterview] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState('2026-02'); // デフォルトを今月に設定
+  const [selectedMonth, setSelectedMonth] = useState('all'); // デフォルトは「すべて」表示（新規登録後すぐ表示されるように）
   const [selectedSales, setSelectedSales] = useState('all');
   const [draggedItem, setDraggedItem] = useState(null);
   
@@ -69,29 +76,9 @@ export default function PPSalesProgress() {
     notes: ''
   });
 
-  // サンプルデータ（後でAPIから取得）
-  useEffect(() => {
-    // ローカルストレージからデータを読み込む
-    const savedData = localStorage.getItem('ppInterviews');
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        setInterviews(parsed);
-        setLoading(false);
-        return;
-      } catch (e) {
-        console.error('データの読み込みに失敗しました', e);
-      }
-    }
-    
-    setLoading(false);
-  }, []);
-
   // interviewsが変更されたらローカルストレージに保存
   useEffect(() => {
-    if (interviews.length > 0) {
-      localStorage.setItem('ppInterviews', JSON.stringify(interviews));
-    }
+    localStorage.setItem('ppInterviews', JSON.stringify(interviews));
   }, [interviews]);
 
   // 開始月ごとにグループ化
@@ -214,6 +201,11 @@ export default function PPSalesProgress() {
 
   // カラムごとにグループ化
   const getInterviewsByColumn = (columnId) => {
+    if (columnId === 'completed') {
+      return filteredInterviews.filter(interview =>
+        ['面談済み', '回答待ち', '面談済み／回答待ち'].includes(interview.status)
+      );
+    }
     const status = COLUMN_TO_STATUS[columnId];
     return filteredInterviews.filter(interview => interview.status === status);
   };
@@ -221,6 +213,7 @@ export default function PPSalesProgress() {
   // ステータスの色を取得
   const getStatusColor = (status) => {
     switch (status) {
+      case '面談済み／回答待ち':
       case '面談済み':
         return 'bg-emerald-100 text-emerald-700 border-emerald-300';
       case '面談予定':
@@ -242,9 +235,12 @@ export default function PPSalesProgress() {
   const getSalesPersonColor = (person) => {
     const colors = {
       '温水': 'bg-gradient-to-br from-orange-400 to-orange-600',
-      '熊谷': 'bg-gradient-to-br from-blue-400 to-blue-600',
       '瀬戸山': 'bg-gradient-to-br from-green-400 to-green-600',
-      '上前': 'bg-gradient-to-br from-purple-400 to-purple-600'
+      '上前': 'bg-gradient-to-br from-purple-400 to-purple-600',
+      '岡田': 'bg-gradient-to-br from-blue-400 to-blue-600',
+      '野田': 'bg-gradient-to-br from-pink-400 to-rose-600',
+      '服部': 'bg-gradient-to-br from-cyan-400 to-teal-600',
+      '山口': 'bg-gradient-to-br from-amber-400 to-yellow-600'
     };
     return colors[person] || 'bg-gradient-to-br from-gray-400 to-gray-600';
   };
@@ -360,7 +356,7 @@ export default function PPSalesProgress() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -411,9 +407,12 @@ export default function PPSalesProgress() {
             >
               <option value="all">すべての担当者</option>
               <option value="温水">温水</option>
-              <option value="熊谷">熊谷</option>
               <option value="瀬戸山">瀬戸山</option>
               <option value="上前">上前</option>
+              <option value="岡田">岡田</option>
+              <option value="野田">野田</option>
+              <option value="服部">服部</option>
+              <option value="山口">山口</option>
             </select>
           </div>
         </div>
@@ -447,7 +446,7 @@ export default function PPSalesProgress() {
           <div className="flex items-center justify-between mb-2">
             <i className="fas fa-clock text-3xl opacity-80"></i>
             <span className="text-4xl font-bold">
-              {filteredInterviews.filter(i => ['面談予定', '回答待ち'].includes(i.status)).length}
+              {filteredInterviews.filter(i => ['面談予定', '面談済み', '回答待ち', '面談済み／回答待ち'].includes(i.status)).length}
             </span>
           </div>
           <p className="text-amber-100">進行中</p>
@@ -755,9 +754,12 @@ export default function PPSalesProgress() {
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="温水">温水</option>
-                    <option value="熊谷">熊谷</option>
                     <option value="瀬戸山">瀬戸山</option>
                     <option value="上前">上前</option>
+                    <option value="岡田">岡田</option>
+                    <option value="野田">野田</option>
+                    <option value="服部">服部</option>
+                    <option value="山口">山口</option>
                   </select>
                 </div>
                 
@@ -770,8 +772,7 @@ export default function PPSalesProgress() {
                   >
                     <option value="日程調整中">日程調整中</option>
                     <option value="面談予定">面談予定</option>
-                    <option value="面談済み">面談済み</option>
-                    <option value="回答待ち">回答待ち</option>
+                    <option value="面談済み／回答待ち">面談済み／回答待ち</option>
                     <option value="成約">成約</option>
                     <option value="見送り">見送り</option>
                   </select>
@@ -833,7 +834,7 @@ export default function PPSalesProgress() {
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleAddInterview}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300"
+                  className="flex-1 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300"
                 >
                   <i className="fas fa-check mr-2"></i>
                   追加
@@ -914,9 +915,12 @@ export default function PPSalesProgress() {
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="温水">温水</option>
-                      <option value="熊谷">熊谷</option>
                       <option value="瀬戸山">瀬戸山</option>
                       <option value="上前">上前</option>
+                      <option value="岡田">岡田</option>
+                      <option value="野田">野田</option>
+                      <option value="服部">服部</option>
+                      <option value="山口">山口</option>
                     </select>
                   </div>
                   
@@ -929,8 +933,7 @@ export default function PPSalesProgress() {
                     >
                       <option value="日程調整中">日程調整中</option>
                       <option value="面談予定">面談予定</option>
-                      <option value="面談済み">面談済み</option>
-                      <option value="回答待ち">回答待ち</option>
+                      <option value="面談済み／回答待ち">面談済み／回答待ち</option>
                       <option value="成約">成約</option>
                       <option value="見送り">見送り</option>
                     </select>
@@ -1031,7 +1034,7 @@ export default function PPSalesProgress() {
               <div className="flex gap-3 pt-4 border-t">
                 <button
                   onClick={handleEditInterview}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300"
+                  className="flex-1 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-300"
                 >
                   <i className="fas fa-save mr-2"></i>
                   保存

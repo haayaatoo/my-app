@@ -4,8 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 const KANBAN_COLUMNS = [
   { id: 'scheduling', title: '日程調整中', icon: 'fa-calendar-plus', color: 'from-slate-500 to-slate-600' },
   { id: 'scheduled', title: '面談予定', icon: 'fa-calendar-check', color: 'from-blue-500 to-blue-600' },
-  { id: 'completed', title: '面談済み', icon: 'fa-handshake', color: 'from-indigo-500 to-indigo-600' },
-  { id: 'waiting', title: '回答待ち', icon: 'fa-clock', color: 'from-amber-500 to-amber-600' },
+  { id: 'completed', title: '面談済み／回答待ち', icon: 'fa-handshake', color: 'from-indigo-500 to-indigo-600' },
   { id: 'won', title: '成約', icon: 'fa-trophy', color: 'from-emerald-500 to-emerald-600' },
   { id: 'declined', title: '見送り', icon: 'fa-times-circle', color: 'from-red-500 to-red-600' }
 ];
@@ -15,7 +14,8 @@ const STATUS_TO_COLUMN = {
   '日程調整中': 'scheduling',
   '面談予定': 'scheduled',
   '面談済み': 'completed',
-  '回答待ち': 'waiting',
+  '回答待ち': 'completed',
+  '面談済み／回答待ち': 'completed',
   '成約': 'won',
   '見送り': 'declined'
 };
@@ -23,15 +23,22 @@ const STATUS_TO_COLUMN = {
 const COLUMN_TO_STATUS = {
   'scheduling': '日程調整中',
   'scheduled': '面談予定',
-  'completed': '面談済み',
-  'waiting': '回答待ち',
+  'completed': '面談済み／回答待ち',
   'won': '成約',
   'declined': '見送り'
 };
 
 export default function BPProgress() {
-  const [prospects, setProspects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [prospects, setProspects] = useState(() => {
+    try {
+      const savedData = localStorage.getItem('bpProspects');
+      return savedData ? JSON.parse(savedData) : [];
+    } catch (e) {
+      console.error('BP見込みデータの読み込みに失敗しました', e);
+      return [];
+    }
+  });
+  const [loading] = useState(false);
   const [showNewProspectModal, setShowNewProspectModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -52,6 +59,10 @@ export default function BPProgress() {
     supplier_name: '',
     interview_date: '',
     interview_time: '',
+    decision_date: '',
+    start_month: '',
+    sales_price: '',
+    purchase_price: '',
     main_planner: '温水',
     support_planners: [],
     priority: '中',
@@ -60,11 +71,12 @@ export default function BPProgress() {
   });
 
   // プランナーリスト
-  const planners = ['温水', '瀬戸山', '上前', '岡田'];
+  const planners = ['温水', '瀬戸山', '上前', '岡田', '野田', '服部', '山口'];
 
+  // prospectsが変更されたらLocalStorageに保存
   useEffect(() => {
-    setLoading(false);
-  }, []);
+    localStorage.setItem('bpProspects', JSON.stringify(prospects));
+  }, [prospects]);
 
   // プランナー別面談件数を計算
   const calculatePlannerStats = () => {
@@ -113,15 +125,18 @@ export default function BPProgress() {
     const counts = {
       '日程調整中': 0,
       '面談予定': 0,
-      '面談済み': 0,
+      '面談済み／回答待ち': 0,
       '成約': 0,
       '見送り': 0,
       '保留': 0
     };
     
     prospects.forEach(prospect => {
-      if (counts[prospect.status] !== undefined) {
-        counts[prospect.status]++;
+      const key = ['面談済み', '回答待ち'].includes(prospect.status)
+        ? '面談済み／回答待ち'
+        : prospect.status;
+      if (counts[key] !== undefined) {
+        counts[key]++;
       }
     });
     
@@ -233,6 +248,11 @@ export default function BPProgress() {
 
   // カラムごとにグループ化
   const getProspectsByColumn = (columnId) => {
+    if (columnId === 'completed') {
+      return filteredProspects.filter(prospect =>
+        ['面談済み', '回答待ち', '面談済み／回答待ち'].includes(prospect.status)
+      );
+    }
     const status = COLUMN_TO_STATUS[columnId];
     return filteredProspects.filter(prospect => prospect.status === status);
   };
@@ -299,6 +319,10 @@ export default function BPProgress() {
       supplier_name: '',
       interview_date: '',
       interview_time: '',
+      decision_date: '',
+      start_month: '',
+      sales_price: '',
+      purchase_price: '',
       main_planner: '温水',
       support_planners: [],
       priority: '中',
@@ -370,7 +394,7 @@ export default function BPProgress() {
   }
 
   return (
-    <div className="p-8 bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 min-h-screen">
+    <div className="p-8 bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100">
       <div className="max-w-[1800px] mx-auto">
         {/* 新規登録ボタン */}
         <div className="mb-8 flex justify-end">
@@ -829,6 +853,64 @@ export default function BPProgress() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">決定日</label>
+                    <input
+                      type="date"
+                      value={newProspect.decision_date}
+                      onChange={(e) => setNewProspect({ ...newProspect, decision_date: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">開始月</label>
+                    <input
+                      type="month"
+                      value={newProspect.start_month}
+                      onChange={(e) => setNewProspect({ ...newProspect, start_month: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">売上単価 <span className="text-xs text-slate-400">（円）</span></label>
+                    <input
+                      type="number"
+                      value={newProspect.sales_price}
+                      onChange={(e) => setNewProspect({ ...newProspect, sales_price: e.target.value === '' ? '' : Number(e.target.value) })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      placeholder="例: 600000"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">仕入れ単価 <span className="text-xs text-slate-400">（円）</span></label>
+                    <input
+                      type="number"
+                      value={newProspect.purchase_price}
+                      onChange={(e) => setNewProspect({ ...newProspect, purchase_price: e.target.value === '' ? '' : Number(e.target.value) })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      placeholder="例: 500000"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                {/* 粗利プレビュー */}
+                {(newProspect.sales_price !== '' && newProspect.purchase_price !== '') && (
+                  <div className={`rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-2 ${
+                    Number(newProspect.sales_price) - Number(newProspect.purchase_price) >= 0
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    <i className="fas fa-calculator"></i>
+                    粗利: {(Number(newProspect.sales_price) - Number(newProspect.purchase_price)).toLocaleString()}円
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       メインプランナー <span className="text-red-500">*</span>
                     </label>
@@ -888,7 +970,7 @@ export default function BPProgress() {
                   >
                     <option value="日程調整中">日程調整中</option>
                     <option value="面談予定">面談予定</option>
-                    <option value="面談済み">面談済み</option>
+                    <option value="面談済み／回答待ち">面談済み／回答待ち</option>
                     <option value="成約">成約</option>
                     <option value="見送り">見送り</option>
                     <option value="保留">保留</option>
@@ -910,7 +992,7 @@ export default function BPProgress() {
               <div className="flex gap-3 p-6 bg-slate-50 rounded-b-2xl">
                 <button
                   onClick={handleAddProspect}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-medium"
+                  className="flex-1 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-medium"
                 >
                   <i className="fas fa-check mr-2"></i>
                   登録
@@ -1000,6 +1082,65 @@ export default function BPProgress() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">決定日</label>
+                    <input
+                      type="date"
+                      value={editingProspect.decision_date || ''}
+                      onChange={(e) => setEditingProspect({ ...editingProspect, decision_date: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">開始月</label>
+                    <input
+                      type="month"
+                      value={editingProspect.start_month || ''}
+                      onChange={(e) => setEditingProspect({ ...editingProspect, start_month: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">売上単価 <span className="text-xs text-slate-400">（円）</span></label>
+                    <input
+                      type="number"
+                      value={editingProspect.sales_price || ''}
+                      onChange={(e) => setEditingProspect({ ...editingProspect, sales_price: e.target.value === '' ? '' : Number(e.target.value) })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="例: 600000"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">仕入れ単価 <span className="text-xs text-slate-400">（円）</span></label>
+                    <input
+                      type="number"
+                      value={editingProspect.purchase_price || ''}
+                      onChange={(e) => setEditingProspect({ ...editingProspect, purchase_price: e.target.value === '' ? '' : Number(e.target.value) })}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="例: 500000"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                {/* 粗利プレビュー */}
+                {(editingProspect.sales_price !== '' && editingProspect.sales_price != null &&
+                  editingProspect.purchase_price !== '' && editingProspect.purchase_price != null) && (
+                  <div className={`rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-2 ${
+                    Number(editingProspect.sales_price) - Number(editingProspect.purchase_price) >= 0
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    <i className="fas fa-calculator"></i>
+                    粗利: {(Number(editingProspect.sales_price) - Number(editingProspect.purchase_price)).toLocaleString()}円
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       メインプランナー <span className="text-red-500">*</span>
                     </label>
@@ -1059,7 +1200,7 @@ export default function BPProgress() {
                   >
                     <option value="日程調整中">日程調整中</option>
                     <option value="面談予定">面談予定</option>
-                    <option value="面談済み">面談済み</option>
+                    <option value="面談済み／回答待ち">面談済み／回答待ち</option>
                     <option value="成約">成約</option>
                     <option value="見送り">見送り</option>
                     <option value="保留">保留</option>

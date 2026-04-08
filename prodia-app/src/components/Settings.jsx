@@ -69,20 +69,21 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-8 bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100 min-h-screen">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-2xl flex items-center justify-center shadow-luxury">
-            <i className="fas fa-cog text-white text-xl"></i>
+    <div className="flex flex-col h-full bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100">
+      {/* ページヘッダー */}
+      <div className="px-6 pt-5 pb-4 border-b border-slate-200/60 bg-white/70 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shadow-sm">
+            <i className="fas fa-cog text-white text-sm"></i>
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-700 font-display">設定</h1>
-            <p className="text-slate-500">アカウント設定とセキュリティ</p>
+            <h1 className="text-xl font-bold text-slate-800">設定</h1>
+            <p className="text-xs text-slate-400 mt-0.5">アカウント設定とセキュリティ</p>
           </div>
         </div>
       </div>
 
+      <div className="flex-1 overflow-auto px-6 py-5">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* User Information Card */}
         <div className="lg:col-span-1">
@@ -179,7 +180,7 @@ export default function Settings() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full relative overflow-hidden bg-amber-400 hover:bg-amber-500 text-white py-4 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed shadow-luxury"
+                className="w-full relative overflow-hidden bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-semibold text-lg transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed shadow-luxury"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center gap-3">
@@ -211,6 +212,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

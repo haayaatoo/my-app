@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 // 日本の祝日を判定する関数
 const isJapaneseHoliday = (date) => {
@@ -81,6 +82,7 @@ const useCountUp = (end, duration = 1000, delay = 0) => {
 };
 
 export default function RecruitmentMarketing() {
+  const toast = useToast();
   const [viewMode, setViewMode] = useState('dashboard');
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState([]);
@@ -445,7 +447,7 @@ export default function RecruitmentMarketing() {
   // 新規投稿作成
   const handleCreatePost = () => {
     if (!newPost.title || !newPost.content) {
-      alert('タイトルと投稿内容は必須です。');
+      toast.warning('タイトルと投稿内容は必須です。');
       return;
     }
 
@@ -477,63 +479,70 @@ export default function RecruitmentMarketing() {
     });
     
     // 成功メッセージを表示
-    alert('新しい投稿を作成しました！');
+    toast.success('新しい投稿を作成しました！');
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 bg-gradient-to-br from-stone-50 via-blue-50/20 to-slate-100 min-h-screen">
-      <div className="mb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2 flex items-center gap-3">
+    <div className="flex flex-col h-full bg-gradient-to-br from-stone-50 via-blue-50/20 to-slate-100">
+      {/* ページヘッダー */}
+      <div className="px-6 pt-5 pb-4 border-b border-slate-200/60 bg-white/70 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-sm ${
+              viewMode === 'dashboard' ? 'bg-gradient-to-br from-blue-500 to-purple-600' :
+              viewMode === 'applications' ? 'bg-gradient-to-br from-green-500 to-emerald-600' :
+              'bg-gradient-to-br from-purple-500 to-pink-600'
+            }`}>
               <i className={`fas ${
-                viewMode === 'dashboard' ? 'fa-chart-pie text-blue-500' :
-                viewMode === 'applications' ? 'fa-users text-green-500' :
-                'fa-video text-purple-500'
-              }`}></i>
-              {viewMode === 'dashboard' ? '採用マーケティング分析' :
-               viewMode === 'applications' ? '応募者管理' :
-               'SNS投稿管理'}
-            </h1>
-            <p className="text-slate-600">
-              {viewMode === 'dashboard' ? '採用経路と応募者データの詳細分析' :
-               viewMode === 'applications' ? '応募者情報の管理と選考プロセスの追跡' :
-               viewMode === 'interviews' ? 'カード面談の予約管理とWordPress連携デモ' :
-               'SNSマーケティングの投稿管理と効果測定'}
-            </p>
+                viewMode === 'dashboard' ? 'fa-chart-pie' :
+                viewMode === 'applications' ? 'fa-users' : 'fa-video'
+              } text-white text-sm`}></i>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">
+                {viewMode === 'dashboard' ? '採用マーケティング分析' :
+                 viewMode === 'applications' ? '応募者管理' : 'SNS投稿管理'}
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {viewMode === 'dashboard' ? '採用経路と応募者データの詳細分析' :
+                 viewMode === 'applications' ? '応募者情報の管理と選考プロセスの追跡' :
+                 viewMode === 'interviews' ? 'カード面談の予約管理とWordPress連携デモ' :
+                 'SNSマーケティングの投稿管理と効果測定'}
+              </p>
+            </div>
           </div>
-          
-          <div className="flex bg-white rounded-2xl p-1 shadow-lg">
+          <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200 gap-0.5">
             {[
-              { key: 'dashboard', icon: 'fa-chart-pie', label: 'ダッシュボード' },
-              { key: 'applications', icon: 'fa-users', label: '応募管理' },
-              { key: 'interviews', icon: 'fa-handshake', label: 'カード面談管理' },
-              { key: 'posts', icon: 'fa-video', label: 'SNS管理' }
+              { key: 'dashboard',    icon: 'fa-chart-pie', label: 'ダッシュ' },
+              { key: 'applications', icon: 'fa-users',     label: '応募管理' },
+              { key: 'interviews',   icon: 'fa-handshake', label: 'カード面談' },
+              { key: 'posts',        icon: 'fa-video',     label: 'SNS管理' }
             ].map(mode => (
               <button
                 key={mode.key}
                 onClick={() => setViewMode(mode.key)}
-                className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
                   viewMode === mode.key
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-800'
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}
               >
-                <i className={`fas ${mode.icon}`}></i>
+                <i className={`fas ${mode.icon} text-[10px]`}></i>
                 {mode.label}
               </button>
             ))}
           </div>
         </div>
       </div>
+      <div className="flex-1 overflow-auto px-6 py-5">
 
       {viewMode === 'dashboard' && (
         <div className="space-y-8 relative">
@@ -3596,6 +3605,7 @@ export default function RecruitmentMarketing() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

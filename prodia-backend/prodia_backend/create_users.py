@@ -57,6 +57,21 @@ users_data = [
         'name': '今村 颯斗',
         'email': 'h-imamura@1dr.co.jp',
         'password': DEFAULT_PASSWORD
+    },
+    {
+        'name': '野田 理沙子',
+        'email': 'r-noda@1dr.co.jp',
+        'password': DEFAULT_PASSWORD
+    },
+    {
+        'name': '服部 宇宙',
+        'email': 's-hattori@1dr.co.jp',
+        'password': DEFAULT_PASSWORD
+    },
+    {
+        'name': '山口 のどか',
+        'email': 'n-yamaguchi@1dr.co.jp',
+        'password': DEFAULT_PASSWORD
     }
 ]
 

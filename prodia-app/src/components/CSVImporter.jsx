@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
+import { useToast } from './Toast';
 
 const CSVImporter = ({ onImport, onClose }) => {
+  const toast = useToast();
   const [file, setFile] = useState(null);
   const [csvData, setCsvData] = useState([]);
   const [errors, setErrors] = useState([]);
@@ -10,14 +12,13 @@ const CSVImporter = ({ onImport, onClose }) => {
 
   // CSVサンプルテンプレートのダウンロード
   const downloadTemplate = () => {
-    const template = `name,email,position,project_name,planner,skills,engineer_status,phase
-田中太郎,tanaka@example.com,シニアエンジニア,ECサイト開発,佐藤プランナー,"React,Node.js,AWS",アサイン済,"設計,開発,テスト"
-山田花子,yamada@example.com,リードエンジニア,AIシステム構築,鈴木プランナー,"Python,TensorFlow,Docker",稼働予定,"要件定義,設計"
-鈴木次郎,suzuki@example.com,フロントエンドエンジニア,モバイルアプリ開発,田中プランナー,"React Native,TypeScript",未アサイン,"開発,テスト"
-佐藤美咲,sato@example.com,バックエンドエンジニア,金融システム改修,山田プランナー,"Java,Spring Boot,PostgreSQL",アサイン済,"設計,開発"
-高橋健一,takahashi@example.com,データサイエンティスト,ビッグデータ分析,佐藤プランナー,"Python,Pandas,Machine Learning",稼働予定,"分析,モデル構築"`;
+    const template = `name,position,project_name,planner,skills,engineer_status,phase,client_company,monthly_rate,project_start_date,project_end_date,project_location
+田中太郎,マネージャー,ECサイト開発,温水,"React,Node.js,AWS",アサイン済,"設計,開発,テスト",株式会社サンプル,800000,2026-04-01,2026-09-30,指定なし
+山田花子,チーフ,AIシステム構築,瞎事山,"Python,TensorFlow,Docker",未アサイン,"要件定義,設計",,,,
+鈴木次郎,なし,モバイルアプリ開発,上前,"React Native,TypeScript",未アサイン,"開発,テスト",,,,`;
 
-    const blob = new Blob([template], { type: 'text/csv;charset=utf-8' });
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + template], { type: 'text/csv;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -46,7 +47,7 @@ const CSVImporter = ({ onImport, onClose }) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const csv = e.target.result;
-      const lines = csv.split('\\n').filter(line => line.trim() !== ''); // 空行を除去
+      const lines = csv.split(/\r?\n/).filter(line => line.trim() !== ''); // 空行を除去（\r\n対応）
       
       if (lines.length < 2) {
         setErrors(['CSVファイルにデータが含まれていません']);
@@ -72,7 +73,7 @@ const CSVImporter = ({ onImport, onClose }) => {
       }
       headers.push(current.trim()); // 最後のヘッダー
       
-      const requiredHeaders = ['name', 'email', 'project_name', 'planner', 'skills', 'engineer_status', 'phase'];
+      const requiredHeaders = ['name', 'project_name', 'planner', 'skills', 'engineer_status', 'phase'];
       const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
       
       if (missingHeaders.length > 0) {
@@ -116,12 +117,9 @@ const CSVImporter = ({ onImport, onClose }) => {
           row[header] = values[index] || '';
         });
 
-        // バリデーション
+        // バリデーション（フォームの必須項目に合わせる）
         if (!row.name) {
           validationErrors.push(`行 ${i + 1}: 名前は必須です`);
-        }
-        if (!row.email || !row.email.includes('@')) {
-          validationErrors.push(`行 ${i + 1}: 有効なメールアドレスが必要です`);
         }
         if (!row.project_name) {
           validationErrors.push(`行 ${i + 1}: プロジェクト名は必須です`);
@@ -129,32 +127,19 @@ const CSVImporter = ({ onImport, onClose }) => {
         if (!row.planner) {
           validationErrors.push(`行 ${i + 1}: プランナーは必須です`);
         }
+        if (!row.engineer_status) {
+          validationErrors.push(`行 ${i + 1}: ステータスは必須です（アサイン済 / 未アサイン）`);
+        }
 
-        // スキルとフェーズをJSON配列に変換（カンマまたはセミコロン区切り対応）
+        // スキルをカンマ区切りで分割（CSVパーサーが既に引用符を除去済み）
         if (row.skills) {
-          // 引用符で囲まれている場合は内部のカンマで分割、そうでなければセミコロンで分割
-          const skillsStr = row.skills.trim();
-          if (skillsStr.startsWith('"') && skillsStr.endsWith('"')) {
-            // 引用符内のスキルはカンマ区切り
-            row.skills = skillsStr.slice(1, -1).split(',').map(s => s.trim()).filter(s => s);
-          } else {
-            // セミコロン区切り
-            row.skills = skillsStr.split(';').map(s => s.trim()).filter(s => s);
-          }
+          row.skills = row.skills.split(',').map(s => s.trim()).filter(Boolean);
         } else {
           row.skills = [];
         }
         
         if (row.phase) {
-          // 引用符で囲まれている場合は内部のカンマで分割、そうでなければセミコロンで分割
-          const phaseStr = row.phase.trim();
-          if (phaseStr.startsWith('"') && phaseStr.endsWith('"')) {
-            // 引用符内のフェーズはカンマ区切り
-            row.phase = phaseStr.slice(1, -1).split(',').map(p => p.trim()).filter(p => p);
-          } else {
-            // セミコロン区切り
-            row.phase = phaseStr.split(';').map(p => p.trim()).filter(p => p);
-          }
+          row.phase = row.phase.split(',').map(p => p.trim()).filter(Boolean);
         } else {
           row.phase = [];
         }
@@ -172,7 +157,7 @@ const CSVImporter = ({ onImport, onClose }) => {
   // インポート実行
   const handleImport = async () => {
     if (errors.length > 0) {
-      alert('エラーを修正してからインポートしてください');
+      toast.warning('エラーを修正してからインポートしてください');
       return;
     }
 
@@ -193,9 +178,7 @@ const CSVImporter = ({ onImport, onClose }) => {
 
       const response = await fetch('http://localhost:8000/api/engineers/bulk-create/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ engineers: csvData }),
       });
 
@@ -210,7 +193,9 @@ const CSVImporter = ({ onImport, onClose }) => {
         }, 500);
       } else {
         const errorData = await response.json();
-        setErrors([errorData.detail || 'インポートに失敗しました']);
+        const errMsg = errorData.error || errorData.detail || 'インポートに失敗しました';
+        const errDetails = errorData.errors ? errorData.errors.slice(0, 5) : [];
+        setErrors([errMsg, ...errDetails]);
       }
     } catch (error) {
       setErrors([`ネットワークエラー: ${error.message}`]);
@@ -256,7 +241,9 @@ const CSVImporter = ({ onImport, onClose }) => {
                 </p>
                 <div className="text-xs text-blue-500 bg-blue-100 px-2 py-1 rounded">
                   <i className="fas fa-lightbulb text-amber-500 mr-2"></i>skills と phase は引用符で囲み、カンマ区切りで入力してください<br/>
-                  例: "React,Node.js,AWS" / "設計,開発,テスト"
+                  例: "React,Node.js,AWS" / "設計,開発,テスト"<br/>
+                  ※必須: name, project_name, planner, skills, engineer_status, phase<br/>
+                  ※engineer_statusは「アサイン済」または「未アサイン」
                 </div>
               </div>
               <button
@@ -376,7 +363,7 @@ const CSVImporter = ({ onImport, onClose }) => {
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
               <i className="fas fa-info-circle mr-2"></i>
-              重複するメールアドレスは自動的にスキップされます
+              同名のエンジニアは自動的にスキップされます
             </div>
             <div className="flex gap-3">
               <button 

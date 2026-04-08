@@ -47,74 +47,24 @@ function AnimatedCounter({ end, label, prefix = "", suffix = "", color = "blue",
   }, [safeEnd]);
   
   const colorClasses = {
-    blue: {
-      bg: "bg-gradient-to-br from-blue-500 to-indigo-600",
-      text: "text-white",
-      icon: "text-blue-200",
-      accent: "bg-blue-300"
-    },
-    green: {
-      bg: "bg-gradient-to-br from-emerald-500 to-teal-600", 
-      text: "text-white",
-      icon: "text-emerald-200",
-      accent: "bg-emerald-300"
-    },
-    red: {
-      bg: "bg-gradient-to-br from-rose-500 to-pink-600",
-      text: "text-white", 
-      icon: "text-rose-200",
-      accent: "bg-rose-300"
-    },
-    purple: {
-      bg: "bg-gradient-to-br from-violet-500 to-purple-600",
-      text: "text-white",
-      icon: "text-violet-200", 
-      accent: "bg-violet-300"
-    },
-    yellow: {
-      bg: "bg-gradient-to-br from-amber-500 to-orange-600",
-      text: "text-white",
-      icon: "text-amber-200",
-      accent: "bg-amber-300"
-    }
+    blue:   { bg: "bg-gradient-to-br from-blue-500 to-indigo-600",   iconBg: "bg-white/20", labelText: "text-blue-100",   valueText: "text-white" },
+    green:  { bg: "bg-gradient-to-br from-emerald-500 to-teal-600",  iconBg: "bg-white/20", labelText: "text-emerald-100", valueText: "text-white" },
+    red:    { bg: "bg-gradient-to-br from-rose-500 to-red-600",      iconBg: "bg-white/20", labelText: "text-rose-100",   valueText: "text-white" },
+    purple: { bg: "bg-gradient-to-br from-violet-500 to-purple-600", iconBg: "bg-white/20", labelText: "text-violet-100", valueText: "text-white" },
+    yellow: { bg: "bg-gradient-to-br from-amber-400 to-orange-500",  iconBg: "bg-white/20", labelText: "text-amber-100",  valueText: "text-white" },
   };
+  const c = colorClasses[color] || colorClasses.blue;
 
   return (
-    <div className={`
-      relative overflow-hidden p-6 rounded-2xl shadow-xl text-center 
-      transform transition-all duration-500 ease-out hover:scale-105 hover:-translate-y-1
-      ${colorClasses[color].bg} ${colorClasses[color].text}
-      ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
-    `} style={{
-      boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 10px 20px rgba(0,0,0,0.1)'
-    }}>
-      {/* 背景装飾 */}
-      <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-8 -mt-8"></div>
-      <div className="absolute bottom-0 left-0 w-12 h-12 bg-white/5 rounded-full -ml-6 -mb-6"></div>
-      
-      {/* アイコン */}
-      <div className={`text-3xl mb-4 ${colorClasses[color].icon}`}>
-        <i className={icon}></i>
+    <div className={`${c.bg} rounded-xl p-5 shadow-md`}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className={`w-8 h-8 ${c.iconBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+          <i className={`${icon} text-sm text-white`}></i>
+        </div>
+        <span className={`text-xs font-medium ${c.labelText} uppercase tracking-wide truncate`}>{label}</span>
       </div>
-      
-      {/* カウンター */}
-      <div className="text-3xl font-bold mb-2">
-        <span className="tracking-tight">
-          {prefix}{count.toLocaleString()}{suffix}
-        </span>
-      </div>
-      
-      {/* ラベル */}
-      <div className="text-sm font-medium opacity-90 uppercase tracking-wide">
-        {label}
-      </div>
-      
-      {/* プログレスインジケーター */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-        <div 
-          className={`h-full ${colorClasses[color].accent} transition-all duration-2000 ease-out`}
-          style={{ width: isVisible ? '100%' : '0%' }}
-        ></div>
+      <div className={`text-2xl font-bold ${c.valueText}`}>
+        {prefix}{count.toLocaleString()}{suffix}
       </div>
     </div>
   );
@@ -205,15 +155,9 @@ function RevenueCard({ engineers }) {
   };
   
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-white via-stone-50 to-amber-50/30 p-8 rounded-3xl shadow-2xl border border-white/80 transform hover:scale-105 transition-all duration-700 backdrop-blur-sm" 
-         style={{
-           boxShadow: '0 25px 70px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
-         }}>
-      
-      {/* 上品な装飾要素 */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300"></div>
-      <div className="absolute top-4 right-4 w-3 h-3 bg-amber-200/50 rounded-full animate-pulse"></div>
-      <div className="absolute bottom-4 left-4 w-2 h-2 bg-stone-200/60 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
+    <div className="bg-white border border-slate-200 rounded-xl p-6 relative overflow-hidden">
+      {/* 上端アクセントライン */}
+      <div className="absolute top-0 left-0 right-0 h-[3px] bg-amber-400 rounded-t-xl"></div>
       
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-8">
@@ -293,14 +237,14 @@ function AlertCard({ engineers }) {
   );
   
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-red-500">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-gray-800">🚨 アラート</h3>
+    <div className="bg-white p-5 rounded-xl shadow-lg border-l-4 border-red-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap">🚨 アラート</h3>
         <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-bold">
           {unassigned.length + missingSkills.length}件
         </span>
       </div>
-      <div className="space-y-3">
+      <div className="flex flex-wrap gap-x-6 gap-y-2">
         {unassigned.length > 0 && (
           <div className="flex items-center gap-2">
             <i className="fas fa-clock text-yellow-500"></i>
@@ -511,10 +455,7 @@ function ScheduleCard({ engineers }) {
   const utilizationRate = engineers.length > 0 ? (assigned.length / engineers.length * 100) : 0;
   
   return (
-    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/50 relative overflow-hidden">
-      {/* 背景グラデーション */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-200/20 to-transparent rounded-full blur-2xl"></div>
-      
+    <div className="bg-white border border-slate-200 rounded-xl p-6 relative overflow-hidden">
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
@@ -834,6 +775,7 @@ export default function Dashboard() {
   // const { user } = useUser(); // 現在未使用
   const [engineers, setEngineers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   
   // 🎉 面白い仕掛け：動的メッセージシステム
@@ -849,17 +791,24 @@ export default function Dashboard() {
   });
 
   // エンジニアデータを取得
-  useEffect(() => {
+  const fetchEngineers = (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
     fetch("http://localhost:8000/api/engineers/")
       .then((res) => res.json())
       .then((data) => {
         setEngineers(data);
         setLoading(false);
+        setIsRefreshing(false);
       })
       .catch((err) => {
         console.error(err);
         setLoading(false);
+        setIsRefreshing(false);
       });
+  };
+
+  useEffect(() => {
+    fetchEngineers();
   }, []);
 
   // 🎉 面白い仕掛け：メッセージローテーション
@@ -883,30 +832,10 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-slate-100 flex items-center justify-center relative overflow-hidden">
-        {/* 背景アニメーション */}
-        <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-amber-200/20 rounded-full animate-pulse"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-stone-200/20 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
-        </div>
-        
-        <div className="text-center p-12 bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 relative z-10">
-          {/* モダンローダー */}
-          <div className="relative mb-10">
-            <div className="w-20 h-20 border-4 border-amber-100 rounded-full animate-spin border-t-amber-500 mx-auto"></div>
-            <div className="absolute inset-2 w-16 h-16 border-2 border-stone-100 rounded-full animate-pulse border-t-stone-400 mx-auto"></div>
-          </div>
-          
-          {/* プログレスドット */}
-          <div className="flex justify-center space-x-3 mb-8">
-            <div className="w-3 h-3 bg-amber-500 rounded-full animate-bounce"></div>
-            <div className="w-3 h-3 bg-yellow-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-            <div className="w-3 h-3 bg-stone-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-            <div className="w-3 h-3 bg-amber-600 rounded-full animate-bounce" style={{animationDelay: '0.3s'}}></div>
-          </div>
-          
-          <h2 className="text-3xl font-bold text-slate-800 mb-4">ダッシュボードを準備中...</h2>
-          <p className="text-slate-600 text-lg">エンジニア情報を読み込んでいます</p>
+    <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-500 text-sm">エンジニア情報を読み込んでいます</p>
         </div>
       </div>
     );
@@ -952,77 +881,97 @@ export default function Dashboard() {
 
   const advancedMonthlyRevenue = calculateAdvancedRevenue();
 
+  // 実データ（client_unit_price / partner_unit_price）を優先した収益計算
+  const calculateActualRevenueData = () => {
+    const assignedEngineers = engineers.filter(e => e.engineer_status === 'アサイン済');
+    const skillRates = {
+      'AWS': 120, 'React': 110, 'TypeScript': 105, 'Next.js': 115,
+      'Python': 100, 'Django': 95, 'FastAPI': 105,
+      'Vue.js': 90, 'Node.js': 85, 'PHP': 75, 'Laravel': 80,
+      'Java': 85, 'Spring Boot': 90, 'C#': 85, '.NET': 85,
+      'HTML': 60, 'CSS': 60, 'JavaScript': 75, 'jQuery': 65,
+      'MySQL': 70, 'PostgreSQL': 75, 'MongoDB': 80,
+      'Docker': 95, 'Kubernetes': 110, 'GraphQL': 100,
+      'Firebase': 85, 'Vercel': 80, 'Heroku': 75
+    };
+    const experienceMultiplier = {
+      '要件定義': 1.3, '基本設計': 1.2, '詳細設計': 1.1,
+      '製造': 1.0, 'テスト': 0.9, '運用・保守': 0.85
+    };
+    let totalRevenue = 0;
+    let totalCost = 0;
+    assignedEngineers.forEach(eng => {
+      const clientPrice = parseFloat(eng.client_unit_price);
+      const partnerPrice = parseFloat(eng.partner_unit_price);
+      if (!isNaN(clientPrice) && clientPrice > 0) {
+        // 実データあり（円→万円変換）
+        const revMan = clientPrice / 10000;
+        totalRevenue += revMan;
+        totalCost += (!isNaN(partnerPrice) && partnerPrice > 0)
+          ? partnerPrice / 10000
+          : revMan * 0.70; // partner未入力はclientの70%と推計
+      } else {
+        // フォールバック: スキルレートで推計
+        const skills = Array.isArray(eng.skills) ? eng.skills : [];
+        const phases = Array.isArray(eng.phase) ? eng.phase : [];
+        const maxSkillRate = skills.length > 0 ? Math.max(...skills.map(s => skillRates[s] || 70)) : 70;
+        const expBonus = phases.length > 0 ? Math.max(...phases.map(p => experienceMultiplier[p] || 1.0)) : 1.0;
+        const est = maxSkillRate * expBonus * 0.85;
+        totalRevenue += est;
+        totalCost += est * 0.70;
+      }
+    });
+    const monthlyRevenue = Math.round(totalRevenue);
+    const profitRate = totalRevenue > 0
+      ? Math.round(((totalRevenue - totalCost) / totalRevenue) * 1000) / 10
+      : 0;
+    const avgUnitPrice = assignedEngineers.length > 0
+      ? Math.round(totalRevenue / assignedEngineers.length)
+      : 0;
+    return { monthlyRevenue, profitRate, avgUnitPrice };
+  };
+
+  const { monthlyRevenue: actualMonthlyRevenue, profitRate, avgUnitPrice } = calculateActualRevenueData();
+
   return (
-    <div
-      className="soft-page text-slate-800 opacity-0 animate-fade-in"
-      style={{ animationDelay: '0ms', animationFillMode: 'forwards' }}
-    >
-      <div className="soft-aurora soft-aurora--emerald"></div>
-      <div className="soft-aurora soft-aurora--indigo"></div>
-      <div className="soft-noise"></div>
-
-      <div className="relative z-10">
-        <div className="container mx-auto px-6 py-6">
-        {/* モダンヘッダー */}
-        <div className="soft-panel soft-panel-accent rounded-3xl p-8 mb-8 opacity-0 animate-slide-in-from-top" style={{animationDelay: '200ms', animationFillMode: 'forwards'}}>
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            {/* タイトル部分 */}
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-2xl flex items-center justify-center shadow-luxury transform hover:rotate-12 transition-transform duration-300">
-                  <i className="fas fa-tachometer-alt text-white text-2xl"></i>
-                </div>
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-400 rounded-full flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                </div>
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-amber-700 bg-clip-text text-transparent">
-                  Executive Dashboard
-                </h1>
-                <p className="text-slate-600 mt-1 text-lg">リアルタイム人材管理システム</p>
-              </div>
+    <div className="flex flex-col h-full bg-slate-50 text-slate-800">
+      {/* ページヘッダー */}
+      <div className="px-6 pt-5 pb-4 border-b border-slate-200/60 bg-white/70 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
+              <i className="fas fa-tachometer-alt text-white text-sm"></i>
             </div>
-
-            {/* 右側コントロール */}
-            <div className="flex items-center gap-4">
-              <select 
-                value={selectedPeriod} 
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="px-4 py-3 bg-white/70 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-slate-700 shadow-sm"
-              >
-                <option value="week">今週</option>
-                <option value="month">今月</option>
-                <option value="quarter">四半期</option>
-              </select>
-              <button className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium">
-                <i className="fas fa-sync-alt"></i>
-                更新
-              </button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Executive Dashboard</h1>
+              <p className="text-xs text-slate-400 mt-0.5">リアルタイム人材管理システム</p>
             </div>
           </div>
-
-          {/* 動的メッセージ */}
-          <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl border border-amber-200/50">
-            <div className="flex items-center gap-3">
-              <i className={`${EXECUTIVE_MESSAGES[currentMessage].icon} text-xl ${EXECUTIVE_MESSAGES[currentMessage].color}`}></i>
-              <span className="text-slate-700 font-medium flex-1">{EXECUTIVE_MESSAGES[currentMessage].text}</span>
-              <div className="flex gap-1">
-                {EXECUTIVE_MESSAGES.map((_, index) => (
-                  <div 
-                    key={index}
-                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                      index === currentMessage ? 'bg-amber-500' : 'bg-stone-300'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
+          <div className="flex items-center gap-3">
+            <select 
+              value={selectedPeriod} 
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <option value="week">直近7日</option>
+              <option value="month">直近1ヶ月</option>
+              <option value="quarter">直近3ヶ月</option>
+            </select>
+            <button
+              onClick={() => fetchEngineers(true)}
+              disabled={isRefreshing}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm flex items-center gap-2 font-medium disabled:opacity-60"
+            >
+              <i className={`fas fa-sync-alt text-xs${isRefreshing ? ' animate-spin' : ''}`}></i>
+              {isRefreshing ? '更新中...' : '更新'}
+            </button>
           </div>
         </div>
+      </div>
+      <div className="flex-1 overflow-auto px-6 py-5">
 
-        {/* KPIメトリクス - グリッドレイアウトを改善 */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '600ms', animationFillMode: 'forwards'}}>
+        {/* KPIメトリクス */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <AnimatedCounter 
             end={engineers.length} 
             label="総エンジニア数" 
@@ -1061,7 +1010,7 @@ export default function Dashboard() {
         </div>
 
         {/* 🚀 売上・収益予測セクション */}
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-3xl p-8 border border-green-200 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '700ms', animationFillMode: 'forwards'}}>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
               <i className="fas fa-chart-area text-green-500 text-2xl"></i>
@@ -1091,11 +1040,11 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-green-600 mb-2">
-                <AnimatedCounter end={Math.round(advancedMonthlyRevenue * 1.15)} suffix="万円" />
+                <AnimatedCounter end={actualMonthlyRevenue} suffix="万円" />
               </div>
               <div className="text-sm text-green-600 flex items-center gap-1">
-                <i className="fas fa-arrow-up text-xs"></i>
-                前月比 +5.2%
+                <i className="fas fa-database text-xs"></i>
+                実績単価データより算出
               </div>
             </div>
 
@@ -1113,11 +1062,11 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-blue-600 mb-2">
-                <AnimatedCounter end={Math.round(advancedMonthlyRevenue * 12 * 1.08)} suffix="万円" />
+                <AnimatedCounter end={Math.round(actualMonthlyRevenue * 12)} suffix="万円" />
               </div>
               <div className="text-sm text-blue-600 flex items-center gap-1">
-                <i className="fas fa-target text-xs"></i>
-                目標達成率 89%
+                <i className="fas fa-calendar text-xs"></i>
+                月次売上 × 12ヶ月換算
               </div>
             </div>
 
@@ -1135,11 +1084,11 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-purple-600 mb-2">
-                <AnimatedCounter end={assignedCount + 3} suffix="件" />
+                <AnimatedCounter end={assignedCount} suffix="件" />
               </div>
               <div className="text-sm text-purple-600 flex items-center gap-1">
                 <i className="fas fa-rocket text-xs"></i>
-                平均単価 {Math.round(advancedMonthlyRevenue / assignedCount)}万円
+                平均単価 {avgUnitPrice}万円
               </div>
             </div>
 
@@ -1157,7 +1106,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-amber-600 mb-2">
-                <AnimatedCounter end={23.5} suffix="%" />
+                <AnimatedCounter end={profitRate} suffix="%" />
               </div>
               <div className="text-sm text-amber-600 flex items-center gap-1">
                 <i className="fas fa-trophy text-xs"></i>
@@ -1175,71 +1124,22 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* メインコンテンツエリア - レスポンシブ対応を強化 */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
-          {/* 左メインエリア (8/12) */}
-          <div className="xl:col-span-8 space-y-8 opacity-0 animate-slide-in-from-left" style={{animationDelay: '1000ms', animationFillMode: 'forwards'}}>
-            {/* 売上と稼働状況を横並び */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <RevenueCard engineers={engineers} />
-              <ScheduleCard engineers={engineers} />
-            </div>
-            
-            {/* スキル分析を広く表示 */}
-            <SkillAnalysisCard engineers={engineers} />
+        {/* メインコンテンツエリア */}
+        <div className="space-y-6 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
+          {/* アラート - 全幅コンパクト表示 */}
+          <div className="opacity-0 animate-slide-in-from-left" style={{animationDelay: '900ms', animationFillMode: 'forwards'}}>
+            <AlertCard engineers={engineers} />
           </div>
 
-          {/* 右サイドバー (4/12) */}
-          <div className="xl:col-span-4 space-y-6 opacity-0 animate-slide-in-from-right" style={{animationDelay: '1100ms', animationFillMode: 'forwards'}}>
-            {/* アラート */}
-            <AlertCard engineers={engineers} />
-            
-            {/* 営業支援ツール - モダンなデザインに */}
-            <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 text-white p-6 rounded-2xl shadow-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold flex items-center gap-3">
-                  <i className="fas fa-handshake text-emerald-200"></i>
-                  営業支援ツール
-                </h3>
-                <div className="w-3 h-3 bg-green-300 rounded-full animate-pulse"></div>
-              </div>
-              <div className="space-y-3">
-                <button className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all py-3 px-4 rounded-xl text-sm font-semibold flex items-center gap-3 group">
-                  <i className="fas fa-users group-hover:scale-110 transition-transform"></i>
-                  提案可能人材リスト
-                </button>
-                <button className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all py-3 px-4 rounded-xl text-sm font-semibold flex items-center gap-3 group">
-                  <i className="fas fa-calendar-alt group-hover:scale-110 transition-transform"></i>
-                  来月の空き状況
-                </button>
-                <button className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all py-3 px-4 rounded-xl text-sm font-semibold flex items-center gap-3 group">
-                  <i className="fas fa-chart-pie group-hover:scale-110 transition-transform"></i>
-                  スキルマッチング分析
-                </button>
-              </div>
-            </div>
+          {/* 売上と稼働状況を横並び */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 opacity-0 animate-slide-in-from-left" style={{animationDelay: '1000ms', animationFillMode: 'forwards'}}>
+            <RevenueCard engineers={engineers} />
+            <ScheduleCard engineers={engineers} />
+          </div>
 
-            {/* クイックアクション - デザインを統一 */}
-            <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-xl border border-white/50">
-              <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-                <i className="fas fa-bolt text-yellow-500"></i>
-                クイックアクション
-              </h3>
-              <div className="space-y-3">
-                <button className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all py-3 px-4 rounded-xl text-sm font-semibold text-left flex items-center gap-3 group border border-blue-100">
-                  <i className="fas fa-plus-circle text-blue-600 group-hover:scale-110 transition-transform"></i>
-                  新規エンジニア登録
-                </button>
-                <button className="w-full bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-all py-3 px-4 rounded-xl text-sm font-semibold text-left flex items-center gap-3 group border border-green-100">
-                  <i className="fas fa-file-excel text-green-600 group-hover:scale-110 transition-transform"></i>
-                  月次レポート作成
-                </button>
-                <button className="w-full bg-gradient-to-r from-yellow-50 to-orange-50 hover:from-yellow-100 hover:to-orange-100 transition-all py-3 px-4 rounded-xl text-sm font-semibold text-left flex items-center gap-3 group border border-yellow-100">
-                  <i className="fas fa-bell text-yellow-600 group-hover:scale-110 transition-transform"></i>
-                  アラート設定
-                </button>
-              </div>
-            </div>
+          {/* スキル分析 - 全幅表示 */}
+          <div className="opacity-0 animate-slide-in-from-left" style={{animationDelay: '1100ms', animationFillMode: 'forwards'}}>
+            <SkillAnalysisCard engineers={engineers} />
           </div>
         </div>
 
@@ -1447,7 +1347,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 }

@@ -20,6 +20,15 @@ class ProdiaUser(models.Model):
         """パスワードを検証"""
         return check_password(password, self.password_hash)
 
+    @property
+    def is_authenticated(self):
+        """DRF の IsAuthenticated パーミッションが参照するプロパティ"""
+        return self.is_active
+
+    @property
+    def is_anonymous(self):
+        return False
+
     def __str__(self):
         return f"{self.name} ({self.email})"
 
@@ -33,8 +42,8 @@ class Engineer(models.Model):
     name = models.CharField(max_length=100)
     email = models.EmailField(unique=True, blank=True, null=True)  # メールアドレス（ログイン用）
     position = models.CharField(max_length=50, blank=True, null=True)  # 役職（空欄可）
-    project_name = models.CharField(max_length=100)
-    planner = models.CharField(max_length=100)
+    project_name = models.CharField(max_length=100, blank=True, null=True)
+    planner = models.CharField(max_length=100, blank=True, null=True)
     skills = models.JSONField()  # 複数スキル
     engineer_status = models.CharField(max_length=20)  # active/upcoming/unassigned
     phase = models.JSONField()  # 経験フェーズ（複数選択可）
@@ -44,7 +53,10 @@ class Engineer(models.Model):
     monthly_rate = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='月単価（円）')
     project_start_date = models.DateField(blank=True, null=True, verbose_name='プロジェクト開始日')
     project_end_date = models.DateField(blank=True, null=True, verbose_name='プロジェクト終了予定日')
+    contract_extended_at = models.DateTimeField(blank=True, null=True, verbose_name='契約延長日')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新日時')
     client_company = models.CharField(max_length=200, blank=True, null=True, verbose_name='派遣先企業名')
+    project_location = models.CharField(max_length=200, blank=True, null=True, verbose_name='プロジェクト所在地')
     working_days_per_month = models.IntegerField(default=20, verbose_name='月稼働日数')
     working_rate = models.DecimalField(max_digits=3, decimal_places=2, default=1.00, verbose_name='稼働率（0.0-1.0）')
     
@@ -79,6 +91,8 @@ class Engineer(models.Model):
     )
     
     # メタデータ
+    last_user_updated_at = models.DateTimeField(blank=True, null=True, verbose_name='最終更新日時')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='登録日時', null=True, blank=True)
     revenue_updated_at = models.DateTimeField(auto_now=True, verbose_name='売上情報更新日')
 
     def calculate_monthly_revenue(self):
@@ -533,3 +547,326 @@ class CompanyAppointment(models.Model):
 
     def __str__(self):
         return f"{self.company.name} - {self.planner} ({self.appointment_date})"
+
+
+# ===============================
+# テレアポ記録
+# ===============================
+
+class TeleapoRecord(models.Model):
+    """テレアポ（架電）履歴管理"""
+    RESULT_CHOICES = [
+        ('apo_taken', 'アポ取れた'),
+        ('absent',    '不在'),
+        ('rejected',  'お断り'),
+        ('callback',  '折り返し待ち'),
+        ('other',     'その他'),
+    ]
+
+    company_name  = models.CharField(max_length=200, verbose_name='企業名')
+    phone_number  = models.CharField(max_length=50, blank=True, null=True, verbose_name='電話番号')
+    planner       = models.CharField(max_length=100, verbose_name='プランナー名')
+    call_date     = models.DateField(verbose_name='架電日')
+    result        = models.CharField(max_length=20, choices=RESULT_CHOICES, verbose_name='架電結果')
+    notes         = models.TextField(blank=True, null=True, verbose_name='備考')
+    created_at    = models.DateTimeField(auto_now_add=True)
+    updated_at    = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "テレアポ記録"
+        verbose_name_plural = "テレアポ記録"
+        ordering = ['-call_date', '-created_at']
+
+    def __str__(self):
+        return f"{self.company_name} - {self.planner} ({self.call_date})"
+
+
+# ===============================
+# 案件パイプライン（かんばんボード）
+# ===============================
+
+class Deal(models.Model):
+    """営業案件管理モデル（かんばんボード用）"""
+
+    STAGE_CHOICES = [
+        ('open_system',    'オープン系'),
+        ('web',            'Web系'),
+        ('embedded',       '組み込み'),
+        ('infrastructure', 'インフラ'),
+        ('support_other',  '開発支援・その他'),
+        ('low_skill',      'ロースキル'),
+    ]
+
+    PRIORITY_CHOICES = [
+        ('low',    '低'),
+        ('medium', '中'),
+        ('high',   '高'),
+        ('urgent', '至急'),
+    ]
+
+    # 基本情報
+    title = models.CharField(max_length=200, verbose_name='案件タイトル')
+    client_company = models.CharField(max_length=200, verbose_name='客先企業名')
+    contact_person = models.CharField(max_length=100, blank=True, null=True, verbose_name='担当者名')
+    contact_email = models.EmailField(blank=True, null=True, verbose_name='担当者メール')
+    contact_phone = models.CharField(max_length=30, blank=True, null=True, verbose_name='担当者電話')
+
+    # パイプラインステージ
+    stage = models.CharField(max_length=20, choices=STAGE_CHOICES, default='open_system', verbose_name='ステージ')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium', verbose_name='優先度')
+
+    # 提案エンジニア（複数可）
+    proposed_engineers = models.ManyToManyField(
+        Engineer, blank=True, related_name='deals', verbose_name='提案エンジニア'
+    )
+
+    # 案件詳細
+    description = models.TextField(blank=True, null=True, verbose_name='案件詳細')
+    required_skills = models.JSONField(default=list, blank=True, verbose_name='必要スキル')
+    expected_monthly_rate = models.DecimalField(
+        max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='想定月単価（円）'
+    )
+    expected_start_date = models.DateField(blank=True, null=True, verbose_name='参画予定日')
+    expected_duration_months = models.IntegerField(blank=True, null=True, verbose_name='想定期間（月）')
+
+    # 進捗管理
+    next_action = models.TextField(blank=True, null=True, verbose_name='次回アクション')
+    next_action_date = models.DateField(blank=True, null=True, verbose_name='次回アクション日')
+    win_probability = models.IntegerField(default=50, verbose_name='受注確率（%）')
+
+    # 担当営業
+    assigned_to = models.CharField(max_length=100, verbose_name='担当営業')
+
+    # 結果
+    lost_reason = models.TextField(blank=True, null=True, verbose_name='失注理由')
+    won_at = models.DateField(blank=True, null=True, verbose_name='成約日')
+    lost_at = models.DateField(blank=True, null=True, verbose_name='失注日')
+
+    # システム項目
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = '案件'
+        verbose_name_plural = '案件一覧'
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.client_company}) - {self.get_stage_display()}"
+
+
+class DealActivity(models.Model):
+    """案件活動履歴ログ"""
+
+    ACTIVITY_TYPE_CHOICES = [
+        ('note',       'メモ'),
+        ('call',       '電話'),
+        ('email',      'メール'),
+        ('meeting',    '訪問'),
+        ('proposal',   '提案書送付'),
+        ('stage_move', 'ステージ変更'),
+    ]
+
+    deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name='activities', verbose_name='案件')
+    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPE_CHOICES, verbose_name='活動種別')
+    content = models.TextField(verbose_name='内容')
+    created_by = models.CharField(max_length=100, verbose_name='記録者')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = '案件活動履歴'
+        verbose_name_plural = '案件活動履歴'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.deal.title} - {self.get_activity_type_display()} ({self.created_at.strftime('%Y/%m/%d')})"
+
+
+# ===============================
+# 元請案件管理（参画中プロジェクト）
+# ===============================
+
+class Project(models.Model):
+    """元請案件モデル（実際に参画中・完了した案件）"""
+
+    STATUS_CHOICES = [
+        ('active',    '参画中'),
+        ('planned',   '開始予定'),
+        ('completed', '完了'),
+        ('suspended', '中断'),
+    ]
+
+    WORK_STYLE_CHOICES = [
+        ('onsite',  '常駐'),
+        ('remote',  'フルリモート'),
+        ('hybrid',  'ハイブリッド'),
+    ]
+
+    # 基本情報
+    title = models.CharField(max_length=200, verbose_name='案件名')
+    client_company = models.CharField(max_length=200, verbose_name='元請企業名')
+    client_contact = models.CharField(max_length=100, blank=True, null=True, verbose_name='客先担当者名')
+    client_contact_email = models.EmailField(blank=True, null=True, verbose_name='客先担当者メール')
+    client_contact_phone = models.CharField(max_length=30, blank=True, null=True, verbose_name='客先担当者電話')
+
+    # ステータス
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active', verbose_name='ステータス')
+
+    # 期間
+    start_date = models.DateField(blank=True, null=True, verbose_name='案件開始日')
+    end_date = models.DateField(blank=True, null=True, verbose_name='案件終了予定日')
+
+    # 詳細
+    description = models.TextField(blank=True, null=True, verbose_name='案件詳細')
+    required_skills = models.JSONField(default=list, blank=True, verbose_name='必要スキル')
+    location = models.CharField(max_length=200, blank=True, null=True, verbose_name='就業場所')
+    work_style = models.CharField(max_length=20, choices=WORK_STYLE_CHOICES, blank=True, null=True, verbose_name='勤務形態')
+
+    # 単価（会社受取額）
+    monthly_rate = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='月単価（会社受取）')
+
+    # 備考
+    notes = models.TextField(blank=True, null=True, verbose_name='備考・メモ')
+
+    # システム項目
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = '元請案件'
+        verbose_name_plural = '元請案件一覧'
+        ordering = ['-start_date', '-created_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.client_company})"
+
+
+class ProjectAssignment(models.Model):
+    """エンジニアの案件参画情報（中間テーブル）"""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='assignments', verbose_name='案件')
+    engineer = models.ForeignKey(Engineer, on_delete=models.CASCADE, related_name='project_assignments', verbose_name='エンジニア')
+
+    # 参画期間（エンジニアごとに異なる場合がある）
+    start_date = models.DateField(blank=True, null=True, verbose_name='参画開始日')
+    end_date = models.DateField(blank=True, null=True, verbose_name='参画終了予定日')
+
+    # エンジニア個人の単価
+    monthly_rate = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='月単価（エンジニア）')
+
+    # 役割
+    role = models.CharField(max_length=100, blank=True, null=True, verbose_name='役割（PL/PG等）')
+
+    # 参画状況
+    is_active = models.BooleanField(default=True, verbose_name='現在参画中')
+
+    # 備考
+    notes = models.TextField(blank=True, null=True, verbose_name='備考')
+
+    # システム項目
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'エンジニア参画情報'
+        verbose_name_plural = 'エンジニア参画情報一覧'
+        ordering = ['-start_date']
+        unique_together = [['project', 'engineer']]
+
+    def __str__(self):
+        return f"{self.engineer.name} → {self.project.title}"
+
+
+# ===============================
+# パートナーエンジニア管理
+# ===============================
+
+class PartnerEngineer(models.Model):
+    """パートナーエンジニア（BP）管理モデル"""
+
+    STATUS_CHOICES = [
+        ('active',   '稼働中'),
+        ('upcoming', '稼働予定'),
+        ('free',     'フリー'),
+        ('inactive', '非稼働'),
+    ]
+
+    EXTENSION_CHOICES = [
+        ('yes',     '有'),
+        ('no',      '無'),
+        ('unknown', '未定'),
+    ]
+
+    REMOTE_CHOICES = [
+        ('yes',    '有'),
+        ('no',     '無'),
+        ('hybrid', 'ハイブリッド'),
+    ]
+
+    # ── カード表面（基本情報）──
+    name          = models.CharField(max_length=100, verbose_name='技術者氏名')
+    name_kana     = models.CharField(max_length=100, blank=True, null=True, verbose_name='フリガナ')
+    partner_company = models.CharField(max_length=200, verbose_name='所属会社（BP会社名）')
+    skills        = models.JSONField(default=list, blank=True, verbose_name='スキル')
+    planner       = models.CharField(max_length=100, blank=True, null=True, verbose_name='担当プランナー')
+    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active', verbose_name='ステータス')
+
+    # ── 案件情報 ──
+    project_name    = models.CharField(max_length=200, blank=True, null=True, verbose_name='案件名')
+    nearest_station = models.CharField(max_length=100, blank=True, null=True, verbose_name='最寄り駅')
+    remote          = models.CharField(max_length=10, choices=REMOTE_CHOICES, blank=True, null=True, verbose_name='リモート有無')
+    contract_start  = models.DateField(blank=True, null=True, verbose_name='契約開始日')
+    contract_end    = models.DateField(blank=True, null=True, verbose_name='契約終了日')
+    extension_possibility = models.CharField(max_length=10, choices=EXTENSION_CHOICES, blank=True, null=True, verbose_name='延長の可能性')
+    calendar_type   = models.CharField(max_length=100, blank=True, null=True, verbose_name='カレンダー', default='通常カレンダー')
+    work_hours      = models.CharField(max_length=50, blank=True, null=True, verbose_name='勤務時間', default='9:00-18:00')
+    actual_work_hours = models.CharField(max_length=20, blank=True, null=True, verbose_name='実働時間', default='8h')
+
+    # ── 甲（クライアント）契約単価 ──
+    client_company      = models.CharField(max_length=200, blank=True, null=True, verbose_name='甲：会社名')
+    client_unit_price   = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='甲：基本単価（円）')
+    client_settlement_range  = models.CharField(max_length=50, blank=True, null=True, verbose_name='甲：精算幅', default='140-180h')
+    client_overtime_rate     = models.DecimalField(max_digits=8, decimal_places=0, blank=True, null=True, verbose_name='甲：超過単価（円）')
+    client_deduction_rate    = models.DecimalField(max_digits=8, decimal_places=0, blank=True, null=True, verbose_name='甲：控除単価（円）')
+    client_settlement_unit   = models.CharField(max_length=20, blank=True, null=True, verbose_name='甲：精算単位', default='15分')
+    client_payment_site      = models.CharField(max_length=100, blank=True, null=True, verbose_name='甲：支払サイト', default='月末日締め、翌月末日支払い')
+    client_timesheet_format  = models.CharField(max_length=100, blank=True, null=True, verbose_name='甲：勤務表', default='現場フォーマット')
+    client_timesheet_collection = models.CharField(max_length=200, blank=True, null=True, verbose_name='甲：勤怠表回収方法')
+    client_invoice_deadline  = models.CharField(max_length=100, blank=True, null=True, verbose_name='甲：請求書期限', default='第2営業日まで')
+    client_contact_to        = models.CharField(max_length=200, blank=True, null=True, verbose_name='甲：書類送付先 To')
+    client_contact_cc        = models.CharField(max_length=200, blank=True, null=True, verbose_name='甲：書類送付先 Cc')
+
+    # ── 乙（パートナー）契約単価 ──
+    partner_unit_price       = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='乙：基本単価（円）')
+    partner_settlement_range = models.CharField(max_length=50, blank=True, null=True, verbose_name='乙：精算幅', default='140-180h')
+    partner_overtime_rate    = models.DecimalField(max_digits=8, decimal_places=0, blank=True, null=True, verbose_name='乙：超過単価（円）')
+    partner_deduction_rate   = models.DecimalField(max_digits=8, decimal_places=0, blank=True, null=True, verbose_name='乙：控除単価（円）')
+    partner_settlement_unit  = models.CharField(max_length=20, blank=True, null=True, verbose_name='乙：精算単位', default='15分')
+    partner_payment_site     = models.CharField(max_length=100, blank=True, null=True, verbose_name='乙：支払サイト', default='月末日締め、翌月末日支払い')
+    partner_timesheet_format = models.CharField(max_length=100, blank=True, null=True, verbose_name='乙：勤務表', default='現場フォーマット')
+    partner_timesheet_collection = models.CharField(max_length=200, blank=True, null=True, verbose_name='乙：勤怠表回収方法')
+    partner_invoice_deadline = models.CharField(max_length=100, blank=True, null=True, verbose_name='乙：請求書期限', default='第2営業日まで')
+    partner_contact_to       = models.CharField(max_length=200, blank=True, null=True, verbose_name='乙：書類送付先 To')
+    partner_contact_cc       = models.CharField(max_length=200, blank=True, null=True, verbose_name='乙：書類送付先 Cc')
+
+    # ── 弊社事務担当 ──
+    our_admin_to  = models.CharField(max_length=200, blank=True, null=True, verbose_name='弊社事務担当 To')
+    our_admin_cc  = models.CharField(max_length=200, blank=True, null=True, verbose_name='弊社事務担当 Cc')
+
+    # ── 備考 ──
+    notes = models.TextField(blank=True, null=True, verbose_name='備考')
+
+    # システム項目
+    contract_extended_at = models.DateTimeField(blank=True, null=True, verbose_name='契約延長日')
+    last_user_updated_at = models.DateTimeField(blank=True, null=True, verbose_name='最終更新日時')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'パートナーエンジニア'
+        verbose_name_plural = 'パートナーエンジニア一覧'
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.name}（{self.partner_company}）"
+
