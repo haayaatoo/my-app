@@ -364,19 +364,20 @@ export default function PPSalesProgress() {
 
   return (
     <div className="space-y-8">
-      {/* 新規追加ボタン */}
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowNewInterviewModal(true)}
-          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2"
-        >
-          <i className="fas fa-plus-circle"></i>
-          <span>新規面談追加</span>
-        </button>
-      </div>
-
       {/* フィルター */}
       <div className="bg-white rounded-3xl shadow-lg p-6 border border-slate-200">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
+            <i className="fas fa-filter text-slate-400"></i>絞り込み
+          </h2>
+          <button
+            onClick={() => setShowNewInterviewModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 text-sm"
+          >
+            <i className="fas fa-plus-circle text-xs"></i>
+            <span>新規面談追加</span>
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import { useUser } from '../contexts/UserContext';
 
 export default function HREvaluation() {
@@ -17,6 +18,11 @@ export default function HREvaluation() {
   });
   const [groupedByEngineer, setGroupedByEngineer] = useState({});
   const [viewMode, setViewMode] = useState('list'); // 'list', 'dashboard'
+  const [selectedEvaluation, setSelectedEvaluation] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [engineerSearch, setEngineerSearch] = useState("");
+  const [showEngineerDropdown, setShowEngineerDropdown] = useState(false);
+  const [expandedEngineers, setExpandedEngineers] = useState(new Set());
 
   // フォーム状態
   const [formData, setFormData] = useState({
@@ -154,17 +160,43 @@ export default function HREvaluation() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('この人事評価を削除しますか？')) {
-      try {
-        const response = await fetch(`http://localhost:8000/api/interviews/${id}/`, {
-          method: 'DELETE'
-        });
-        if (response.ok) {
-          fetchEvaluations();
-        }
-      } catch (error) {
-        setError('削除に失敗しました');
+    try {
+      const response = await fetch(`http://localhost:8000/api/interviews/${id}/`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setConfirmDeleteId(null);
+        fetchEvaluations();
       }
+    } catch (error) {
+      setError('削除に失敗しました');
+    }
+  };
+
+  const exportToExcel = () => {
+    try {
+      const allEvaluations = Object.values(groupedByEngineer).flat();
+      const ratingLabel = (v) => ({ 1: '要改善', 2: 'やや不足', 3: '標準', 4: '良好', 5: '優秀' }[v] || '');
+      const rows = allEvaluations.map(e => ({
+        エンジニア名: e.engineer_name || '',
+        評価日: e.interview_date || '',
+        技術力: e.technical_skill ? `${e.technical_skill} (${ratingLabel(e.technical_skill)})` : '',
+        'コミュニケーション力': e.communication_skill ? `${e.communication_skill} (${ratingLabel(e.communication_skill)})` : '',
+        'やる気意欲': e.motivation ? `${e.motivation} (${ratingLabel(e.motivation)})` : '',
+        'リーダーシップ': e.leadership ? `${e.leadership} (${ratingLabel(e.leadership)})` : '',
+        '問題解決力': e.problem_solving ? `${e.problem_solving} (${ratingLabel(e.problem_solving)})` : '',
+        '総合評価': e.overall_rating ? `${e.overall_rating} (${ratingLabel(e.overall_rating)})` : '',
+        '強み': e.strengths || '',
+        '改善領域': e.improvement_areas || '',
+        '次期目標': e.goals_next_period || '',
+        '備考': e.notes || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '人事評価一覧');
+      XLSX.writeFile(wb, `人事評価一覧_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      setError('Excelエクスポートに失敗しました');
     }
   };
 
@@ -206,6 +238,16 @@ export default function HREvaluation() {
       goals_next_period: '',
       notes: ''
     });
+    setEngineerSearch('');
+    setShowEngineerDropdown(false);
+  };
+
+  const toggleEngineer = (name) => {
+    setExpandedEngineers(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
   };
 
   const getSkillRatingText = (rating) => {
@@ -218,19 +260,6 @@ export default function HREvaluation() {
       case '4': return '4（良好）';
       case '5': return '5（優秀）';
       default: return '未評価';
-    }
-  };
-
-  const getSkillRatingColor = (rating) => {
-    // 数値と文字列の両方に対応
-    const ratingStr = String(rating);
-    switch (ratingStr) {
-      case '1': return 'bg-red-100 text-red-800 border-red-200';
-      case '2': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case '3': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case '4': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case '5': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -685,6 +714,9 @@ export default function HREvaluation() {
                 <i className="fas fa-chart-bar text-[10px]"></i>ダッシュボード
               </button>
             </div>
+            <button onClick={exportToExcel} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all flex items-center gap-1.5">
+              <i className="fas fa-file-excel text-[10px]"></i>Excel出力
+            </button>
             <button onClick={() => { setShowForm(true); setEditingEvaluation(null); resetForm(); }} className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all flex items-center gap-1.5">
               <i className="fas fa-plus text-[10px]"></i>新規評価記録
             </button>
@@ -704,158 +736,290 @@ export default function HREvaluation() {
       )}
 
       {/* フィルター */}
-      <div className="mb-8 p-6 bg-white/80 backdrop-blur-xl rounded-3xl border border-white/60 shadow-luxury">
-        <h3 className="text-lg font-semibold text-slate-700 mb-4">検索・フィルター</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <select
-            value={filters.engineer_id}
-            onChange={(e) => setFilters({ ...filters, engineer_id: e.target.value })}
-            className="px-4 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-          >
-            <option value="">全エンジニア</option>
-            {engineers.map(engineer => (
-              <option key={engineer.id} value={engineer.id}>{engineer.name}</option>
-            ))}
-          </select>
-          
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select
+          value={filters.engineer_id}
+          onChange={(e) => setFilters({ ...filters, engineer_id: e.target.value })}
+          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 bg-white"
+        >
+          <option value="">全エンジニア</option>
+          {engineers.map(engineer => (
+            <option key={engineer.id} value={engineer.id}>{engineer.name}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-2">
           <input
             type="date"
             value={filters.date_from}
             onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
-            className="px-4 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            placeholder="開始日"
+            className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-400 bg-white"
           />
-
+          <span className="text-slate-400 text-sm">〜</span>
           <input
             type="date"
             value={filters.date_to}
             onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
-            className="px-4 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            placeholder="終了日"
+            className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-400 bg-white"
           />
-
-          <button
-            onClick={fetchEvaluations}
-            className="px-4 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition-colors duration-200 flex items-center justify-center gap-2"
-          >
-            <i className="fas fa-search"></i>
-            検索
-          </button>
         </div>
+        <button
+          onClick={fetchEvaluations}
+          className="px-4 py-2 text-sm bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition-colors flex items-center gap-2"
+        >
+          <i className="fas fa-search text-xs"></i>検索
+        </button>
+        {(filters.engineer_id || filters.date_from || filters.date_to) && (
+          <button
+            onClick={() => setFilters(f => ({ ...f, engineer_id: '', date_from: '', date_to: '' }))}
+            className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5"
+          >
+            <i className="fas fa-times text-xs"></i>クリア
+          </button>
+        )}
       </div>
 
-      {/* メインコンテンツ: ビューモードに応じて表示切り替え */}
+      {/* メインコンテンツ */}
       {viewMode === 'dashboard' ? (
         renderDashboardView()
       ) : (
-        <div className="space-y-6">
-        {Object.keys(groupedByEngineer)
-          .filter(engineerName => 
-            !filters.engineer_id || 
-            groupedByEngineer[engineerName].some(evaluation => evaluation.engineer === parseInt(filters.engineer_id))
-          )
-          .sort()
-          .map(engineerName => {
-            const engineerEvaluations = groupedByEngineer[engineerName];
-            const latestEvaluation = engineerEvaluations[0];
-            
+        (() => {
+          const filteredNames = Object.keys(groupedByEngineer)
+            .filter(name =>
+              !filters.engineer_id ||
+              groupedByEngineer[name].some(ev => ev.engineer === parseInt(filters.engineer_id))
+            )
+            .sort();
+          const totalEvals = filteredNames.reduce((acc, n) => acc + groupedByEngineer[n].length, 0);
+          if (filteredNames.length === 0) {
             return (
-              <div key={engineerName} className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/60 shadow-luxury overflow-hidden">
-                <div className="p-6 border-b border-stone-200 bg-gradient-to-r from-purple-50 to-indigo-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                        {engineerName.charAt(0)}
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-bold text-slate-800">{engineerName}</h3>
-                        <div className="flex items-center gap-4 text-sm text-slate-600 mt-1">
-                          <span className="flex items-center gap-1">
-                            <i className="fas fa-star text-purple-500"></i>
-                            {engineerEvaluations.length}回の評価
-                          </span>
-                          {latestEvaluation && (
-                            <span className="flex items-center gap-1">
-                              <i className="fas fa-calendar text-indigo-500"></i>
-                              最終評価: {latestEvaluation.interview_date}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowForm(true);
-                        setEditingEvaluation(null);
-                        setFormData({ ...formData, engineer: latestEvaluation?.engineer || '' });
-                      }}
-                      className="px-4 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition-colors"
-                    >
-                      <i className="fas fa-plus mr-2"></i>
-                      新規評価
-                    </button>
-                  </div>
-                </div>
-                
-                {/* 評価履歴 */}
-                <div className="p-6">
-                  <div className="space-y-4">
-                    {engineerEvaluations.map((evaluation, index) => (
-                      <div key={evaluation.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-xl hover:bg-stone-100 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                            index === 0 ? 'bg-purple-500' : 'bg-gray-400'
-                          }`}>
-                            {index + 1}
-                          </div>
-                          <div>
-                            <div className="font-medium text-slate-700">
-                              評価日: {evaluation.interview_date}
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              {evaluation.overall_rating && (
-                                <span className={`px-2 py-1 rounded text-xs font-medium border ${getSkillRatingColor(evaluation.overall_rating)}`}>
-                                  総合: {getSkillRatingText(evaluation.overall_rating)}
-                                </span>
-                              )}
-                              {evaluation.technical_skill && (
-                                <span className={`px-2 py-1 rounded text-xs font-medium border ${getSkillRatingColor(evaluation.technical_skill)}`}>
-                                  技術: {getSkillRatingText(evaluation.technical_skill)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEdit(evaluation)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                          >
-                            <i className="fas fa-edit"></i>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(evaluation.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                          >
-                            <i className="fas fa-trash"></i>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="text-center py-20 text-slate-400">
+                <i className="fas fa-star text-4xl mb-4 block opacity-30"></i>
+                <p className="text-sm">評価記録がありません</p>
               </div>
             );
-          })}
-          
-        {Object.keys(groupedByEngineer).length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-slate-400 text-lg mb-4">
-              <i className="fas fa-star text-4xl mb-4"></i>
-              <p>人事評価がありません</p>
+          }
+          return (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              {/* 集計 */}
+              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  <span className="font-semibold text-slate-700">{filteredNames.length}名</span>
+                  {" / 計"}<span className="font-semibold text-slate-700 mx-0.5">{totalEvals}</span>件
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setExpandedEngineers(new Set(filteredNames))}
+                    className="text-xs text-purple-600 hover:text-purple-700 px-2.5 py-1 rounded-lg hover:bg-purple-50 transition-colors"
+                  >全て展開</button>
+                  <button
+                    onClick={() => setExpandedEngineers(new Set())}
+                    className="text-xs text-slate-400 hover:text-slate-600 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  >全て閉じる</button>
+                </div>
+              </div>
+
+              {filteredNames.map(engineerName => {
+                const evals = groupedByEngineer[engineerName];
+                const latest = evals[0];
+                const isExpanded = expandedEngineers.has(engineerName);
+                const isAtRisk = latest && (
+                  (latest.overall_rating !== null && latest.overall_rating !== undefined && Number(latest.overall_rating) <= 2) ||
+                  (new Date() - new Date(latest.interview_date) > 90 * 24 * 60 * 60 * 1000)
+                );
+                const stars = (val, color) => Array.from({ length: 5 }).map((_, i) => (
+                  <i key={i} className={`fas fa-star text-[10px] ${i < Number(val) ? color : 'text-slate-200'}`} />
+                ));
+
+                return (
+                  <div key={engineerName} className="border-b border-slate-100 last:border-0">
+                    {/* エンジニア行 */}
+                    <div
+                      className={`px-5 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-purple-50/30' : ''}`}
+                      onClick={() => toggleEngineer(engineerName)}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {engineerName.charAt(0)}
+                      </div>
+                      <span className="font-semibold text-slate-800 w-28 flex-shrink-0 truncate">{engineerName}</span>
+                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">{evals.length}件</span>
+                      {latest?.overall_rating && (
+                        <span className="flex items-center gap-0.5">
+                          {stars(latest.overall_rating, 'text-amber-400')}
+                        </span>
+                      )}
+                      {isAtRisk && (
+                        <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                          <i className="fas fa-exclamation-triangle text-[9px]"></i>要注意
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-400 ml-auto flex-shrink-0">最終: {latest?.interview_date || '--'}</span>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setShowForm(true);
+                          setEditingEvaluation(null);
+                          setFormData(prev => ({ ...prev, engineer: latest?.engineer || '' }));
+                        }}
+                        className="text-xs text-purple-600 hover:text-white hover:bg-purple-500 border border-purple-200 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 flex-shrink-0"
+                      >
+                        <i className="fas fa-plus text-[9px]"></i>評価追加
+                      </button>
+                      <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'} text-xs text-slate-400 flex-shrink-0`} />
+                    </div>
+
+                    {/* 展開: 評価テーブル */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-100">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 text-xs text-slate-400 font-semibold">
+                              <th className="px-5 py-2 text-left">評価日</th>
+                              <th className="px-3 py-2 text-center">総合</th>
+                              <th className="px-3 py-2 text-center">技術力</th>
+                              <th className="px-3 py-2 text-center">コミュ力</th>
+                              <th className="px-3 py-2 text-center">モチベ</th>
+                              <th className="px-3 py-2 text-center">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {evals.map((evaluation, idx) => (
+                              <tr
+                                key={evaluation.id}
+                                onClick={() => setSelectedEvaluation(evaluation)}
+                                className="hover:bg-indigo-50/40 cursor-pointer transition-colors"
+                              >
+                                <td className="px-5 py-2.5">
+                                  <div className="flex items-center gap-2">
+                                    {idx === 0 && <span className="text-[9px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">最新</span>}
+                                    <span className="text-slate-700 font-medium">{evaluation.interview_date}</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className="flex items-center justify-center gap-0.5">{evaluation.overall_rating ? stars(evaluation.overall_rating, 'text-amber-400') : <span className="text-slate-300 text-xs">--</span>}</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className="flex items-center justify-center gap-0.5">{evaluation.technical_skill ? stars(evaluation.technical_skill, 'text-blue-400') : <span className="text-slate-300 text-xs">--</span>}</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className="flex items-center justify-center gap-0.5">{evaluation.communication_skill ? stars(evaluation.communication_skill, 'text-green-400') : <span className="text-slate-300 text-xs">--</span>}</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className="flex items-center justify-center gap-0.5">{evaluation.motivation ? stars(evaluation.motivation, 'text-orange-400') : <span className="text-slate-300 text-xs">--</span>}</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleEdit(evaluation); }}
+                                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-colors"
+                                      title="編集"
+                                    >
+                                      <i className="fas fa-pen text-[10px]"></i>
+                                    </button>
+                                    {confirmDeleteId === evaluation.id ? (
+                                      <div className="flex items-center gap-1 bg-red-50 px-2 py-1 rounded-lg border border-red-200">
+                                        <span className="text-xs text-red-600 whitespace-nowrap">削除?</span>
+                                        <button onClick={e => { e.stopPropagation(); handleDelete(evaluation.id); }} className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded hover:bg-red-600">はい</button>
+                                        <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(null); }} className="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded hover:bg-slate-300">いいえ</button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setConfirmDeleteId(evaluation.id); }}
+                                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"
+                                        title="削除"
+                                      >
+                                        <i className="fas fa-trash text-[10px]"></i>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()
+      )}
+
+      {/* 評価詳細モーダル */}
+      {selectedEvaluation && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setSelectedEvaluation(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">{selectedEvaluation.engineer_name} - 評価詳細</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">評価日: {selectedEvaluation.interview_date}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { handleEdit(selectedEvaluation); setSelectedEvaluation(null); }}
+                    className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg text-sm font-medium hover:shadow-md transition-all flex items-center gap-1.5"
+                  >
+                    <i className="fas fa-edit text-xs"></i>編集
+                  </button>
+                  <button onClick={() => setSelectedEvaluation(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                    <i className="fas fa-times text-lg"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-5">
+              {/* スキル評価 */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">スキル評価</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {[
+                    { key: 'technical_skill', label: '技術力', icon: 'fa-code' },
+                    { key: 'communication_skill', label: 'コミュ力', icon: 'fa-comments' },
+                    { key: 'motivation', label: 'やる気', icon: 'fa-fire' },
+                    { key: 'leadership', label: 'リーダーシップ', icon: 'fa-users' },
+                    { key: 'problem_solving', label: '問題解決力', icon: 'fa-lightbulb' },
+                    { key: 'overall_rating', label: '総合評価', icon: 'fa-trophy' },
+                  ].map(({ key, label, icon }) => (
+                    <div key={key} className="bg-slate-50 rounded-xl p-3 text-center border border-slate-200">
+                      <div className="flex items-center justify-center gap-1 mb-1.5">
+                        <i className={`fas ${icon} text-slate-400 text-xs`}></i>
+                        <span className="text-xs text-slate-500 font-medium">{label}</span>
+                      </div>
+                      <div className="flex justify-center gap-0.5 mb-1">
+                        {[1,2,3,4,5].map(n => (
+                          <span key={n} className={`text-sm ${n <= Number(selectedEvaluation[key] || 0) ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
+                        ))}
+                      </div>
+                      <div className={`text-xs font-semibold ${
+                        !selectedEvaluation[key] ? 'text-slate-400' :
+                        Number(selectedEvaluation[key]) >= 4 ? 'text-emerald-600' :
+                        Number(selectedEvaluation[key]) <= 2 ? 'text-red-500' :
+                        'text-slate-600'
+                      }`}>
+                        {selectedEvaluation[key] ? getSkillRatingText(selectedEvaluation[key]) : '未評価'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* テキスト評価 */}
+              {[
+                { key: 'strengths', label: '強み・評価点', icon: 'fa-thumbs-up' },
+                { key: 'improvement_areas', label: '改善領域', icon: 'fa-exclamation-triangle' },
+                { key: 'goals_next_period', label: '次期目標', icon: 'fa-bullseye' },
+                { key: 'notes', label: '備考', icon: 'fa-sticky-note' },
+              ].filter(({ key }) => selectedEvaluation[key]).map(({ key, label, icon }) => (
+                <div key={key}>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <i className={`fas ${icon} text-slate-400`}></i>{label}
+                  </p>
+                  <p className="text-sm text-slate-700 bg-slate-50 rounded-xl p-4 border border-slate-200 whitespace-pre-wrap leading-relaxed">{selectedEvaluation[key]}</p>
+                </div>
+              ))}
             </div>
           </div>
-        )}
         </div>
       )}
 
@@ -895,17 +1059,59 @@ export default function HREvaluation() {
                       <i className="fas fa-user text-purple-500 text-xs"></i>
                       エンジニア *
                     </label>
-                    <select
-                      value={formData.engineer}
-                      onChange={(e) => setFormData({ ...formData, engineer: e.target.value })}
-                      required
-                      className="w-full px-4 py-3 border border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      {engineers.map(engineer => (
-                        <option key={engineer.id} value={engineer.id}>{engineer.name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <div
+                        className="w-full px-4 py-3 border border-purple-200 rounded-xl bg-white shadow-sm flex items-center gap-2 cursor-text"
+                        onClick={() => setShowEngineerDropdown(true)}
+                      >
+                        {formData.engineer && !showEngineerDropdown ? (
+                          <span className="flex-1 text-slate-800">
+                            {engineers.find(e => String(e.id) === String(formData.engineer))?.name || ""}
+                          </span>
+                        ) : (
+                          <input
+                            type="text"
+                            autoFocus={showEngineerDropdown}
+                            value={engineerSearch}
+                            onChange={e => { setEngineerSearch(e.target.value); setShowEngineerDropdown(true); }}
+                            onFocus={() => setShowEngineerDropdown(true)}
+                            placeholder={formData.engineer ? engineers.find(e => String(e.id) === String(formData.engineer))?.name : "名前で検索..."}
+                            className="flex-1 outline-none text-sm bg-transparent"
+                          />
+                        )}
+                        <i className="fas fa-search text-purple-400 text-xs flex-shrink-0"></i>
+                      </div>
+                      {showEngineerDropdown && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => { setShowEngineerDropdown(false); setEngineerSearch(""); }} />
+                          <ul className="absolute z-20 mt-1 w-full bg-white border border-purple-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+                            {engineers
+                              .filter(e => e.name.includes(engineerSearch))
+                              .map(engineer => (
+                                <li
+                                  key={engineer.id}
+                                  onClick={() => {
+                                    setFormData({ ...formData, engineer: engineer.id });
+                                    setEngineerSearch("");
+                                    setShowEngineerDropdown(false);
+                                  }}
+                                  className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-purple-50 hover:text-purple-700 transition-colors ${
+                                    String(formData.engineer) === String(engineer.id) ? "bg-purple-50 text-purple-700 font-semibold" : "text-slate-700"
+                                  }`}
+                                >
+                                  {engineer.name}
+                                </li>
+                              ))
+                            }
+                            {engineers.filter(e => e.name.includes(engineerSearch)).length === 0 && (
+                              <li className="px-4 py-3 text-sm text-slate-400 text-center">該当なし</li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                      {/* hidden input for required validation */}
+                      <input type="text" required value={formData.engineer} onChange={() => {}} className="sr-only" />
+                    </div>
                   </div>
                   
                   <div>
@@ -928,122 +1134,54 @@ export default function HREvaluation() {
               <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-2xl border border-blue-100">
                 <h4 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <i className="fas fa-chart-line text-blue-600"></i>
-                  スキル評価（1-5段階）
+                  スキル評価（★をタップして評価）
                 </h4>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-2">
-                      <i className="fas fa-code text-blue-500 text-xs"></i>
-                      技術力
-                    </label>
-                    <select
-                      value={formData.technical_skill}
-                      onChange={(e) => setFormData({ ...formData, technical_skill: e.target.value })}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="1">1（要改善）</option>
-                      <option value="2">2（やや不足）</option>
-                      <option value="3">3（標準）</option>
-                      <option value="4">4（良好）</option>
-                      <option value="5">5（優秀）</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-2">
-                      <i className="fas fa-comments text-blue-500 text-xs"></i>
-                      コミュニケーション力
-                    </label>
-                    <select
-                      value={formData.communication_skill}
-                      onChange={(e) => setFormData({ ...formData, communication_skill: e.target.value })}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="1">1（要改善）</option>
-                      <option value="2">2（やや不足）</option>
-                      <option value="3">3（標準）</option>
-                      <option value="4">4（良好）</option>
-                      <option value="5">5（優秀）</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-2">
-                      <i className="fas fa-fire text-blue-500 text-xs"></i>
-                      やる気・意欲
-                    </label>
-                    <select
-                      value={formData.motivation}
-                      onChange={(e) => setFormData({ ...formData, motivation: e.target.value })}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="1">1（要改善）</option>
-                      <option value="2">2（やや不足）</option>
-                      <option value="3">3（標準）</option>
-                      <option value="4">4（良好）</option>
-                      <option value="5">5（優秀）</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-2">
-                      <i className="fas fa-users text-blue-500 text-xs"></i>
-                      リーダーシップ
-                    </label>
-                    <select
-                      value={formData.leadership}
-                      onChange={(e) => setFormData({ ...formData, leadership: e.target.value })}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="1">⭐ 1（要改善）</option>
-                      <option value="2">⭐⭐ 2（やや不足）</option>
-                      <option value="3">⭐⭐⭐ 3（標準）</option>
-                      <option value="4">⭐⭐⭐⭐ 4（良好）</option>
-                      <option value="5">⭐⭐⭐⭐⭐ 5（優秀）</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-2">
-                      <i className="fas fa-lightbulb text-blue-500 text-xs"></i>
-                      問題解決力
-                    </label>
-                    <select
-                      value={formData.problem_solving}
-                      onChange={(e) => setFormData({ ...formData, problem_solving: e.target.value })}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="1">⭐ 1（要改善）</option>
-                      <option value="2">⭐⭐ 2（やや不足）</option>
-                      <option value="3">⭐⭐⭐ 3（標準）</option>
-                      <option value="4">⭐⭐⭐⭐ 4（良好）</option>
-                      <option value="5">⭐⭐⭐⭐⭐ 5（優秀）</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-2">
-                      <i className="fas fa-trophy text-blue-500 text-xs"></i>
-                      総合評価
-                    </label>
-                    <select
-                      value={formData.overall_rating}
-                      onChange={(e) => setFormData({ ...formData, overall_rating: e.target.value })}
-                      className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="1">⭐ 1（要改善）</option>
-                      <option value="2">⭐⭐ 2（やや不足）</option>
-                      <option value="3">⭐⭐⭐ 3（標準）</option>
-                      <option value="4">⭐⭐⭐⭐ 4（良好）</option>
-                      <option value="5">⭐⭐⭐⭐⭐ 5（優秀）</option>
-                    </select>
-                  </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {[
+                    { field: 'technical_skill', label: '技術力', icon: 'fa-code' },
+                    { field: 'communication_skill', label: 'コミュニケーション力', icon: 'fa-comments' },
+                    { field: 'motivation', label: 'やる気・意欲', icon: 'fa-fire' },
+                    { field: 'leadership', label: 'リーダーシップ', icon: 'fa-users' },
+                    { field: 'problem_solving', label: '問題解決力', icon: 'fa-lightbulb' },
+                    { field: 'overall_rating', label: '総合評価', icon: 'fa-trophy' },
+                  ].map(({ field, label, icon }) => (
+                    <div key={field} className="bg-white/70 rounded-xl p-3 border border-blue-100">
+                      <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-2">
+                        <i className={`fas ${icon} text-blue-500 text-xs`}></i>
+                        {label}
+                      </label>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <button
+                            type="button"
+                            key={n}
+                            onClick={() => setFormData(f => ({ ...f, [field]: String(n) }))}
+                            className={`w-9 h-9 flex items-center justify-center rounded-lg text-xl transition-all duration-150 ${
+                              parseInt(formData[field]) >= n
+                                ? 'text-amber-400 bg-amber-50 shadow-sm scale-110'
+                                : 'text-slate-300 hover:text-amber-300 hover:bg-amber-50/50'
+                            }`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                        {formData[field] && (
+                          <>
+                            <span className="ml-1 text-xs text-slate-500 bg-white px-2 py-1 rounded-lg border border-slate-200">
+                              {['', '要改善', 'やや不足', '標準', '良好', '優秀'][parseInt(formData[field])]}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(f => ({ ...f, [field]: '' }))}
+                              className="text-slate-300 hover:text-red-400 transition-colors p-1"
+                            >
+                              <i className="fas fa-times text-xs"></i>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 

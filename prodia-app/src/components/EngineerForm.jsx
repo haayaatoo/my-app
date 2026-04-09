@@ -68,6 +68,30 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [customSkillInput, setCustomSkillInput] = useState("");
+  const [customSkillError, setCustomSkillError] = useState("");
+
+  // 定義済みスキル一覧（重複チェック用）
+  const allDefinedSkills = SKILL_OPTIONS.flatMap(g => g.skills);
+
+  const handleAddCustomSkill = () => {
+    const trimmed = customSkillInput.trim();
+    if (!trimmed) return;
+    if (form.skills.includes(trimmed)) {
+      setCustomSkillError("そのスキルはすでに追加されています");
+      return;
+    }
+    setCustomSkillError("");
+    setForm(f => ({ ...f, skills: [...f.skills, trimmed] }));
+    setCustomSkillInput("");
+  };
+
+  const handleCustomSkillKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddCustomSkill();
+    }
+  };
 
 
   const handleChange = (e) => {
@@ -437,8 +461,63 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
               ))}
             </div>
             
+            {/* カスタムスキル手入力 */}
+            <div className="mt-4 p-4 bg-white/80 rounded-xl border border-purple-200">
+              <p className="text-sm font-semibold text-purple-700 mb-2">
+                <i className="fas fa-plus-circle mr-1"></i>
+                リストにないスキルを追加
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customSkillInput}
+                  onChange={e => { setCustomSkillInput(e.target.value); setCustomSkillError(""); }}
+                  onKeyDown={handleCustomSkillKeyDown}
+                  className="flex-1 px-3 py-2 border-2 border-purple-200 rounded-xl text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all bg-white placeholder-slate-400"
+                  placeholder="例: Kotlin, Terraform, Figma..."
+                  maxLength={50}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomSkill}
+                  disabled={!customSkillInput.trim()}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-sm font-medium rounded-xl disabled:opacity-40 disabled:cursor-not-allowed hover:from-purple-600 hover:to-indigo-700 transition-all shadow-sm"
+                >
+                  追加
+                </button>
+              </div>
+              {customSkillError && (
+                <p className="text-xs text-red-500 mt-1">{customSkillError}</p>
+              )}
+              {/* 手入力で追加されたカスタムスキルの表示 */}
+              {form.skills.filter(s => !allDefinedSkills.includes(s)).length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-slate-500 mb-1">追加済みのカスタムスキル:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {form.skills.filter(s => !allDefinedSkills.includes(s)).map(s => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-medium rounded-full shadow-sm"
+                      >
+                        <i className="fas fa-star text-yellow-300 text-xs"></i>
+                        {s}
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, skills: f.skills.filter(x => x !== s) }))}
+                          className="ml-1 text-white/70 hover:text-white transition-colors"
+                          aria-label={`${s}を削除`}
+                        >
+                          <i className="fas fa-times text-xs"></i>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 選択されたスキル数の表示 */}
-            <div className="mt-4 p-3 bg-white/70 rounded-xl border border-purple-200">
+            <div className="mt-3 p-3 bg-white/70 rounded-xl border border-purple-200">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-purple-600 font-medium">
                   選択中のスキル: {form.skills.length}個

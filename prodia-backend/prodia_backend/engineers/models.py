@@ -506,6 +506,7 @@ class Company(models.Model):
     """企業マスターリスト"""
     name = models.CharField(max_length=200, unique=True, verbose_name='企業名')
     memo = models.TextField(blank=True, null=True, verbose_name='備考')
+    website_url = models.URLField(max_length=500, blank=True, null=True, verbose_name='ホームページURL')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -869,4 +870,40 @@ class PartnerEngineer(models.Model):
 
     def __str__(self):
         return f"{self.name}（{self.partner_company}）"
+
+
+# ===============================
+# 月次プロジェクトレポート
+# ===============================
+
+class MonthlyProjectReport(models.Model):
+    """月次プロジェクト稼働記録（案件回収管理 > 月次レポートタブ）"""
+
+    # 対象年月 "YYYY-MM" 形式で格納
+    year_month  = models.CharField(max_length=7, unique=True, verbose_name='対象年月')
+
+    # 件数
+    idr_count   = models.IntegerField(default=0, verbose_name='IDR稼働件数')
+    bp_count    = models.IntegerField(default=0, verbose_name='BP稼働件数')
+    total_count = models.IntegerField(default=0, verbose_name='総数')
+
+    # メタ
+    note        = models.TextField(blank=True, default='', verbose_name='メモ')
+    is_auto     = models.BooleanField(default=True, verbose_name='自動算出フラグ')
+    locked      = models.BooleanField(default=False, verbose_name='確定フラグ')
+
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = '月次プロジェクトレポート'
+        verbose_name_plural = '月次プロジェクトレポート'
+        ordering = ['-year_month']
+
+    def save(self, *args, **kwargs):
+        self.total_count = self.idr_count + self.bp_count
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.year_month} IDR:{self.idr_count} BP:{self.bp_count}"
 

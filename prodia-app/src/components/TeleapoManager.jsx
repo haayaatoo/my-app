@@ -183,6 +183,121 @@ function CallModal({ company, currentPlanner, onSave, onClose }) {
   );
 }
 
+// ─── 打合せ済み企業リストタブ（企業名 + HP URL 閲覧専用）──────────────
+function CompanyListTab() {
+  const [companies, setCompanies] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/companies/`)
+      .then(r => r.json())
+      .then(data => setCompanies(Array.isArray(data) ? data : (data.results || [])))
+      .catch(() => setCompanies([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = companies.filter(c =>
+    !search || c.name?.toLowerCase().includes(search.toLowerCase())
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  return (
+    <div className="space-y-4">
+      {/* フィルターバー */}
+      <div className="flex flex-wrap items-center gap-3 bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-sm">
+        <div className="relative">
+          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+          <input type="text" placeholder="企業名で検索" value={search}
+            onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
+            className="text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 w-52" />
+        </div>
+        <span className="text-xs text-slate-400 ml-auto">{filtered.length}社</span>
+      </div>
+
+      {/* テーブル */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <i className="fas fa-spinner fa-spin text-2xl text-indigo-400" />
+          </div>
+        ) : paged.length === 0 ? (
+          <div className="text-center py-16 text-slate-400">
+            <i className="fas fa-building text-3xl mb-3 block" />
+            <p className="text-sm">{search ? '条件に一致する企業がありません' : '企業が登録されていません'}</p>
+          </div>
+        ) : (
+          <>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-8">#</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">企業名</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">ホームページ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((company, idx) => (
+                  <tr key={company.id} className="border-b border-slate-50 hover:bg-indigo-50/20 transition-colors">
+                    <td className="px-4 py-3 text-xs text-slate-400">{(safePage - 1) * PAGE_SIZE + idx + 1}</td>
+                    <td className="px-4 py-3 font-medium text-slate-700">{company.name}</td>
+                    <td className="px-4 py-3">
+                      {company.website_url ? (
+                        <a href={company.website_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 hover:underline text-sm break-all">
+                          <i className="fas fa-external-link-alt text-xs flex-shrink-0" />
+                          {company.website_url}
+                        </a>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* ページネーション */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-100">
+                <span className="text-xs text-slate-400">
+                  {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)}社 / 全{filtered.length}社
+                </span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+                    className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+                    <i className="fas fa-chevron-left" />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                    .reduce((acc, p, idx2, arr) => { if (idx2 > 0 && p - arr[idx2 - 1] > 1) acc.push('...'); acc.push(p); return acc; }, [])
+                    .map((item, idx2) => item === '...' ? (
+                      <span key={`d${idx2}`} className="w-7 text-center text-slate-400 text-xs">⋯</span>
+                    ) : (
+                      <button key={item} onClick={() => setCurrentPage(item)}
+                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${safePage === item ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>
+                        {item}
+                      </button>
+                    ))}
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                    className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+                    <i className="fas fa-chevron-right" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── 打合せ済みリストタブ ─────────────────────────────────────────
 function CallListTab({ currentPlanner, onRecordSaved }) {
   const [companies, setCompanies] = useState([]);
@@ -457,6 +572,12 @@ function CompanyHistoryPanel({ currentPlanner }) {
 function NewRow({ planner, allRecords, onSave, onCancel }) {
   const [form, setForm] = useState({ ...EMPTY_ROW, planner });
   const [saving, setSaving] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(-1);
+  const [isExistingCompany, setIsExistingCompany] = useState(false);
+  const suggestRef = useRef(null);
+  const suggestTimer = useRef(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -469,6 +590,46 @@ function NewRow({ planner, allRecords, onSave, onCancel }) {
       })
     : [];
   const hasDuplicate = duplicates.length > 0;
+
+  // 打合せ済み企業リストからオートコンプリート候補を取得
+  const fetchSuggestions = useCallback(async (q) => {
+    if (!q.trim()) { setSuggestions([]); return; }
+    try {
+      const res = await fetch(`${API_BASE}/companies/?name=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setSuggestions(Array.isArray(data) ? data : (data.results || []));
+    } catch {
+      setSuggestions([]);
+    }
+  }, []);
+
+  const handleCompanyChange = (e) => {
+    const val = e.target.value;
+    set('company_name', val);
+    setIsExistingCompany(false);
+    setHighlightIdx(-1);
+    clearTimeout(suggestTimer.current);
+    suggestTimer.current = setTimeout(() => fetchSuggestions(val), 250);
+    setShowSuggestions(true);
+  };
+
+  const handleSelectSuggestion = (company) => {
+    set('company_name', company.name);
+    setIsExistingCompany(true);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
+  // ドロップダウン外クリックで閉じる
+  useEffect(() => {
+    const handler = (e) => {
+      if (suggestRef.current && !suggestRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleSave = async () => {
     if (!form.company_name.trim()) return;
@@ -489,14 +650,77 @@ function NewRow({ planner, allRecords, onSave, onCancel }) {
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightIdx(i => Math.max(i - 1, -1));
+        return;
+      }
+      if (e.key === 'Enter' && highlightIdx >= 0) {
+        handleSelectSuggestion(suggestions[highlightIdx]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowSuggestions(false);
+        return;
+      }
+    }
+    if (e.key === 'Enter') handleSave();
+  };
+
   const inp = "w-full text-sm border border-indigo-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white";
+  const isNewCompany = form.company_name.trim() && !isExistingCompany;
 
   return (
     <tr className="bg-indigo-50/70 align-top">
       <td className="px-3 py-2">
-        <input className={`${inp}${ hasDuplicate ? ' border-rose-400 focus:ring-rose-300' : ''}`} placeholder="会社名 *" value={form.company_name}
-          onChange={(e) => set("company_name", e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSave()} autoFocus />
+        <div className="relative" ref={suggestRef}>
+          <input
+            className={`${inp}${hasDuplicate ? ' border-rose-400 focus:ring-rose-300' : ''}`}
+            placeholder="会社名 *"
+            value={form.company_name}
+            onChange={handleCompanyChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => form.company_name.trim() && suggestions.length > 0 && setShowSuggestions(true)}
+            autoFocus
+          />
+          {/* オートコンプリートドロップダウン */}
+          {showSuggestions && suggestions.length > 0 && (
+            <ul className="absolute z-50 left-0 right-0 max-h-48 overflow-y-auto bg-white border border-indigo-200 rounded-xl shadow-xl mt-1 py-1">
+              {suggestions.map((c, i) => (
+                <li
+                  key={c.id}
+                  onMouseDown={() => handleSelectSuggestion(c)}
+                  className={`px-3 py-2 text-sm cursor-pointer flex items-center gap-2 transition-colors ${
+                    i === highlightIdx ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <i className="fas fa-building text-xs text-indigo-400 flex-shrink-0" />
+                  <span className="truncate flex-1">{c.name}</span>
+                  <i className="fas fa-check-circle text-xs text-emerald-400 flex-shrink-0" />
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* 打合せ済みバッジ */}
+          {isExistingCompany && (
+            <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1">
+              <i className="fas fa-check-circle" /> 打合せ済み企業リストに登録済み
+            </p>
+          )}
+          {/* 新規企業 × アポ取れた → 自動登録の案内 */}
+          {isNewCompany && form.result === 'apo_taken' && (
+            <p className="mt-1 text-xs text-indigo-600 flex items-center gap-1">
+              <i className="fas fa-magic" /> 打合せ済みリスト・アポ管理に自動追加されます
+            </p>
+          )}
+        </div>
         {hasDuplicate && (
           <div className="mt-1.5 bg-rose-50 border border-rose-200 rounded-lg px-2 py-2 space-y-1.5">
             <p className="text-xs font-bold text-rose-600 flex items-center gap-1">
@@ -677,7 +901,7 @@ function RecordRow({ record, isOwn, onEdit, onDelete, showPlanner }) {
 }
 
 // ─── メインコンポーネント ─────────────────────────────────────
-export default function TeleapoManager({ currentPlanner: propPlanner }) {
+export default function TeleapoManager({ currentPlanner: propPlanner, onApoTaken }) {
   const { user } = useUser();
   const currentPlanner = propPlanner || user?.name || "";
 
@@ -743,7 +967,15 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
     setRecords((prev) => [saved, ...prev]);
     setAllRecordsForDup((prev) => [saved, ...prev]); // 重複チェック用にも追加
     setShowNewRow(false);
-    showToast("架電記録を追加しました");
+    if (saved.result === 'apo_taken') {
+      const msgs = ['架電記録を追加しました'];
+      if (saved.auto_company_created) msgs.push('打合せ済みリストに企業を登録しました');
+      if (saved.auto_appointment_created) msgs.push('アポ管理に自動追加しました');
+      showToast(msgs.join(' ／ '));
+      if (onApoTaken) onApoTaken();
+    } else {
+      showToast("架電記録を追加しました");
+    }
   };
 
   const handleSaveEdit = (saved) => {
@@ -795,6 +1027,19 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
   const safePage = Math.min(currentPage, totalPages);
   const paginatedRecords = filteredRecords.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // 全員リスト：他プランナーの架電済み企業 重複チェック
+  const normalizedAllSearch = normalizeCompany(allSearch);
+  const allSearchDuplicates = normalizedAllSearch.length >= 2
+    ? [...new Map(
+        allRecordsForDup
+          .filter(r => {
+            const n = normalizeCompany(r.company_name);
+            return r.planner !== currentPlanner && n.length > 0 && (n.includes(normalizedAllSearch) || normalizedAllSearch.includes(n));
+          })
+          .map(r => [normalizeCompany(r.company_name), r])
+      ).values()]
+    : [];
+
   const thCls = "px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider";
 
   return (
@@ -810,7 +1055,7 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
           }`}
         >
           <i className="fas fa-phone-volume" />
-          打合せ済みリスト
+          打合せ済み企業リスト
         </button>
         <button
           onClick={() => setTab("mine")}
@@ -819,7 +1064,7 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
           }`}
         >
           <i className="fas fa-user mr-2" />
-          自分のリスト
+          個人テレアポリスト
         </button>
         <button
           onClick={() => setTab("all")}
@@ -828,19 +1073,13 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
           }`}
         >
           <i className="fas fa-users mr-2" />
-          全員リスト
+          全員架電ログリスト
         </button>
       </div>
 
       {/* 打合せ済みリストタブ */}
       {tab === "list" && (
-        <CallListTab
-          currentPlanner={currentPlanner}
-          onRecordSaved={(saved) => {
-            setRecords(prev => [saved, ...prev]);
-            setAllRecordsForDup(prev => [saved, ...prev]);
-          }}
-        />
+        <CompanyListTab />
       )}
 
       {/* 以下は mine / all タブのみ表示 */}
@@ -898,7 +1137,11 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
               placeholder="会社名で検索"
               value={allSearch}
               onChange={(e) => setAllSearch(e.target.value)}
-              className="text-sm border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 w-44"
+              className={`text-sm border rounded-xl pl-8 pr-3 py-1.5 bg-white focus:outline-none focus:ring-2 w-44 ${
+                allSearchDuplicates.length > 0
+                  ? 'border-rose-400 focus:ring-rose-300'
+                  : 'border-slate-200 focus:ring-indigo-300'
+              }`}
             />
           </div>
           <div className="flex items-center gap-2">
@@ -939,6 +1182,23 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
               <i className="fas fa-times" /> リセット
             </button>
           )}
+          {allSearchDuplicates.length > 0 && (
+            <div className="w-full mt-1 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 space-y-2">
+              <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5">
+                <i className="fas fa-ban" /> 他のプランナーがすでに架電している企業です
+              </p>
+              {allSearchDuplicates.slice(0, 3).map(r => (
+                <div key={r.id} className="flex items-center gap-2 text-xs text-rose-500">
+                  <span className="font-semibold truncate max-w-[12rem]">{r.company_name}</span>
+                  <span className="text-rose-400 whitespace-nowrap">{r.planner} / {r.call_date}</span>
+                  <ResultBadge result={r.result} />
+                </div>
+              ))}
+              {allSearchDuplicates.length > 3 && (
+                <p className="text-xs text-rose-400">他{allSearchDuplicates.length - 3}件…</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -962,7 +1222,7 @@ export default function TeleapoManager({ currentPlanner: propPlanner }) {
         {/* テーブルヘッダー部 + 追加ボタン */}
         <div className="flex items-center justify-between px-6 py-3 bg-slate-50 border-b border-slate-100">
           <p className="text-sm font-semibold text-slate-700">
-            {tab === "mine" ? `${currentPlanner}さんの打合せ済みリスト` : "全プランナー打合せ済みリスト"}
+            {tab === "mine" ? `${currentPlanner}さんの個人テレアポリスト` : "全員架電ログリスト"}
           </p>
           {tab === "mine" && !showNewRow && (
             <button

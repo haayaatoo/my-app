@@ -625,310 +625,6 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
 }
 
 // ────────────────────────────────────────────────
-// 月次プロジェクトレポート
-// ────────────────────────────────────────────────
-const MONTHLY_STORAGE_KEY = "prodia_monthly_reports";
-
-function loadMonthlyReports() {
-  try { return JSON.parse(localStorage.getItem(MONTHLY_STORAGE_KEY) || "[]"); }
-  catch { return []; }
-}
-function saveMonthlyReports(reports) {
-  localStorage.setItem(MONTHLY_STORAGE_KEY, JSON.stringify(reports));
-}
-function fmtYM(ym) {
-  const [y, m] = ym.split("-");
-  return `${y}年${Number(m)}月`;
-}
-
-function MonthlyProjectReport({ idrEngineers, partnerEngineers }) {
-  const today = new Date();
-  const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-
-  const autoIdr   = idrEngineers.filter(e => e.engineer_status === "アサイン済").length;
-  const autoBp    = partnerEngineers.filter(e => ["active", "upcoming"].includes(e.status)).length;
-  const autoTotal = autoIdr + autoBp;
-
-  const [reports, setReports] = useState(() => {
-    const stored = loadMonthlyReports();
-    if (!stored.find(r => r.year_month === currentYM)) {
-      return [{ year_month: currentYM, idr_count: autoIdr, bp_count: autoBp, total_count: autoTotal, note: "", is_auto: true, locked: false }, ...stored];
-    }
-    return stored;
-  });
-
-  const [editingYM, setEditingYM] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ year_month: "", idr_count: "", bp_count: "", note: "" });
-
-  // 自動算出値の同期（engineerデータ更新時）
-  useEffect(() => {
-    setReports(prev => prev.map(r =>
-      r.year_month === currentYM && r.is_auto
-        ? { ...r, idr_count: autoIdr, bp_count: autoBp, total_count: autoTotal }
-        : r
-    ));
-  }, [autoIdr, autoBp, autoTotal]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => { saveMonthlyReports(reports); }, [reports]);
-
-  // 降順ソート＋純増計算
-  const sorted = [...reports].sort((a, b) => b.year_month.localeCompare(a.year_month));
-  const withNet = sorted.map((r, i) => {
-    const prev = sorted[i + 1];
-    return {
-      ...r,
-      net_increase: prev != null ? r.total_count - prev.total_count : null,
-      net_idr:      prev != null ? r.idr_count   - prev.idr_count   : null,
-      net_bp:       prev != null ? r.bp_count    - prev.bp_count    : null,
-    };
-  });
-
-  // チャート用直近12ヶ月（昇順）
-  const chartData = [...withNet].reverse().slice(-12);
-  const maxVal    = Math.max(...chartData.map(r => r.total_count), 1);
-
-  const handleEdit = (r) => {
-    setEditingYM(r.year_month);
-    setEditForm({ idr_count: r.idr_count, bp_count: r.bp_count, note: r.note || "" });
-  };
-  const handleSaveEdit = (ym) => {
-    setReports(prev => prev.map(r => {
-      if (r.year_month !== ym) return r;
-      const idr = Math.max(Number(editForm.idr_count) || 0, 0);
-      const bp  = Math.max(Number(editForm.bp_count)  || 0, 0);
-      return { ...r, idr_count: idr, bp_count: bp, total_count: idr + bp, note: editForm.note, is_auto: false };
-    }));
-    setEditingYM(null);
-  };
-  const handleLock   = (ym) => setReports(prev => prev.map(r => r.year_month === ym ? { ...r, locked: true, is_auto: false } : r));
-  const handleUnlock = (ym) => setReports(prev => prev.map(r => r.year_month === ym ? { ...r, locked: false } : r));
-  const handleConfirmAdd = () => {
-    if (!addForm.year_month) return;
-    const idr = Math.max(Number(addForm.idr_count) || 0, 0);
-    const bp  = Math.max(Number(addForm.bp_count)  || 0, 0);
-    setReports(prev => {
-      if (prev.find(r => r.year_month === addForm.year_month)) return prev;
-      return [{ year_month: addForm.year_month, idr_count: idr, bp_count: bp, total_count: idr + bp, note: addForm.note, is_auto: false, locked: false }, ...prev];
-    });
-    setShowAddModal(false);
-    setAddForm({ year_month: "", idr_count: "", bp_count: "", note: "" });
-  };
-
-  const currentNetIdr = withNet.find(r => r.year_month === currentYM)?.net_idr;
-  const currentNetBp  = withNet.find(r => r.year_month === currentYM)?.net_bp;
-
-  return (
-    <div className="flex-1 overflow-auto px-6 py-5 space-y-5">
-      {/* KPIカード */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <p className="text-xs text-slate-400 font-medium mb-1">今月プロジェクト総数</p>
-          <p className="text-3xl font-bold text-slate-800">{autoTotal}<span className="text-sm font-normal text-slate-400 ml-1">件</span></p>
-          <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>自動算出（IDR+BP）
-          </p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-blue-100">
-          <p className="text-xs text-slate-400 font-medium mb-1">IDR稼働中</p>
-          <p className="text-3xl font-bold text-blue-600">{autoIdr}<span className="text-sm font-normal text-slate-400 ml-1">名</span></p>
-          <p className="text-xs text-slate-400 mt-1">アサイン済エンジニア</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-indigo-100">
-          <p className="text-xs text-slate-400 font-medium mb-1">BP稼働中/予定</p>
-          <p className="text-3xl font-bold text-indigo-600">{autoBp}<span className="text-sm font-normal text-slate-400 ml-1">名</span></p>
-          <p className="text-xs text-slate-400 mt-1">active / upcoming</p>
-        </div>
-        <div className={`bg-white rounded-2xl p-5 shadow-sm border ${currentNetIdr == null ? "border-slate-100" : currentNetIdr >= 0 ? "border-blue-100" : "border-red-100"}`}>
-          <p className="text-xs text-slate-400 font-medium mb-1">IDR純増（前月比）</p>
-          <p className={`text-3xl font-bold ${currentNetIdr == null ? "text-slate-300" : currentNetIdr >= 0 ? "text-blue-600" : "text-red-500"}`}>
-            {currentNetIdr == null ? "--" : (currentNetIdr >= 0 ? "+" : "") + currentNetIdr}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">{currentNetIdr == null ? "前月データなし" : `前月比 ${currentNetIdr >= 0 ? "+" : ""}${currentNetIdr}件`}</p>
-        </div>
-        <div className={`bg-white rounded-2xl p-5 shadow-sm border ${currentNetBp == null ? "border-slate-100" : currentNetBp >= 0 ? "border-indigo-100" : "border-red-100"}`}>
-          <p className="text-xs text-slate-400 font-medium mb-1">BP純増（前月比）</p>
-          <p className={`text-3xl font-bold ${currentNetBp == null ? "text-slate-300" : currentNetBp >= 0 ? "text-indigo-600" : "text-red-500"}`}>
-            {currentNetBp == null ? "--" : (currentNetBp >= 0 ? "+" : "") + currentNetBp}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">{currentNetBp == null ? "前月データなし" : `前月比 ${currentNetBp >= 0 ? "+" : ""}${currentNetBp}件`}</p>
-        </div>
-      </div>
-
-      {/* 棒グラフ */}
-      {chartData.length > 1 && (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <div className="flex items-center gap-3 mb-4">
-            <h3 className="font-semibold text-slate-700 flex items-center gap-2">
-              <i className="fas fa-chart-bar text-amber-500 text-sm"></i>
-              月次推移（直近12ヶ月）
-            </h3>
-            <div className="flex items-center gap-4 ml-auto text-xs text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-blue-400 inline-block"></span>IDR</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-indigo-400 inline-block"></span>BP</span>
-            </div>
-          </div>
-          <div className="flex items-end gap-2 h-36">
-            {chartData.map((r) => {
-              const barH = Math.max(Math.round((r.total_count / maxVal) * 108), r.total_count > 0 ? 4 : 0);
-              const idrFlex = r.idr_count || 0.001;
-              const bpFlex  = r.bp_count  || 0.001;
-              return (
-                <div key={r.year_month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                  {r.total_count > 0 && <span className="text-[10px] text-slate-500 font-medium">{r.total_count}</span>}
-                  <div className="w-full flex flex-col rounded-t overflow-hidden" style={{ height: `${barH}px` }}>
-                    <div style={{ flex: bpFlex,  backgroundColor: "#818cf8" }}></div>
-                    <div style={{ flex: idrFlex, backgroundColor: "#60a5fa" }}></div>
-                  </div>
-                  <span className="text-[9px] text-slate-400 truncate">{Number(r.year_month.split("-")[1])}月</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 月次テーブル */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-700">月次プロジェクト記録</h3>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors font-medium"
-          >
-            <i className="fas fa-plus text-[10px]"></i> 過去月を追加
-          </button>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>
-              <th className="px-5 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wide">年月</th>
-              <th className="px-5 py-3 text-right text-xs font-bold text-blue-400 uppercase tracking-wide">IDR</th>
-              <th className="px-5 py-3 text-right text-xs font-bold text-indigo-400 uppercase tracking-wide">BP</th>
-              <th className="px-5 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wide">総数</th>
-              <th className="px-5 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wide">純増</th>
-              <th className="px-5 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wide">メモ</th>
-              <th className="px-5 py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wide">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {withNet.map((r) => {
-              const isCurrent = r.year_month === currentYM;
-              const isEditing = editingYM === r.year_month;
-              const ni = r.net_increase;
-              return (
-                <tr key={r.year_month} className={`${isCurrent ? "bg-amber-50/40" : ""} hover:bg-slate-50/60 transition-colors`}>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800">{fmtYM(r.year_month)}</span>
-                      {isCurrent && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">今月</span>}
-                      {r.is_auto && !r.locked && <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full">自動</span>}
-                      {r.locked && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full flex items-center gap-1"><i className="fas fa-lock text-[8px]"></i>確定</span>}
-                    </div>
-                  </td>
-                  {isEditing ? (
-                    <>
-                      <td className="px-5 py-2">
-                        <input type="number" min="0" className="w-16 text-right border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" value={editForm.idr_count} onChange={e => setEditForm(f => ({ ...f, idr_count: e.target.value }))} />
-                      </td>
-                      <td className="px-5 py-2">
-                        <input type="number" min="0" className="w-16 text-right border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" value={editForm.bp_count} onChange={e => setEditForm(f => ({ ...f, bp_count: e.target.value }))} />
-                      </td>
-                      <td className="px-5 py-2 text-right font-bold text-slate-700">
-                        {(Math.max(Number(editForm.idr_count) || 0, 0)) + (Math.max(Number(editForm.bp_count) || 0, 0))}
-                      </td>
-                      <td className="px-5 py-2"></td>
-                      <td className="px-5 py-2">
-                        <input className="w-full border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="メモ" value={editForm.note} onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))} />
-                      </td>
-                      <td className="px-5 py-2">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => handleSaveEdit(r.year_month)} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 rounded-lg transition-colors">保存</button>
-                          <button onClick={() => setEditingYM(null)} className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1">取消</button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-5 py-3 text-right font-semibold text-blue-600">{r.idr_count}</td>
-                      <td className="px-5 py-3 text-right font-semibold text-indigo-600">{r.bp_count}</td>
-                      <td className="px-5 py-3 text-right font-bold text-slate-800">{r.total_count}</td>
-                      <td className="px-5 py-3 text-right">
-                        {ni == null
-                          ? <span className="text-slate-300 text-xs">--</span>
-                          : <span className={`font-bold text-sm ${ni > 0 ? "text-emerald-600" : ni < 0 ? "text-red-500" : "text-slate-400"}`}>{ni > 0 ? "+" : ""}{ni}</span>
-                        }
-                      </td>
-                      <td className="px-5 py-3 text-slate-500 text-xs max-w-[200px] truncate">{r.note || <span className="text-slate-200">--</span>}</td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center justify-center gap-1">
-                          {!r.locked ? (
-                            <>
-                              <button onClick={() => handleEdit(r)} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-400 hover:text-amber-600 flex items-center justify-center transition-colors" title="編集">
-                                <i className="fas fa-pen text-[10px]"></i>
-                              </button>
-                              {!isCurrent && (
-                                <button onClick={() => handleLock(r.year_month)} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors" title="確定する">
-                                  <i className="fas fa-lock text-[10px]"></i>
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <button onClick={() => handleUnlock(r.year_month)} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-400 hover:text-amber-600 flex items-center justify-center transition-colors" title="確定解除">
-                              <i className="fas fa-unlock text-[10px]"></i>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* 過去月追加モーダル */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-[380px] p-6 space-y-4">
-            <h2 className="font-bold text-slate-800 flex items-center gap-2">
-              <i className="fas fa-calendar-plus text-amber-500"></i> 過去月を追加
-            </h2>
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">年月</label>
-              <input type="month" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" value={addForm.year_month} max={currentYM} onChange={e => setAddForm(f => ({ ...f, year_month: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">IDR件数</label>
-                <input type="number" min="0" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" value={addForm.idr_count} onChange={e => setAddForm(f => ({ ...f, idr_count: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">BP件数</label>
-                <input type="number" min="0" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" value={addForm.bp_count} onChange={e => setAddForm(f => ({ ...f, bp_count: e.target.value }))} />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">メモ（任意）</label>
-              <input className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="例: 新規参画2名" value={addForm.note} onChange={e => setAddForm(f => ({ ...f, note: e.target.value }))} />
-            </div>
-            <p className="text-xs text-slate-400">※ 同じ年月のデータは上書きできません（既存を編集してください）</p>
-            <div className="flex gap-3">
-              <button onClick={handleConfirmAdd} disabled={!addForm.year_month} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-40">追加する</button>
-              <button onClick={() => setShowAddModal(false)} className="px-4 border border-slate-200 text-slate-500 rounded-xl text-sm hover:bg-slate-50">キャンセル</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────
 // 案件一覧ビュー
 // ────────────────────────────────────────────────
 function DealListView({ deals, loading, onClickDeal }) {
@@ -1119,7 +815,6 @@ export default function DealPipeline() {
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [newDealStage, setNewDealStage] = useState("open_system");
   const [engineers, setEngineers] = useState([]);
-  const [partnerEngineers, setPartnerEngineers] = useState([]);
   const [activeView, setActiveView] = useState("pipeline");
   const dragDeal = useRef(null);
 
@@ -1150,18 +845,10 @@ export default function DealPipeline() {
     } catch (e) {}
   };
 
-  const fetchPartnerEngineers = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/partner-engineers/`);
-      if (res.ok) setPartnerEngineers(await res.json());
-    } catch (e) {}
-  };
-
   useEffect(() => {
     fetchPipeline();
     fetchAllDeals();
     fetchEngineers();
-    fetchPartnerEngineers();
   }, []);
 
   // ドラッグ＆ドロップ
@@ -1257,7 +944,6 @@ export default function DealPipeline() {
               <h1 className="text-xl font-bold text-slate-800">案件回収管理</h1>
               <p className="text-xs text-slate-400 mt-0.5">
                 {activeView === "pipeline" ? "ドラッグ＆ドロップでジャンルを移動できます"
-                  : activeView === "monthly" ? "IDR・BPのアサイン状況から自動算出。手動修正も可能です"
                   : "案件を検索・絞り込みできます"}
               </p>
             </div>
@@ -1275,14 +961,12 @@ export default function DealPipeline() {
             </div>
           </div>
 
-          {activeView !== "monthly" && (
-            <button
+          <button
               onClick={() => { setNewDealStage("open_system"); setShowNewDeal(true); }}
               className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-md flex items-center gap-2"
             >
               <span className="text-lg">+</span> 案件概要追加
             </button>
-          )}
         </div>
 
         {/* ── Salesforce スタイル タブ ── */}
@@ -1290,7 +974,6 @@ export default function DealPipeline() {
           {[
             { key: "pipeline", label: "かんばん", icon: "fas fa-columns" },
             { key: "list",     label: "一覧",         icon: "fas fa-list" },
-            { key: "monthly",  label: "月次レポート",  icon: "fas fa-chart-bar" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -1309,12 +992,7 @@ export default function DealPipeline() {
       </div>
 
       {/* ── ビュー切り替え ── */}
-      {activeView === "monthly" ? (
-        <MonthlyProjectReport
-          idrEngineers={engineers}
-          partnerEngineers={partnerEngineers}
-        />
-      ) : activeView === "pipeline" ? (
+      {activeView === "pipeline" ? (
         loading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-slate-400 text-sm animate-pulse">読み込み中...</div>

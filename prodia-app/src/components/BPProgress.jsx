@@ -396,17 +396,6 @@ export default function BPProgress() {
   return (
     <div className="p-8 bg-gradient-to-br from-stone-50 via-amber-50/20 to-slate-100">
       <div className="max-w-[1800px] mx-auto">
-        {/* 新規登録ボタン */}
-        <div className="mb-8 flex justify-end">
-          <button
-            onClick={() => setShowNewProspectModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium"
-          >
-            <i className="fas fa-plus"></i>
-            新規見込み登録
-          </button>
-        </div>
-
         {/* プランナー別面談件数サマリー */}
         <div className="mb-8 bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-slate-700 mb-4 flex items-center gap-2">
@@ -501,8 +490,17 @@ export default function BPProgress() {
               <option value="低">低</option>
             </select>
 
-            <div className="ml-auto text-slate-600">
-              表示件数: <span className="font-bold text-amber-600">{filteredProspects.length}</span> / {prospects.length}
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-slate-600 text-sm">
+                表示件数: <span className="font-bold text-amber-600">{filteredProspects.length}</span> / {prospects.length}
+              </span>
+              <button
+                onClick={() => setShowNewProspectModal(true)}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-xl hover:shadow-md transition-all duration-300 flex items-center gap-2 font-medium text-sm"
+              >
+                <i className="fas fa-plus text-xs"></i>
+                新規見込み登録
+              </button>
             </div>
           </div>
         </div>

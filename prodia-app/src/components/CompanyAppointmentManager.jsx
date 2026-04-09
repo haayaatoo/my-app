@@ -19,6 +19,69 @@ const THEME_PALETTE = [
 
 const getPlannerTheme = (name) => THEME_PALETTE[PLANNERS.indexOf(name) % THEME_PALETTE.length];
 
+// DBには「温水 飛和」のようなフルネームが入る場合もあるため、姓のみまたは完全一致どちらでもOK
+const plannerMatches = (aptPlanner, plannerName) =>
+  aptPlanner === plannerName ||
+  aptPlanner.startsWith(plannerName + ' ') ||
+  aptPlanner.startsWith(plannerName + '　');
+
+// 件数・ランク別のやる気メッセージプール
+const MOTIVATION_POOL = {
+  zero: [
+    { badge: "🔥", text: "最初の一歩を！",   sub: "行動が全ての始まり" },
+    { badge: "⚡", text: "エンジン全開！",   sub: "今すぐ動き出そう" },
+    { badge: "🚀", text: "発射台に立て！",   sub: "いつでも飛び立てる" },
+    { badge: "🎯", text: "狙い定めろ！",     sub: "準備はいい？" },
+    { badge: "🌟", text: "スタート切れ！",   sub: "始めれば道は開ける" },
+    { badge: "👊", text: "尊ってない！",   sub: "今から巻き返せる" },
+    { badge: "💡", text: "チャンス待ちだ！",   sub: "次のアポを摑め！" },
+    { badge: "🌈", text: "雲の向こう！",     sub: "未来は自分で作る" },
+  ],
+  low: [
+    { badge: "💪", text: "動き出した！",   sub: "この調子で積み上げろ" },
+    { badge: "🌱", text: "芽が出た！",     sub: "ここから加速しよう" },
+    { badge: "📈", text: "上昇開始！",     sub: "まだまだ伸びしろあり" },
+    { badge: "🎵", text: "リズム刷け！",   sub: "コツコツが最強" },
+    { badge: "🔑", text: "鍵は握った！",   sub: "扉を開けよう" },
+    { badge: "✨", text: "波長合ってきた！",sub: "この波に乗れ！" },
+  ],
+  mid: [
+    { badge: "💪", text: "いい調子！",     sub: "その調子で頑張れ！" },
+    { badge: "🌊", text: "波に乗れ！",     sub: "この勢いを維持せよ" },
+    { badge: "🔥", text: "熱が入ってる！",   sub: "モメンタム最高潮" },
+    { badge: "⚡", text: "絶好調！",       sub: "止まるな突き進め" },
+    { badge: "🎯", text: "的を射てる！",   sub: "正確に仕留めろ" },
+    { badge: "🆙", text: "ドライブ中！",   sub: "止まるなフルスロットル" },
+  ],
+  high: [
+    { badge: "🚀", text: "爆速前進中！",   sub: "誰も止められない" },
+    { badge: "🌟", text: "輝いてる！",     sub: "周りを圧倒せよ" },
+    { badge: "🔥", text: "燃えてる！",     sub: "この炎を絶やすな" },
+    { badge: "👑", text: "王者の風格！",   sub: "頂点は目の前" },
+    { badge: "⚡", text: "超速モード！",   sub: "加速は止まらない" },
+    { badge: "🎉", text: "ヒーロー登場！", sub: "本物の実力見せつけろ" },
+  ],
+  top: [
+    { badge: "🏆", text: "1位キープ！",   sub: "最高のパフォーマンス！" },
+    { badge: "👑", text: "王者の貫迾！",   sub: "誰も追いつけない" },
+    { badge: "🌟", text: "独走状態！",     sub: "まだまだ差を広げろ" },
+    { badge: "🔥", text: "圧倒的１位！",   sub: "チームを引っ張れ" },
+    { badge: "⚡", text: "無敵状態！",     sub: "あなたが最強だ" },
+    { badge: "🎉", text: "パーフェクト！", sub: "これがプロの仕事" },
+  ],
+  second: [
+    { badge: "🥈", text: "追い上げろ！",   sub: "もうすぐ１位だ！" },
+    { badge: "🎯", text: "射程圈内！",     sub: "あと一息で逆転" },
+    { badge: "🔥", text: "背中は見えた！",   sub: "全力で追い越せ" },
+    { badge: "⚡", text: "ラストスパート！", sub: "今こそ本気を出せ" },
+    { badge: "💪", text: "諷めるな！",     sub: "逆転の時は近い" },
+    { badge: "🌟", text: "輝くのは今！",   sub: "全てを越えていけ！" },
+  ],
+};
+
+/** ページロード時に1回だけ生成したランダムシード（プランナー別） */
+const INITIAL_SEEDS = Object.fromEntries(PLANNERS.map(name => [name, Math.random()]));
+
 const STATUS_LABELS = {
   scheduled: { label: "予定", color: "bg-blue-100 text-blue-700 border-blue-200" },
   completed: { label: "完了", color: "bg-green-100 text-green-700 border-green-200" },
@@ -544,6 +607,13 @@ function CompanyMasterModal({ onClose, onRefresh }) {
 
 // ─── メインコンポーネント ─────────────────────────────────────
 export default function CompanyAppointmentManager() {
+  // ページリロードごとに変わるランダムシード（マウント時に一度だけ生成）
+  const [msgSeeds] = useState(() => Object.fromEntries(PLANNERS.map(n => [n, Math.random()])));
+  const pickMsg = (pool, name) => {
+    const seed = msgSeeds[name] ?? INITIAL_SEEDS[name] ?? 0;
+    return pool[Math.floor(seed * pool.length)];
+  };
+
   const [mainTab, setMainTab] = useState("teleapo"); // "apo" | "teleapo"
   const [appointments, setAppointments] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -608,7 +678,7 @@ export default function CompanyAppointmentManager() {
 
   // フィルタリング
   const filtered = appointments.filter((apt) => {
-    const plannerMatch = filterPlanner ? apt.planner === filterPlanner : true;
+    const plannerMatch = filterPlanner ? plannerMatches(apt.planner, filterPlanner) : true;
     const statusMatch = filterStatus ? apt.status === filterStatus : true;
     const searchMatch = searchCompany
       ? apt.company_name?.toLowerCase().includes(searchCompany.toLowerCase())
@@ -635,8 +705,8 @@ export default function CompanyAppointmentManager() {
     totalCompleted: monthlyApts.filter((a) => a.status === "completed").length,
     byPlanner: PLANNERS.map((p) => ({
       name: p,
-      count: monthlyApts.filter((a) => a.planner === p && a.status === "scheduled").length,
-      completed: monthlyApts.filter((a) => a.planner === p && a.status === "completed").length,
+      count: monthlyApts.filter((a) => plannerMatches(a.planner, p) && a.status === "scheduled").length,
+      completed: monthlyApts.filter((a) => plannerMatches(a.planner, p) && a.status === "completed").length,
     })),
   };
 
@@ -757,7 +827,7 @@ export default function CompanyAppointmentManager() {
 
       {/* テレアポタブ */}
       {mainTab === "teleapo" && (
-        <TeleapoManager />
+        <TeleapoManager onApoTaken={fetchAll} />
       )}
 
       {/* アポ管理タブ */}
@@ -907,10 +977,12 @@ export default function CompanyAppointmentManager() {
               const progressPct = Math.round((p.count / maxCount) * 100);
 
               let motivation;
-              if (isTop)    motivation = { badge: "🏆", text: "1位キープ！", sub: "最高のパフォーマンス！" };
-              else if (isSecond) motivation = { badge: "🥈", text: "追い上げろ！", sub: "もうすぐ泣です！" };
-              else if (p.count === 0) motivation = { badge: "🔥", text: "最初の一歩を！", sub: "行動が全ての始まり" };
-              else motivation = { badge: "💪", text: "いい調子！", sub: "その調子で頑張れ！" };
+              if (isTop)        motivation = pickMsg(MOTIVATION_POOL.top, p.name);
+              else if (isSecond) motivation = pickMsg(MOTIVATION_POOL.second, p.name);
+              else if (p.count === 0) motivation = pickMsg(MOTIVATION_POOL.zero, p.name);
+              else if (p.count <= 2)  motivation = pickMsg(MOTIVATION_POOL.low, p.name);
+              else if (p.count <= 5)  motivation = pickMsg(MOTIVATION_POOL.mid, p.name);
+              else                    motivation = pickMsg(MOTIVATION_POOL.high, p.name);
 
               return (
                 <div

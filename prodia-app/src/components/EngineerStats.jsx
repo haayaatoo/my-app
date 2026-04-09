@@ -647,7 +647,7 @@ const EngineerStats = ({ engineers }) => {
       .filter(i => i.status === '成約' && i.start_month === selectedMonth)
       .map(i => ({ ...i, planner: i.sales_person, type: 'PP' }));
     const bpWon = bpProspects
-      .filter(p => p.status === '成約' && typeof p.interview_date === 'string' && p.interview_date.substring(0, 7) === selectedMonth)
+      .filter(p => p.status === '成約' && p.start_month === selectedMonth)
       .map(p => ({ ...p, planner: p.main_planner, type: 'BP' }));
     return [...ppWon, ...bpWon];
   }, [ppInterviews, bpProspects, selectedMonth]);
@@ -658,11 +658,10 @@ const EngineerStats = ({ engineers }) => {
     i.status === '成約' && i.start_month === currentMonthStr
   ).length;
   
-  // BP進捗の実データを使用（面談日が当月の成約件数）
+  // BP進捗の実データを使用（開始月が当月の成約件数）
   const bpDecisions = bpProspects.filter(p =>
     p.status === '成約' &&
-    typeof p.interview_date === 'string' &&
-    p.interview_date.substring(0, 7) === currentMonthStr
+    p.start_month === currentMonthStr
   ).length;
   const inProgressCount = ppInterviews.filter(i => 
     ['日程調整中', '面談予定', '面談済み', '回答待ち'].includes(i.status) &&
@@ -680,8 +679,7 @@ const EngineerStats = ({ engineers }) => {
   ).length;
   const bpPrevMonth = bpProspects.filter(p =>
     p.status === '成約' &&
-    typeof p.interview_date === 'string' &&
-    p.interview_date.substring(0, 7) === prevMonthStr
+    p.start_month === prevMonthStr
   ).length;
   
   // 前月比

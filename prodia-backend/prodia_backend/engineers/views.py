@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.db import transaction
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord, MonthlyProjectReport
 from .serializers import (
     EngineerSerializer, 
     SkillSheetSerializer, 
@@ -28,7 +28,7 @@ from .serializers import (
     ProjectAssignmentSerializer,
 )
 
-from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer
+from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, MonthlyProjectReportSerializer
 
 class EngineerViewSet(viewsets.ModelViewSet):
     queryset = Engineer.objects.all()
@@ -62,6 +62,7 @@ class EngineerViewSet(viewsets.ModelViewSet):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
 
+    @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulk_create(self, request):
         """CSV一括登録API"""
         engineers_data = request.data.get('engineers', [])
@@ -1145,6 +1146,34 @@ class TeleapoRecordViewSet(viewsets.ModelViewSet):
             qs = qs.filter(result=result)
         return qs
 
+    def create(self, request, *args, **kwargs):
+        """架電記録を保存。アポ取れた の場合は打合せ済み企業リストとアポ管理に自動登録。"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        record = serializer.save()
+        headers = self.get_success_headers(serializer.data)
+
+        response_data = dict(serializer.data)
+
+        # アポ取れた の場合: 企業を打合せ済みリストに追加し、アポ管理にも自動登録
+        if record.result == 'apo_taken':
+            company_obj, company_created = Company.objects.get_or_create(
+                name=record.company_name
+            )
+            _, apt_created = CompanyAppointment.objects.get_or_create(
+                company=company_obj,
+                planner=record.planner,
+                appointment_date=record.call_date,
+                defaults={
+                    'status': 'scheduled',
+                    'notes': f'テレアポから自動登録（架電日: {record.call_date}）',
+                },
+            )
+            response_data['auto_company_created'] = company_created
+            response_data['auto_appointment_created'] = apt_created
+
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+
     @action(detail=False, methods=['get'])
     def company_history(self, request):
         """企業名で架電履歴を検索"""
@@ -1155,3 +1184,41 @@ class TeleapoRecordViewSet(viewsets.ModelViewSet):
             company_name__icontains=company
         ).order_by('-call_date', '-created_at')
         return Response(TeleapoRecordSerializer(records, many=True).data)
+
+
+# ===============================
+# 月次プロジェクトレポート ViewSet
+# ===============================
+
+class MonthlyProjectReportViewSet(viewsets.ModelViewSet):
+    """月次プロジェクトレポート CRUD"""
+    queryset = MonthlyProjectReport.objects.all().order_by('-year_month')
+    serializer_class = MonthlyProjectReportSerializer
+    permission_classes = [AllowAny]
+
+    @action(detail=False, methods=['post'])
+    def ensure_current(self, request):
+        """
+        今月のレコードが存在しなければ自動で作成して返す。
+        フロントが画面表示時に呼ぶ。
+        """
+        from datetime import date
+        ym = date.today().strftime('%Y-%m')
+        idr_count = int(request.data.get('idr_count', 0))
+        bp_count  = int(request.data.get('bp_count', 0))
+        report, created = MonthlyProjectReport.objects.get_or_create(
+            year_month=ym,
+            defaults={
+                'idr_count': idr_count,
+                'bp_count':  bp_count,
+                'is_auto':   True,
+                'locked':    False,
+            }
+        )
+        # 自動算出フラグが立っている場合は最新値で上書き
+        if not created and report.is_auto and not report.locked:
+            report.idr_count = idr_count
+            report.bp_count  = bp_count
+            report.save()
+        return Response(MonthlyProjectReportSerializer(report).data,
+                        status=status.HTTP_200_OK)

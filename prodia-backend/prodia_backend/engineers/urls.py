@@ -12,6 +12,7 @@ from .views import (
     ProjectViewSet, ProjectAssignmentViewSet,
     PartnerEngineerViewSet,
     TeleapoRecordViewSet,
+    MonthlyProjectReportViewSet,
 )
 from . import calendar_views
 
@@ -30,6 +31,7 @@ router.register(r'projects', ProjectViewSet)
 router.register(r'project-assignments', ProjectAssignmentViewSet)
 router.register(r'partner-engineers', PartnerEngineerViewSet)
 router.register(r'teleapo', TeleapoRecordViewSet)
+router.register(r'monthly-reports', MonthlyProjectReportViewSet)
 
 urlpatterns = router.urls + [
     path('auth/login/', login_view, name='login'),

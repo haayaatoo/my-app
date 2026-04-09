@@ -17,7 +17,19 @@ import UtilizationDashboard from "./components/UtilizationDashboard";
 
 const CS_CASE_ALLOWED = ['y-okada@1dr.co.jp'];
 
-const INTERVIEWS_ALLOWED = ['kamiya@1dr.co.jp', 'asai@1dr.co.jp', 'h-setoyama@1dr.co.jp', 'i-uemae@1dr.co.jp', 't-nukumizu@1dr.co.jp'];
+const INTERVIEWS_ALLOWED = [
+  'kamiya@1dr.co.jp',      // 上谷
+  'asai@1dr.co.jp',        // 浅井
+  'a-inagaki@1dr.co.jp',   // 稲垣
+  't-nukumizu@1dr.co.jp',  // 温水
+  'h-setoyama@1dr.co.jp',  // 瀬戸山
+  'i-uemae@1dr.co.jp',     // 上前
+  'y-okada@1dr.co.jp',     // 岡田
+  'n-yamaguchi@1dr.co.jp', // 山口
+  'r-noda@1dr.co.jp',      // 野田
+  's-hattori@1dr.co.jp',   // 服部
+  'h-imamura@1dr.co.jp',   // 今村
+];
 
 // Linear風シンプルナビゲーションボタン
 function NavButton({ isActive, onClick, iconClass, label, activeColors, collapsed }) {
@@ -64,7 +76,7 @@ function MainLayout({ page, setPage, handleLogout }) {
     if (page === "hr-evaluation" && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp') {
       setPage("dashboard");
     }
-    if (page === "recruitment-marketing" && user && user.email !== 'kamiya@1dr.co.jp' && user.email !== 'asai@1dr.co.jp' && user.email !== 'a-inagaki@1dr.co.jp') {
+    if (page === "recruitment-marketing") {
       setPage("dashboard");
     }
     if (page === "cs-cases" && !canViewCsCases) {
@@ -166,7 +178,7 @@ function MainLayout({ page, setPage, handleLogout }) {
               }}
               collapsed={collapsed}
             />
-            {user && !['h-setoyama@1dr.co.jp', 'i-uemae@1dr.co.jp'].includes(user.email) && (
+            {user && INTERVIEWS_ALLOWED.includes(user.email) && (
               <NavButton
                 isActive={page === "skill-sheets"}
                 onClick={() => setPage("skill-sheets")}
@@ -181,7 +193,7 @@ function MainLayout({ page, setPage, handleLogout }) {
                 collapsed={collapsed}
               />
             )}
-            {user && ['kamiya@1dr.co.jp', 'asai@1dr.co.jp', 'h-setoyama@1dr.co.jp', 'i-uemae@1dr.co.jp', 't-nukumizu@1dr.co.jp'].includes(user.email) && (
+            {user && INTERVIEWS_ALLOWED.includes(user.email) && (
               <NavButton
                 isActive={page === "interviews"}
                 onClick={() => setPage("interviews")}
@@ -211,13 +223,13 @@ function MainLayout({ page, setPage, handleLogout }) {
             />
           </div>
 
-          {/* ── 組織・採用（権限ある人のみセクションごと表示） ── */}
-          {((user && ['kamiya@1dr.co.jp', 'asai@1dr.co.jp', 'a-inagaki@1dr.co.jp'].includes(user.email)) || canViewCsCases) && (
+          {/* ── 組織（権限ある人のみセクションごと表示） ── */}
+          {((user && (user.email === 'kamiya@1dr.co.jp' || user.email === 'asai@1dr.co.jp')) || canViewCsCases) && (
             <>
               <div className="mx-3 my-2 h-px bg-slate-100"></div>
               {!collapsed && (
                 <div className="px-4 pb-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">組織・採用</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">組織</span>
                 </div>
               )}
               <div className={collapsed ? 'px-2 space-y-1' : 'px-2 space-y-0.5'}>
@@ -236,21 +248,7 @@ function MainLayout({ page, setPage, handleLogout }) {
                     collapsed={collapsed}
                   />
                 )}
-                {user && ['kamiya@1dr.co.jp', 'asai@1dr.co.jp', 'a-inagaki@1dr.co.jp'].includes(user.email) && (
-                  <NavButton
-                    isActive={page === "recruitment-marketing"}
-                    onClick={() => setPage("recruitment-marketing")}
-                    iconClass="fas fa-bullhorn"
-                    label="採用マーケティング"
-                    activeColors={{
-                      icon: "bg-blue-400",
-                      bg: "bg-gradient-to-r from-blue-100 to-purple-100",
-                      border: "border-blue-200/50",
-                      iconHover: "group-hover:bg-blue-100 group-hover:text-blue-600",
-                    }}
-                    collapsed={collapsed}
-                  />
-                )}
+
                 {canViewCsCases && (
                   <NavButton
                     isActive={page === "cs-cases"}

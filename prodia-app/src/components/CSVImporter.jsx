@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useToast } from './Toast';
+import { getAccessToken } from '../utils/api';
 
 const CSVImporter = ({ onImport, onClose }) => {
   const toast = useToast();
@@ -178,7 +179,10 @@ const CSVImporter = ({ onImport, onClose }) => {
 
       const response = await fetch('http://localhost:8000/api/engineers/bulk-create/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAccessToken()}`,
+        },
         body: JSON.stringify({ engineers: csvData }),
       });
 

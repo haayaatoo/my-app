@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useUser } from '../contexts/UserContext';
 
 export default function InterviewManager() {
-  const { user } = useUser();
   const [interviews, setInterviews] = useState([]);
   const [engineers, setEngineers] = useState([]);
   const [groupedByEngineer, setGroupedByEngineer] = useState({});
@@ -10,9 +8,13 @@ export default function InterviewManager() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingInterview, setEditingInterview] = useState(null);
-  const [viewMode, setViewMode] = useState('list'); // 'list', 'cards', 'dashboard'
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'dashboard'
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [engineerSearch, setEngineerSearch] = useState("");
+  const [showEngineerDropdown, setShowEngineerDropdown] = useState(false);
+  const [expandedEngineers, setExpandedEngineers] = useState(new Set());
   const [filters, setFilters] = useState({
     engineer_id: '',
     interview_type: '',
@@ -155,12 +157,22 @@ export default function InterviewManager() {
     setFormData({
       engineer: '',
       interview_date: '',
-      interview_type: 'customer_interview', // お客様面談に固定
+      interview_type: 'customer_interview',
       client_company: '',
       result: '',
       rejection_reason: '',
       notes: '',
       next_action: ''
+    });
+    setEngineerSearch('');
+    setShowEngineerDropdown(false);
+  };
+
+  const toggleEngineer = (name) => {
+    setExpandedEngineers(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
     });
   };
 
@@ -193,118 +205,6 @@ export default function InterviewManager() {
       default: return type;
     }
   };
-
-  // 🎨 カード型表示関数
-  const AVATAR_COLORS = [
-    'bg-blue-500', 'bg-emerald-500', 'bg-violet-500',
-    'bg-rose-500', 'bg-indigo-500', 'bg-teal-500', 'bg-amber-500',
-  ];
-  const getAvatarColor = (name) =>
-    name ? AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length] : 'bg-slate-400';
-
-  const CARD_STATUS = {
-    pass:     { badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: 'fa-check-circle', text: '合格',      bar: 'border-l-emerald-400' },
-    fail:     { badge: 'bg-red-100 text-red-600 border-red-200',             icon: 'fa-times-circle', text: '不合格',    bar: 'border-l-red-400'     },
-    pending:  { badge: 'bg-amber-100 text-amber-700 border-amber-200',       icon: 'fa-clock',        text: '保留中',    bar: 'border-l-amber-400'   },
-    canceled: { badge: 'bg-slate-100 text-slate-500 border-slate-200',       icon: 'fa-ban',          text: 'キャンセル', bar: 'border-l-slate-300'   },
-  };
-
-  const renderCardView = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {interviews.map(interview => {
-        const engineer = engineers.find(e => e.id === interview.engineer);
-        const st = CARD_STATUS[interview.result] || CARD_STATUS.pending;
-        const isRecent = new Date(interview.interview_date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-        return (
-          <div key={interview.id}
-            className={`group relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden border-l-4 ${st.bar}`}>
-
-            {/* カードヘッダー */}
-            <div className="flex items-center justify-between px-4 pt-4 pb-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className={`w-9 h-9 rounded-xl ${getAvatarColor(engineer?.name)} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
-                  {engineer?.name?.charAt(0) || '?'}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-800 truncate">{engineer?.name || '不明'}</p>
-                  <p className="text-xs text-slate-400 truncate">{interview.client_company || '会社名未設定'}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                {isRecent && (
-                  <span className="text-[10px] font-bold bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full">NEW</span>
-                )}
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${st.badge}`}>
-                  <i className={`fas ${st.icon} text-[10px]`} />
-                  {st.text}
-                </span>
-              </div>
-            </div>
-
-            {/* 面談日 */}
-            <div className="px-4 pb-3 flex items-center gap-1.5 text-xs text-slate-500">
-              <i className="fas fa-calendar-alt text-slate-300" />
-              {new Date(interview.interview_date + 'T00:00:00').toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' })}
-            </div>
-
-            {/* メモ / 次アクション / 不合格理由 */}
-            {(interview.notes || interview.next_action || (interview.result === 'fail' && interview.rejection_reason)) && (
-              <div className="mx-4 mb-3 space-y-2">
-                {interview.notes && (
-                  <div className="flex items-start gap-2 bg-slate-50 rounded-xl px-3 py-2">
-                    <i className="fas fa-comment-alt text-slate-400 text-[10px] mt-0.5" />
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{interview.notes}</p>
-                  </div>
-                )}
-                {interview.next_action && (
-                  <div className="flex items-start gap-2 bg-amber-50 rounded-xl px-3 py-2">
-                    <i className="fas fa-arrow-right text-amber-400 text-[10px] mt-0.5" />
-                    <p className="text-xs text-amber-700 line-clamp-1">{interview.next_action}</p>
-                  </div>
-                )}
-                {interview.result === 'fail' && interview.rejection_reason && (
-                  <div className="flex items-start gap-2 bg-red-50 rounded-xl px-3 py-2">
-                    <i className="fas fa-times text-red-400 text-[10px] mt-0.5" />
-                    <p className="text-xs text-red-600 line-clamp-1">{interview.rejection_reason}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* フッター */}
-            <div className="flex items-center gap-1 px-4 pb-3 pt-2 border-t border-slate-50 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={() => {
-                  setEditingInterview(interview);
-                  setFormData({
-                    engineer: interview.engineer,
-                    interview_date: interview.interview_date,
-                    interview_type: interview.interview_type,
-                    client_company: interview.client_company,
-                    result: interview.result,
-                    rejection_reason: interview.rejection_reason || '',
-                    notes: interview.notes || '',
-                    next_action: interview.next_action || '',
-                  });
-                  setShowForm(true);
-                }}
-                className="flex-1 py-1.5 rounded-xl text-xs font-medium text-amber-600 hover:bg-amber-50 flex items-center justify-center gap-1.5 transition-colors border border-amber-200"
-              >
-                <i className="fas fa-pen text-[10px]" /> 編集
-              </button>
-              <button
-                onClick={() => { setSelectedInterview(interview); setShowDetailModal(true); }}
-                className="flex-1 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-colors border border-slate-200"
-              >
-                <i className="fas fa-info-circle text-[10px]" /> 詳細
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
 
   // 📊 高精度ダッシュボード表示関数
   const renderDashboardView = () => {
@@ -1010,7 +910,7 @@ export default function InterviewManager() {
                 <div>
                   <p className="text-slate-500 text-sm mb-1">面談種別</p>
                   <p className="font-semibold text-slate-800">
-                    {selectedInterview.interview_type === 'customer_interview' ? 'お客様面談' : selectedInterview.interview_type}
+                    {getInterviewTypeText(selectedInterview.interview_type)}
                   </p>
                 </div>
                 <div>
@@ -1124,9 +1024,6 @@ export default function InterviewManager() {
               <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === 'list' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
                 <i className="fas fa-list text-[10px]"></i>リスト
               </button>
-              <button onClick={() => setViewMode('cards')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === 'cards' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <i className="fas fa-th-large text-[10px]"></i>カード
-              </button>
               <button onClick={() => setViewMode('dashboard')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${viewMode === 'dashboard' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
                 <i className="fas fa-chart-pie text-[10px]"></i>ダッシュボード
               </button>
@@ -1194,127 +1091,172 @@ export default function InterviewManager() {
         <div className="bg-gradient-to-br from-slate-50 to-stone-100 rounded-3xl p-6">
           {renderDashboardView()}
         </div>
-      ) : viewMode === 'cards' ? (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            {interviews.length > 0 ? (
-              renderCardView()
-            ) : (
-              <div className="text-center py-12">
-                <i className="fas fa-comments text-3xl text-slate-300 mb-3 block" />
-                <p className="text-slate-400 text-sm">お客様面談履歴がありません</p>
-              </div>
-            )}
-          </div>
-        </div>
       ) : (
-        <div className="space-y-4">
-          {Object.keys(groupedByEngineer)
-            .filter(engineerName =>
+        (() => {
+          const filteredNames = Object.keys(groupedByEngineer)
+            .filter(name =>
               !filters.engineer_id ||
-              groupedByEngineer[engineerName].some(interview => interview.engineer === parseInt(filters.engineer_id))
+              groupedByEngineer[name].some(iv => iv.engineer === parseInt(filters.engineer_id))
             )
-            .sort()
-            .map(engineerName => {
-              const engineerInterviews = groupedByEngineer[engineerName];
-              const latestInterview = engineerInterviews[0];
-              const passCount = engineerInterviews.filter(i => i.result === 'pass').length;
-              const failCount = engineerInterviews.filter(i => i.result === 'fail').length;
+            .sort();
+          const totalInterviews = filteredNames.reduce((acc, n) => acc + groupedByEngineer[n].length, 0);
+          if (filteredNames.length === 0) {
+            return (
+              <div className="text-center py-16 text-slate-400">
+                <i className="fas fa-handshake text-3xl mb-3 block opacity-30" />
+                <p className="text-sm">お客様面談履歴がありません</p>
+              </div>
+            );
+          }
+          return (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              {/* 集計 */}
+              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  <span className="font-semibold text-slate-700">{filteredNames.length}名</span>
+                  {" / 計"}<span className="font-semibold text-slate-700 mx-0.5">{totalInterviews}</span>件
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setExpandedEngineers(new Set(filteredNames))}
+                    className="text-xs text-amber-600 hover:text-amber-700 px-2.5 py-1 rounded-lg hover:bg-amber-50 transition-colors"
+                  >全て展開</button>
+                  <button
+                    onClick={() => setExpandedEngineers(new Set())}
+                    className="text-xs text-slate-400 hover:text-slate-600 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  >全て閉じる</button>
+                </div>
+              </div>
 
-              return (
-                <div key={engineerName} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  {/* エンジニアヘッダー */}
-                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-amber-50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm">
+              {filteredNames.map(engineerName => {
+                const ivs = groupedByEngineer[engineerName];
+                const latest = ivs[0];
+                const isExpanded = expandedEngineers.has(engineerName);
+                const passCount = ivs.filter(i => i.result === 'pass').length;
+                const failCount = ivs.filter(i => i.result === 'fail').length;
+                const judgedCount = ivs.filter(i => i.result !== 'pending' && i.result !== 'canceled').length;
+                const passRate = judgedCount > 0
+                  ? Math.round(passCount / judgedCount * 100)
+                  : null;
+
+                return (
+                  <div key={engineerName} className="border-b border-slate-100 last:border-0">
+                    {/* エンジニア行 */}
+                    <div
+                      className={`px-5 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-amber-50/40' : ''}`}
+                      onClick={() => toggleEngineer(engineerName)}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
                         {engineerName.charAt(0)}
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{engineerName}</p>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-                          <span><i className="fas fa-handshake text-amber-400 mr-1" />{engineerInterviews.length}回</span>
-                          <span className="text-emerald-600 font-medium"><i className="fas fa-check-circle mr-1" />{passCount}勝</span>
-                          <span className="text-red-500 font-medium"><i className="fas fa-times-circle mr-1" />{failCount}敗</span>
-                          {latestInterview && (
-                            <span><i className="fas fa-calendar-alt text-slate-400 mr-1" />最終: {latestInterview.interview_date}</span>
-                          )}
-                        </div>
-                      </div>
+                      <span className="font-semibold text-slate-800 w-28 flex-shrink-0 truncate">{engineerName}</span>
+                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">{ivs.length}件</span>
+                      <span className="text-xs text-emerald-600 font-medium flex-shrink-0">{passCount}合格</span>
+                      <span className="text-xs text-red-500 font-medium flex-shrink-0">{failCount}不合格</span>
+                      {passRate !== null && (
+                        <span className={`text-xs font-semibold flex-shrink-0 ${passRate >= 70 ? 'text-emerald-600' : passRate >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                          通過率 {passRate}%
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-400 ml-auto flex-shrink-0">最終: {latest?.interview_date || '--'}</span>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setShowForm(true);
+                          setEditingInterview(null);
+                          setFormData(prev => ({ ...prev, engineer: latest?.engineer || '' }));
+                        }}
+                        className="text-xs text-amber-600 hover:text-white hover:bg-amber-500 border border-amber-200 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 flex-shrink-0"
+                      >
+                        <i className="fas fa-plus text-[9px]"></i>面談追加
+                      </button>
+                      <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'} text-xs text-slate-400 flex-shrink-0`} />
                     </div>
-                    <button
-                      onClick={() => {
-                        setShowForm(true);
-                        setEditingInterview(null);
-                        setFormData({ ...formData, engineer: latestInterview?.engineer || '' });
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors shadow-sm"
-                    >
-                      <i className="fas fa-plus text-[10px]" /> 新規面談
-                    </button>
+
+                    {/* 展開: 面談テーブル */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-100">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 text-xs text-slate-400 font-semibold">
+                              <th className="px-5 py-2 text-left">面談日</th>
+                              <th className="px-4 py-2 text-left">客先会社</th>
+                              <th className="px-4 py-2 text-center">結果</th>
+                              <th className="px-4 py-2 text-left">メモ</th>
+                              <th className="px-4 py-2 text-left">次アクション</th>
+                              <th className="px-4 py-2 text-center">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {ivs.map((interview, idx) => (
+                              
+                                <tr
+                                  key={interview.id}
+                                  onClick={() => { setSelectedInterview(interview); setShowDetailModal(true); }}
+                                  className="hover:bg-amber-50/30 cursor-pointer transition-colors"
+                                >
+                                  <td className="px-5 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      {idx === 0 && <span className="text-[9px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-bold">最新</span>}
+                                      <span className="text-slate-700 font-medium whitespace-nowrap">
+                                        {new Date(interview.interview_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-slate-700 max-w-[10rem] truncate font-medium">
+                                    {interview.client_company || <span className="text-slate-300">―</span>}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getResultBadgeColor(interview.result)}`}>
+                                      {getResultText(interview.result)}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-slate-400 text-xs max-w-[12rem] truncate">
+                                    {interview.notes || <span className="text-slate-200">―</span>}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-slate-400 text-xs max-w-[12rem] truncate">
+                                    {interview.next_action ? (
+                                      <span className="text-amber-600">{interview.next_action}</span>
+                                    ) : <span className="text-slate-200">―</span>}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        onClick={e => { e.stopPropagation(); handleEdit(interview); }}
+                                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-400 hover:text-amber-600 flex items-center justify-center transition-colors"
+                                        title="編集"
+                                      >
+                                        <i className="fas fa-pen text-[10px]"></i>
+                                      </button>
+                                      {confirmDeleteId === interview.id ? (
+                                        <div className="flex items-center gap-1 bg-red-50 px-2 py-1 rounded-lg border border-red-200">
+                                          <span className="text-xs text-red-600 whitespace-nowrap">削除?</span>
+                                          <button onClick={e => { e.stopPropagation(); handleDelete(interview.id); setConfirmDeleteId(null); }} className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded hover:bg-red-600">はい</button>
+                                          <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(null); }} className="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded hover:bg-slate-300">いいえ</button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={e => { e.stopPropagation(); setConfirmDeleteId(interview.id); }}
+                                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"
+                                          title="削除"
+                                        >
+                                          <i className="fas fa-trash text-[10px]"></i>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-
-                  {/* 面談履歴列 */}
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-50 bg-slate-50">
-                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">面談日</th>
-                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">客先会社</th>
-                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">結果</th>
-                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">メモ</th>
-                        <th className="px-5 py-2.5"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {engineerInterviews.map((interview) => (
-                        <tr key={interview.id} className="hover:bg-slate-50/60 transition-colors group">
-                          <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
-                            {new Date(interview.interview_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                          </td>
-                          <td className="px-5 py-3 font-medium text-slate-700">
-                            {interview.client_company || <span className="text-slate-300">―</span>}
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getResultBadgeColor(interview.result)}`}>
-                              {getResultText(interview.result)}
-                            </span>
-                            {interview.result === 'fail' && interview.rejection_reason && (
-                              <span className="ml-2 text-xs text-red-500">{interview.rejection_reason}</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3 text-slate-400 text-xs max-w-[16rem] truncate">
-                            {interview.notes || <span className="text-slate-200">―</span>}
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-                              <button
-                                onClick={() => handleEdit(interview)}
-                                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-600 flex items-center justify-center transition-colors"
-                              >
-                                <i className="fas fa-pen text-xs" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(interview.id)}
-                                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-500 flex items-center justify-center transition-colors"
-                              >
-                                <i className="fas fa-trash-alt text-xs" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
-
-          {Object.keys(groupedByEngineer).length === 0 && (
-            <div className="text-center py-16 text-slate-400">
-              <i className="fas fa-handshake text-3xl mb-3 block" />
-              <p className="text-sm">お客様面談履歴がありません</p>
+                );
+              })}
             </div>
-          )}
-        </div>
+          );
+        })()
       )}
 
       {/* 面談記録フォームモーダル */}
@@ -1353,17 +1295,58 @@ export default function InterviewManager() {
                       <i className="fas fa-user text-amber-500 text-xs"></i>
                       エンジニア *
                     </label>
-                    <select
-                      value={formData.engineer}
-                      onChange={(e) => setFormData({ ...formData, engineer: e.target.value })}
-                      required
-                      className="w-full px-4 py-3 border border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white shadow-sm transition-all duration-200"
-                    >
-                      <option value="">選択してください</option>
-                      {engineers.map(engineer => (
-                        <option key={engineer.id} value={engineer.id}>{engineer.name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <div
+                        className="w-full px-4 py-3 border border-amber-200 rounded-xl bg-white shadow-sm flex items-center gap-2 cursor-text"
+                        onClick={() => setShowEngineerDropdown(true)}
+                      >
+                        {formData.engineer && !showEngineerDropdown ? (
+                          <span className="flex-1 text-slate-800">
+                            {engineers.find(e => String(e.id) === String(formData.engineer))?.name || ""}
+                          </span>
+                        ) : (
+                          <input
+                            type="text"
+                            autoFocus={showEngineerDropdown}
+                            value={engineerSearch}
+                            onChange={e => { setEngineerSearch(e.target.value); setShowEngineerDropdown(true); }}
+                            onFocus={() => setShowEngineerDropdown(true)}
+                            placeholder={formData.engineer ? engineers.find(e => String(e.id) === String(formData.engineer))?.name : "名前で検索..."}
+                            className="flex-1 outline-none text-sm bg-transparent"
+                          />
+                        )}
+                        <i className="fas fa-search text-amber-400 text-xs flex-shrink-0"></i>
+                      </div>
+                      {showEngineerDropdown && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => { setShowEngineerDropdown(false); setEngineerSearch(""); }} />
+                          <ul className="absolute z-20 mt-1 w-full bg-white border border-amber-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+                            {engineers
+                              .filter(e => e.name.includes(engineerSearch))
+                              .map(engineer => (
+                                <li
+                                  key={engineer.id}
+                                  onClick={() => {
+                                    setFormData({ ...formData, engineer: engineer.id });
+                                    setEngineerSearch("");
+                                    setShowEngineerDropdown(false);
+                                  }}
+                                  className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-amber-50 hover:text-amber-700 transition-colors ${
+                                    String(formData.engineer) === String(engineer.id) ? "bg-amber-50 text-amber-700 font-semibold" : "text-slate-700"
+                                  }`}
+                                >
+                                  {engineer.name}
+                                </li>
+                              ))
+                            }
+                            {engineers.filter(e => e.name.includes(engineerSearch)).length === 0 && (
+                              <li className="px-4 py-3 text-sm text-slate-400 text-center">該当なし</li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                      <input type="text" required value={formData.engineer} onChange={() => {}} className="sr-only" />
+                    </div>
                   </div>
                   
                   <div>

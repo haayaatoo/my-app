@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord, MonthlyProjectReport
 
 # SkillSheet用シリアライザ
 class SkillSheetSerializer(serializers.ModelSerializer):
@@ -187,3 +187,10 @@ class TeleapoRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = TeleapoRecord
         fields = '__all__'
+
+
+class MonthlyProjectReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MonthlyProjectReport
+        fields = '__all__'
+        read_only_fields = ['total_count', 'created_at', 'updated_at']
