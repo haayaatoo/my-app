@@ -3,7 +3,7 @@ import { useToast } from "./Toast";
 import DeleteDropZone from "./DeleteDropZone";
 import EngineerMemo from "./EngineerMemo";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 
 const STATUS_CONFIG = {
   active:   { label: "稼働中",   color: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "../contexts/UserContext";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 
 const RESULT_CONFIG = {
   apo_taken: { label: "アポ取れた", color: "bg-emerald-100 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },

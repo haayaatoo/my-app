@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import TeleapoManager from "./TeleapoManager";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 
 const PLANNERS = ["温水", "瀬戸山", "上前", "岡田", "野田", "服部", "山口"];
 

@@ -37,7 +37,7 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
     if (!name) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/memos/by_engineer/?engineer_name=${encodeURIComponent(name)}`);
+      const response = await fetch(`/api/memos/by_engineer/?engineer_name=${encodeURIComponent(name)}`);
       if (response.ok) {
         const memos = await response.json();
         const urgent = memos.filter(memo => memo.priority === 'urgent' && !memo.is_completed).length;

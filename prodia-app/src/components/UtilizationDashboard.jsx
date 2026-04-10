@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 
 // 今日から何日後か計算
 function daysUntil(dateStr) {

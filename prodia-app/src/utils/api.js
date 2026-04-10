@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8000/api";
+const BASE_URL = "/api";
 
 const TOKEN_KEY = "prodia_access";
 const REFRESH_KEY = "prodia_refresh";
@@ -84,7 +84,7 @@ export function installFetchInterceptor() {
     const url = typeof input === "string" ? input : input.url;
 
     // 対象外: ログイン・リフレッシュ・外部URL
-    const isApiCall = url.includes("localhost:8000/api");
+    const isApiCall = url.includes("/api/");
     const isAuthEndpoint = url.includes("/auth/login/") || url.includes("/auth/refresh/");
     if (!isApiCall || isAuthEndpoint) {
       return window._originalFetch(input, init);

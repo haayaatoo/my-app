@@ -5,7 +5,7 @@ import { useToast } from './Toast';
 import EngineerMemo from './EngineerMemo';
 
 // APIエンドポイント
-const API_BASE = 'http://localhost:8000/api/skillsheets/';
+const API_BASE = '/api/skillsheets/';
 
 // 統一されたローディングコンポーネント
 function AnimatedLoader() {

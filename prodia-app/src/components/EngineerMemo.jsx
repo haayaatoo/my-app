@@ -17,7 +17,7 @@ export default function EngineerMemo({ engineerName, onClose, onMemoChange }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useUser();
 
-  const API_BASE = 'http://localhost:8000/api/memos/';
+  const API_BASE = '/api/memos/';
   const PRIORITY_COLORS = {
     low: 'bg-green-100 text-green-800',
     medium: 'bg-yellow-100 text-yellow-800',

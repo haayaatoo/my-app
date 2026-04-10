@@ -51,7 +51,7 @@ export default function HREvaluation() {
         if (value) params.append(key, value);
       });
 
-      const response = await fetch(`http://localhost:8000/api/interviews/?${params}`);
+      const response = await fetch(`/api/interviews/?${params}`);
       if (response.ok) {
         const data = await response.json();
         const evaluationsData = data.results || data;
@@ -89,7 +89,7 @@ export default function HREvaluation() {
 
   const fetchEngineers = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/engineers/');
+      const response = await fetch('/api/engineers/');
       if (response.ok) {
         const data = await response.json();
         setEngineers(data.results || data);
@@ -130,8 +130,8 @@ export default function HREvaluation() {
     
     try {
       const url = editingEvaluation 
-        ? `http://localhost:8000/api/interviews/${editingEvaluation.id}/`
-        : 'http://localhost:8000/api/interviews/';
+        ? `/api/interviews/${editingEvaluation.id}/`
+        : '/api/interviews/';
       
       const method = editingEvaluation ? 'PUT' : 'POST';
       
@@ -161,7 +161,7 @@ export default function HREvaluation() {
 
   const handleDelete = async (id) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/interviews/${id}/`, {
+      const response = await fetch(`/api/interviews/${id}/`, {
         method: 'DELETE'
       });
       if (response.ok) {

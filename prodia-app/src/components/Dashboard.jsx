@@ -530,8 +530,8 @@ function RealTimeMarketTrends() {
       
       // 地域別APIエンドポイント選択
       const apiUrl = region === 'aichi' 
-        ? "http://localhost:8000/api/market/aichi/summary/"
-        : "http://localhost:8000/api/market/summary/";
+        ? "/api/market/aichi/summary/"
+        : "/api/market/summary/";
       
       const response = await fetch(apiUrl);
       
@@ -793,7 +793,7 @@ export default function Dashboard() {
   // エンジニアデータを取得
   const fetchEngineers = (isManual = false) => {
     if (isManual) setIsRefreshing(true);
-    fetch("http://localhost:8000/api/engineers/")
+    fetch("/api/engineers/")
       .then((res) => res.json())
       .then((data) => {
         setEngineers(data);

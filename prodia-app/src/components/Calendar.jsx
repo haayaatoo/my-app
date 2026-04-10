@@ -61,7 +61,7 @@ const Calendar = () => {
 
   // Google認証状態の確認
   useEffect(() => {
-    fetch('http://localhost:8000/api/calendar/oauth/status/', { credentials: 'include' })
+    fetch('/api/calendar/oauth/status/', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setGoogleConnected(data.connected);
@@ -109,7 +109,7 @@ const Calendar = () => {
   // Googleカレンダーのイベントを取得
   const fetchGoogleEvents = () => {
     setGoogleSyncing(true);
-    fetch('http://localhost:8000/api/calendar/events/', { credentials: 'include' })
+    fetch('/api/calendar/events/', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data.events) {
@@ -122,7 +122,7 @@ const Calendar = () => {
 
   // Google連携開始
   const connectGoogle = () => {
-    fetch('http://localhost:8000/api/calendar/oauth/start/', { credentials: 'include' })
+    fetch('/api/calendar/oauth/start/', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data.auth_url) {
@@ -135,7 +135,7 @@ const Calendar = () => {
   // Google連携解除
   const disconnectGoogle = () => {
     if (!window.confirm('Googleカレンダーの連携を解除しますか？')) return;
-    fetch('http://localhost:8000/api/calendar/oauth/disconnect/', { credentials: 'include' })
+    fetch('/api/calendar/oauth/disconnect/', { credentials: 'include' })
       .then(() => {
         setGoogleConnected(false);
         setGoogleEvents([]);
@@ -161,7 +161,7 @@ const Calendar = () => {
     params.set('fields', selectedFields);
     params.set('format', exportSettings.format);
 
-    const url = `http://localhost:8000/api/calendar/events/export/?${params.toString()}`;
+    const url = `/api/calendar/events/export/?${params.toString()}`;
 
     if (exportSettings.format === 'json') {
       setExportLoading(true);
@@ -203,7 +203,7 @@ const Calendar = () => {
 
   // PP面談データ取得
   useEffect(() => {
-    fetch('http://localhost:8000/api/interviews/')
+    fetch('/api/interviews/')
       .then(res => res.json())
       .then(data => {
         setPpInterviews(data);
@@ -216,7 +216,7 @@ const Calendar = () => {
 
   // BP商談データ取得
   useEffect(() => {
-    fetch('http://localhost:8000/api/bp-prospects/')
+    fetch('/api/bp-prospects/')
       .then(res => res.json())
       .then(data => {
         setBpProspects(data);
@@ -511,7 +511,7 @@ const Calendar = () => {
 
     if (googleConnected) {
       // Google連携中はGoogleカレンダーのみに保存（localStorageには保存しない）
-      fetch('http://localhost:8000/api/calendar/events/create/', {
+      fetch('/api/calendar/events/create/', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -569,7 +569,7 @@ const Calendar = () => {
 
     if (editingEvent.id.startsWith('google-')) {
       const googleId = editingEvent.googleId;
-      fetch(`http://localhost:8000/api/calendar/events/${googleId}/update/`, {
+      fetch(`/api/calendar/events/${googleId}/update/`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -598,7 +598,7 @@ const Calendar = () => {
   const handleDeleteEvent = (eventId) => {
     if (eventId.startsWith('google-')) {
       const googleId = eventId.replace('google-', '');
-      fetch(`http://localhost:8000/api/calendar/events/${googleId}/delete/`, {
+      fetch(`/api/calendar/events/${googleId}/delete/`, {
         method: 'DELETE',
         credentials: 'include',
       })

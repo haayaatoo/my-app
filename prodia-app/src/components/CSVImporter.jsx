@@ -177,7 +177,7 @@ const CSVImporter = ({ onImport, onClose }) => {
         });
       }, 200);
 
-      const response = await fetch('http://localhost:8000/api/engineers/bulk-create/', {
+      const response = await fetch('/api/engineers/bulk-create/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "./Toast";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 
 const STATUS_CONFIG = {
   active:    { label: "参画中",   badge: "bg-emerald-100 text-emerald-700 border border-emerald-200", dot: "bg-emerald-400" },

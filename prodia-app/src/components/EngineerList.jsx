@@ -121,7 +121,7 @@ export default function EngineerList() {
 
   const fetchEngineers = () => {
     setLoading(true);
-    fetch("http://localhost:8000/api/engineers/")
+    fetch("/api/engineers/")
       .then((res) => {
         if (!res.ok) throw new Error("API error");
         return res.json();
@@ -183,8 +183,8 @@ export default function EngineerList() {
   // 新規登録・編集
   const handleSubmit = async (form, continueAfter = false) => {
     const url = editingEngineer 
-      ? `http://localhost:8000/api/engineers/${editingEngineer.id}/`
-      : "http://localhost:8000/api/engineers/";
+      ? `/api/engineers/${editingEngineer.id}/`
+      : "/api/engineers/";
     
     const method = editingEngineer ? "PUT" : "POST";
     
@@ -273,7 +273,7 @@ export default function EngineerList() {
 
   // 削除
   const handleDelete = (engineerId) => {
-    fetch(`http://localhost:8000/api/engineers/${engineerId}/`, {
+    fetch(`/api/engineers/${engineerId}/`, {
       method: "DELETE",
     })
       .then(res => {
@@ -339,7 +339,7 @@ export default function EngineerList() {
     if (window.confirm(`選択した${selectedEngineers.length}件のエンジニアを削除しますか？`)) {
       Promise.all(
         selectedEngineers.map(id => 
-          fetch(`http://localhost:8000/api/engineers/${id}/`, { method: "DELETE" })
+          fetch(`/api/engineers/${id}/`, { method: "DELETE" })
         )
       ).then(() => {
         fetchEngineers();
@@ -355,7 +355,7 @@ export default function EngineerList() {
     Promise.all(
       selectedEngineers.map(id => {
         const engineer = engineers.find(e => e.id === id);
-        return fetch(`http://localhost:8000/api/engineers/${id}/`, {
+        return fetch(`/api/engineers/${id}/`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...engineer, engineer_status: newStatus })

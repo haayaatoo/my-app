@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 
 const STAGES = [
   { key: "open_system",   label: "オープン系",       color: "bg-blue-50 border-blue-200",      header: "bg-blue-100",    badge: "bg-blue-400",    text: "text-blue-700"   },

@@ -45,7 +45,7 @@ export default function InterviewManager() {
         if (value) params.append(key, value);
       });
 
-      const response = await fetch(`http://localhost:8000/api/interviews/?${params}`);
+      const response = await fetch(`/api/interviews/?${params}`);
       if (response.ok) {
         const data = await response.json();
         const interviewsData = data.results || data;
@@ -83,7 +83,7 @@ export default function InterviewManager() {
 
   const fetchEngineers = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/engineers/');
+      const response = await fetch('/api/engineers/');
       if (response.ok) {
         const data = await response.json();
         setEngineers(data.results || data);
@@ -97,8 +97,8 @@ export default function InterviewManager() {
     e.preventDefault();
     try {
       const url = editingInterview 
-        ? `http://localhost:8000/api/interviews/${editingInterview.id}/`
-        : 'http://localhost:8000/api/interviews/';
+        ? `/api/interviews/${editingInterview.id}/`
+        : '/api/interviews/';
       
       const method = editingInterview ? 'PUT' : 'POST';
       
@@ -126,7 +126,7 @@ export default function InterviewManager() {
   const handleDelete = async (id) => {
     if (window.confirm('この面談履歴を削除しますか？')) {
       try {
-        const response = await fetch(`http://localhost:8000/api/interviews/${id}/`, {
+        const response = await fetch(`/api/interviews/${id}/`, {
           method: 'DELETE'
         });
         if (response.ok) {
