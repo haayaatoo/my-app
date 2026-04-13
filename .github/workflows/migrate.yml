@@ -1,0 +1,28 @@
+name: Run Django Migrations
+
+on:
+  workflow_dispatch:  # ← 手動実行
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH & Check Migrations
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /var/www/my-app/prodia-backend/prodia_backend
+
+            source ../venv/bin/activate
+
+            echo "===== Migration Check ====="
+            python manage.py showmigrations
+            echo "=========================="
+
+            echo "===== SQL Preview ====="
+            python manage.py sqlmigrate engineers 0001 || true
+            echo "======================="
