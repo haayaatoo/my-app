@@ -26,9 +26,10 @@ jobs:
             cd /var/www/my-app/prodia-backend
             git pull origin main
 
+            cd prodia_backend
             source venv/bin/activate
             pip install -r requirements.txt
             python manage.py migrate
 
-            sudo systemctl restart gunicorn || true
-            sudo systemctl restart nginx
+            systemctl restart gunicorn || true
+            systemctl restart nginx
