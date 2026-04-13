@@ -122,7 +122,7 @@ export default function Login({ onLogin, logoutMsg }) {
                 <span className="bg-gradient-to-r from-amber-500 to-amber-400 bg-clip-text text-transparent">成果に変える</span>
               </h2>
               <p className="text-xl text-slate-600 max-w-2xl mx-auto lg:mx-0 animate-fadeInUp animate-delay-500">
-                営業・人事・PRチームを一元管理する、ビジネスプラットフォーム
+                営業チームの力を最大化する、ビジネスプラットフォーム
               </p>
             </div>
 
@@ -131,14 +131,6 @@ export default function Login({ onLogin, logoutMsg }) {
               <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200/60 rounded-full">
                 <i className="fas fa-chart-line text-amber-500 text-sm"></i>
                 <span className="text-sm font-medium text-amber-700">営業支援</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200/60 rounded-full">
-                <i className="fas fa-users text-blue-500 text-sm"></i>
-                <span className="text-sm font-medium text-blue-700">人事・採用</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-200/60 rounded-full">
-                <i className="fas fa-bullhorn text-purple-500 text-sm"></i>
-                <span className="text-sm font-medium text-purple-700">PRチーム</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200/60 rounded-full">
                 <i className="fas fa-tasks text-emerald-500 text-sm"></i>
