@@ -64,5 +64,5 @@ urlpatterns = router.urls + [
     path('calendar/events/<str:event_id>/delete/', calendar_views.delete_event, name='calendar_delete_event'),
 
     #ヘルスチェック用
-　　path('health/', health_check, name='health'),
+    path('health/', health_check, name='health'),
 ]
