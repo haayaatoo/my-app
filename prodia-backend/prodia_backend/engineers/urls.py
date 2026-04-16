@@ -58,4 +58,7 @@ urlpatterns = router.urls + [
     path('calendar/events/create/', calendar_views.create_event, name='calendar_create_event'),
     path('calendar/events/<str:event_id>/update/', calendar_views.update_event, name='calendar_update_event'),
     path('calendar/events/<str:event_id>/delete/', calendar_views.delete_event, name='calendar_delete_event'),
+
+    #ヘルスチェック用
+　　path('health/', health_check, name='health'),
 ]
