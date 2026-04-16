@@ -907,3 +907,58 @@ class MonthlyProjectReport(models.Model):
     def __str__(self):
         return f"{self.year_month} IDR:{self.idr_count} BP:{self.bp_count}"
 
+
+class PPInterview(models.Model):
+    """PP営業進捗管理（面談カンバン）"""
+    engineer_name = models.CharField(max_length=100, verbose_name='エンジニア名')
+    company_name = models.CharField(max_length=200, blank=True, default='', verbose_name='企業名')
+    interview_date = models.CharField(max_length=20, blank=True, default='', verbose_name='面談日')
+    interview_time = models.CharField(max_length=20, blank=True, default='', verbose_name='面談時刻')
+    sales_person = models.CharField(max_length=100, default='', verbose_name='営業担当')
+    status = models.CharField(max_length=50, default='日程調整中', verbose_name='ステータス')
+    start_month = models.CharField(max_length=20, blank=True, default='', verbose_name='開始月')
+    response_deadline = models.CharField(max_length=20, blank=True, default='', verbose_name='回答期限')
+    unit_price = models.CharField(max_length=50, blank=True, default='', verbose_name='単価')
+    notes = models.TextField(blank=True, default='', verbose_name='備考')
+    history = models.JSONField(default=list, blank=True, verbose_name='変更履歴')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'PP営業面談'
+        verbose_name_plural = 'PP営業面談'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.engineer_name} - {self.company_name} ({self.status})"
+
+
+class BPProspect(models.Model):
+    """BP進捗管理（面談カンバン）"""
+    company_name = models.CharField(max_length=200, verbose_name='企業名')
+    engineer_name = models.CharField(max_length=100, blank=True, default='', verbose_name='エンジニア名')
+    supplier_name = models.CharField(max_length=200, blank=True, default='', verbose_name='仕入れ先名')
+    interview_date = models.CharField(max_length=20, blank=True, default='', verbose_name='面談日')
+    interview_time = models.CharField(max_length=20, blank=True, default='', verbose_name='面談時刻')
+    decision_date = models.CharField(max_length=20, blank=True, default='', verbose_name='回答期限')
+    start_month = models.CharField(max_length=20, blank=True, default='', verbose_name='開始月')
+    sales_price = models.CharField(max_length=50, blank=True, default='', verbose_name='販売単価')
+    purchase_price = models.CharField(max_length=50, blank=True, default='', verbose_name='仕入れ単価')
+    main_planner = models.CharField(max_length=100, default='', verbose_name='メインプランナー')
+    support_planners = models.JSONField(default=list, blank=True, verbose_name='サポートプランナー')
+    priority = models.CharField(max_length=10, default='中', verbose_name='優先度')
+    status = models.CharField(max_length=50, default='日程調整中', verbose_name='ステータス')
+    notes = models.TextField(blank=True, default='', verbose_name='備考')
+    interview_count = models.JSONField(default=dict, blank=True, verbose_name='面談件数')
+    history = models.JSONField(default=list, blank=True, verbose_name='変更履歴')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'BP見込み'
+        verbose_name_plural = 'BP見込み'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.company_name} - {self.engineer_name} ({self.status})"
+

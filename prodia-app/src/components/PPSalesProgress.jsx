@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { apiFetch } from '../utils/api';
 
 // カンバンボードのカラム定義
 const KANBAN_COLUMNS = [
@@ -39,16 +40,8 @@ const formatUnitPrice = (val) => {
 };
 
 export default function PPSalesProgress() {
-  const [interviews, setInterviews] = useState(() => {
-    try {
-      const savedData = localStorage.getItem('ppInterviews');
-      return savedData ? JSON.parse(savedData) : [];
-    } catch (e) {
-      console.error('データの読み込みに失敗しました', e);
-      return [];
-    }
-  });
-  const [loading] = useState(false);
+  const [interviews, setInterviews] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showNewInterviewModal, setShowNewInterviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -76,10 +69,16 @@ export default function PPSalesProgress() {
     notes: ''
   });
 
-  // interviewsが変更されたらローカルストレージに保存
+  // 初回マウント時にAPIからデータ取得
   useEffect(() => {
-    localStorage.setItem('ppInterviews', JSON.stringify(interviews));
-  }, [interviews]);
+    apiFetch('/pp-interviews/')
+      .then(res => res.json())
+      .then(data => {
+        setInterviews(Array.isArray(data) ? data : (data.results || []));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   // 開始月ごとにグループ化
   const groupedByMonth = interviews.reduce((acc, interview) => {
@@ -146,31 +145,20 @@ export default function PPSalesProgress() {
       return;
     }
 
-    // ステータス更新
-    const updatedInterviews = interviews.map(interview => {
-      if (interview.id === draggedItem.id) {
-        const now = new Date();
-        const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
-        return {
-          ...interview,
-          status: newStatus,
-          history: [
-            ...(interview.history || []),
-            {
-              timestamp,
-              user: interview.sales_person,
-              changes: [
-                { field: 'ステータス', old: interview.status, new: newStatus }
-              ]
-            }
-          ]
-        };
-      }
-      return interview;
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newHistory = [
+      ...(draggedItem.history || []),
+      { timestamp, user: draggedItem.sales_person, changes: [{ field: 'ステータス', old: draggedItem.status, new: newStatus }] }
+    ];
+
+    apiFetch(`/pp-interviews/${draggedItem.id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus, history: newHistory }),
+    }).then(res => res.json()).then(updated => {
+      setInterviews(prev => prev.map(i => i.id === updated.id ? updated : i));
     });
 
-    setInterviews(updatedInterviews);
     setDraggedItem(null);
   };
 
@@ -247,98 +235,38 @@ export default function PPSalesProgress() {
 
   // 新規面談追加
   const handleAddInterview = () => {
-    const newId = Math.max(...interviews.map(i => i.id), 0) + 1;
     const now = new Date();
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    const newInterviewData = {
+    const payload = {
       ...newInterview,
-      id: newId,
-      history: [
-        {
-          timestamp: timestamp,
-          user: newInterview.sales_person || '不明',
-          changes: [
-            { field: '作成', old: '', new: '新規登録' }
-          ]
-        }
-      ]
+      history: [{ timestamp, user: newInterview.sales_person || '不明', changes: [{ field: '作成', old: '', new: '新規登録' }] }]
     };
-    
-    setInterviews([...interviews, newInterviewData]);
-    setShowNewInterviewModal(false);
-    setNewInterview({
-      engineer_name: '',
-      company_name: '',
-      interview_date: '',
-      interview_time: '',
-      sales_person: '温水',
-      status: '日程調整中',
-      start_month: '',
-      response_deadline: '',
-      unit_price: '',
-      notes: ''
-    });
+    apiFetch('/pp-interviews/', { method: 'POST', body: JSON.stringify(payload) })
+      .then(res => res.json())
+      .then(created => {
+        setInterviews(prev => [created, ...prev]);
+        setShowNewInterviewModal(false);
+        setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '温水', status: '日程調整中', start_month: '', response_deadline: '', unit_price: '', notes: '' });
+      });
   };
 
   // 編集処理
   const handleEditInterview = () => {
     if (!editingInterview) return;
-    
     const now = new Date();
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
     const originalInterview = interviews.find(i => i.id === editingInterview.id);
-    const changes = [];
-    
-    // 変更点を検出
-    const fieldNames = {
-      engineer_name: 'エンジニア名',
-      company_name: '企業名',
-      interview_date: '面談日',
-      interview_time: '面談時刻',
-      sales_person: '営業担当',
-      status: 'ステータス',
-      start_month: '開始月',
-      response_deadline: '回答期限',
-      notes: '備考'
-    };
-    
-    Object.keys(fieldNames).forEach(field => {
-      if (originalInterview[field] !== editingInterview[field]) {
-        changes.push({
-          field: fieldNames[field],
-          old: originalInterview[field] || '(なし)',
-          new: editingInterview[field] || '(なし)'
-        });
-      }
-    });
-    
-    // 変更があった場合のみ履歴を追加
-    if (changes.length > 0) {
-      const newHistory = {
-        timestamp: timestamp,
-        user: editingInterview.sales_person || '不明',
-        changes: changes
-      };
-      
-      const updatedInterview = {
-        ...editingInterview,
-        history: [...(originalInterview.history || []), newHistory]
-      };
-      
-      setInterviews(interviews.map(i => 
-        i.id === editingInterview.id ? updatedInterview : i
-      ));
-    } else {
-      // 変更がない場合もデータを更新
-      setInterviews(interviews.map(i => 
-        i.id === editingInterview.id ? editingInterview : i
-      ));
-    }
-    
-    setShowEditModal(false);
-    setEditingInterview(null);
+    const fieldNames = { engineer_name: 'エンジニア名', company_name: '企業名', interview_date: '面談日', interview_time: '面談時刻', sales_person: '営業担当', status: 'ステータス', start_month: '開始月', response_deadline: '回答期限', notes: '備考' };
+    const changes = Object.keys(fieldNames).filter(f => originalInterview[f] !== editingInterview[f]).map(f => ({ field: fieldNames[f], old: originalInterview[f] || '(なし)', new: editingInterview[f] || '(なし)' }));
+    const updatedHistory = changes.length > 0 ? [...(originalInterview.history || []), { timestamp, user: editingInterview.sales_person || '不明', changes }] : (originalInterview.history || []);
+    const payload = { ...editingInterview, history: updatedHistory };
+    apiFetch(`/pp-interviews/${editingInterview.id}/`, { method: 'PUT', body: JSON.stringify(payload) })
+      .then(res => res.json())
+      .then(updated => {
+        setInterviews(prev => prev.map(i => i.id === updated.id ? updated : i));
+        setShowEditModal(false);
+        setEditingInterview(null);
+      });
   };
 
   // 編集モーダルを開く
@@ -350,7 +278,8 @@ export default function PPSalesProgress() {
   // 削除処理
   const handleDeleteInterview = (id) => {
     if (window.confirm('この面談情報を削除してもよろしいですか?')) {
-      setInterviews(interviews.filter(i => i.id !== id));
+      apiFetch(`/pp-interviews/${id}/`, { method: 'DELETE' })
+        .then(() => setInterviews(prev => prev.filter(i => i.id !== id)));
     }
   };
 

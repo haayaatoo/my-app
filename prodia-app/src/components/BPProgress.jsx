@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { apiFetch } from '../utils/api';
 
 // カンバンボードのカラム定義
 const KANBAN_COLUMNS = [
@@ -29,16 +30,8 @@ const COLUMN_TO_STATUS = {
 };
 
 export default function BPProgress() {
-  const [prospects, setProspects] = useState(() => {
-    try {
-      const savedData = localStorage.getItem('bpProspects');
-      return savedData ? JSON.parse(savedData) : [];
-    } catch (e) {
-      console.error('BP見込みデータの読み込みに失敗しました', e);
-      return [];
-    }
-  });
-  const [loading] = useState(false);
+  const [prospects, setProspects] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showNewProspectModal, setShowNewProspectModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -73,10 +66,16 @@ export default function BPProgress() {
   // プランナーリスト
   const planners = ['温水', '瀬戸山', '上前', '岡田', '野田', '服部', '山口'];
 
-  // prospectsが変更されたらLocalStorageに保存
+  // 初回マウント時にAPIからデータ取得
   useEffect(() => {
-    localStorage.setItem('bpProspects', JSON.stringify(prospects));
-  }, [prospects]);
+    apiFetch('/bp-prospects/')
+      .then(res => res.json())
+      .then(data => {
+        setProspects(Array.isArray(data) ? data : (data.results || []));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   // プランナー別面談件数を計算
   const calculatePlannerStats = () => {
@@ -200,31 +199,20 @@ export default function BPProgress() {
       return;
     }
 
-    // ステータス更新
-    const updatedProspects = prospects.map(prospect => {
-      if (prospect.id === draggedItem.id) {
-        const now = new Date();
-        const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
-        return {
-          ...prospect,
-          status: newStatus,
-          history: [
-            ...(prospect.history || []),
-            {
-              timestamp,
-              user: prospect.main_planner,
-              changes: [
-                { field: 'ステータス', old: prospect.status, new: newStatus }
-              ]
-            }
-          ]
-        };
-      }
-      return prospect;
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newHistory = [
+      ...(draggedItem.history || []),
+      { timestamp, user: draggedItem.main_planner, changes: [{ field: 'ステータス', old: draggedItem.status, new: newStatus }] }
+    ];
+
+    apiFetch(`/bp-prospects/${draggedItem.id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus, history: newHistory }),
+    }).then(res => res.json()).then(updated => {
+      setProspects(prev => prev.map(p => p.id === updated.id ? updated : p));
     });
 
-    setProspects(updatedProspects);
     setDraggedItem(null);
   };
 
@@ -286,49 +274,20 @@ export default function BPProgress() {
 
   // 新規見込み追加
   const handleAddProspect = () => {
-    const newId = Math.max(...prospects.map(p => p.id), 0) + 1;
-    const prospectToAdd = {
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const payload = {
       ...newProspect,
-      id: newId,
-      interview_count: {
-        main: 1,
-        support: newProspect.support_planners.length > 0 ? 0.5 : 0
-      },
-      history: [
-        {
-          timestamp: new Date().toLocaleString('ja-JP', { 
-            year: 'numeric', 
-            month: '2-digit', 
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          }).replace(/\//g, '-'),
-          user: '現在のユーザー', // TODO: ユーザーコンテキストから取得
-          changes: [{ field: '作成', old: '', new: '新規登録' }]
-        }
-      ]
+      interview_count: { main: 1, support: newProspect.support_planners.length > 0 ? 0.5 : 0 },
+      history: [{ timestamp, user: newProspect.main_planner || '不明', changes: [{ field: '作成', old: '', new: '新規登録' }] }]
     };
-    
-    setProspects([...prospects, prospectToAdd]);
-    setShowNewProspectModal(false);
-    
-    // フォームリセット
-    setNewProspect({
-      company_name: '',
-      engineer_name: '',
-      supplier_name: '',
-      interview_date: '',
-      interview_time: '',
-      decision_date: '',
-      start_month: '',
-      sales_price: '',
-      purchase_price: '',
-      main_planner: '温水',
-      support_planners: [],
-      priority: '中',
-      status: '日程調整中',
-      notes: ''
-    });
+    apiFetch('/bp-prospects/', { method: 'POST', body: JSON.stringify(payload) })
+      .then(res => res.json())
+      .then(created => {
+        setProspects(prev => [created, ...prev]);
+        setShowNewProspectModal(false);
+        setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '温水', support_planners: [], priority: '中', status: '日程調整中', notes: '' });
+      });
   };
 
   // 編集モーダルを開く
@@ -339,18 +298,20 @@ export default function BPProgress() {
 
   // 編集を保存
   const handleSaveEdit = () => {
-    const updatedProspects = prospects.map(p => 
-      p.id === editingProspect.id ? editingProspect : p
-    );
-    setProspects(updatedProspects);
-    setShowEditModal(false);
-    setEditingProspect(null);
+    apiFetch(`/bp-prospects/${editingProspect.id}/`, { method: 'PUT', body: JSON.stringify(editingProspect) })
+      .then(res => res.json())
+      .then(updated => {
+        setProspects(prev => prev.map(p => p.id === updated.id ? updated : p));
+        setShowEditModal(false);
+        setEditingProspect(null);
+      });
   };
 
   // 削除
   const handleDelete = (id) => {
     if (window.confirm('この見込みを削除してもよろしいですか？')) {
-      setProspects(prospects.filter(p => p.id !== id));
+      apiFetch(`/bp-prospects/${id}/`, { method: 'DELETE' })
+        .then(() => setProspects(prev => prev.filter(p => p.id !== id)));
     }
   };
 

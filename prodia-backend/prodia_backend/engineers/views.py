@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.db import transaction
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord, MonthlyProjectReport
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord, MonthlyProjectReport, PPInterview, BPProspect
 from .serializers import (
     EngineerSerializer, 
     SkillSheetSerializer, 
@@ -28,7 +28,7 @@ from .serializers import (
     ProjectAssignmentSerializer,
 )
 
-from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, MonthlyProjectReportSerializer
+from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, MonthlyProjectReportSerializer, PPInterviewSerializer, BPProspectSerializer
 
 def health_check(request):
     return JsonResponse({"status": "ok"})
@@ -1225,3 +1225,17 @@ class MonthlyProjectReportViewSet(viewsets.ModelViewSet):
             report.save()
         return Response(MonthlyProjectReportSerializer(report).data,
                         status=status.HTTP_200_OK)
+
+
+class PPInterviewViewSet(viewsets.ModelViewSet):
+    """PP営業進捗 CRUD"""
+    queryset = PPInterview.objects.all().order_by('-created_at')
+    serializer_class = PPInterviewSerializer
+    permission_classes = [AllowAny]
+
+
+class BPProspectViewSet(viewsets.ModelViewSet):
+    """BP進捗管理 CRUD"""
+    queryset = BPProspect.objects.all().order_by('-created_at')
+    serializer_class = BPProspectSerializer
+    permission_classes = [AllowAny]
