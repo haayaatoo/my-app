@@ -17,19 +17,125 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /var/www/my-app/prodia-app
-            git pull origin main
+            set -euo pipefail
 
-            npm install
-            npm run build
+            echo "===================="
+            echo " SAVE CURRENT STATE"
+            echo "===================="
+
+            # =====================
+            # 現在のcommit保存（rollback用）
+            # =====================
+            cd /var/www/my-app/prodia-app
+            FRONT_PREV_COMMIT=$(git rev-parse HEAD)
 
             cd /var/www/my-app/prodia-backend
-            git pull origin main
+            BACK_PREV_COMMIT=$(git rev-parse HEAD)
 
-            cd prodia_backend
-            source ../venv/bin/activate
-            pip install -r requirements.txt
-            python3 manage.py migrate
+            echo "frontend prev: $FRONT_PREV_COMMIT"
+            echo "backend prev: $BACK_PREV_COMMIT"
 
-            sudo systemctl restart gunicorn || true
+            # =====================
+            # rollback処理（完全版）
+            # =====================
+            rollback_all() {
+              set +e
+
+              echo "===================="
+              echo " ❌ FULL ROLLBACK START"
+              echo "===================="
+
+              echo "🔁 restoring code..."
+              cd /var/www/my-app/prodia-app
+              git reset --hard $FRONT_PREV_COMMIT
+              npm ci
+              npm run build
+
+              cd /var/www/my-app/prodia-backend
+              git reset --hard $BACK_PREV_COMMIT
+              /var/www/my-app/prodia-backend/venv/bin/pip install -r requirements.txt
+
+              echo "🔁 restoring DB..."
+              ROLLBACK_DB=$(cat /tmp/latest_rollback_db.txt)
+              sudo /usr/local/bin/restore.sh --select "$ROLLBACK_DB" --auto
+
+              echo "🔁 restarting services..."
+              sudo systemctl restart gunicorn
+              sudo systemctl restart nginx
+
+              echo "===================="
+              echo " ROLLBACK DONE"
+              echo "===================="
+            }
+
+            trap 'rollback_all; exit 1' ERR
+
+            set -o pipefail
+
+            echo "===================="
+            echo " FRONTEND DEPLOY"
+            echo "===================="
+
+            cd /var/www/my-app/prodia-app
+            git fetch origin main
+            git reset --hard origin/main
+            npm ci
+            npm run build
+
+            echo "===================="
+            echo " BACKEND DEPLOY"
+            echo "===================="
+
+            cd /var/www/my-app/prodia-backend
+            git fetch origin main
+            git reset --hard origin/main
+            /var/www/my-app/prodia-backend/venv/bin/pip install -r requirements.txt
+
+            echo "===================="
+            echo " MIGRATION"
+            echo "===================="
+
+            # migrate.shがDB rollbackを担う
+            bash /usr/local/bin/migrate.sh
+
+            echo "===================="
+            echo " POST MIGRATION HEALTH CHECK"
+            echo "===================="
+
+            curl -f http://localhost/api/
+
+            echo "===================="
+            echo " RESTART SERVICES"
+            echo "===================="
+
+            sudo systemctl restart gunicorn
             sudo systemctl restart nginx
+            sleep 3
+
+            sudo systemctl is-active --quiet gunicorn
+            sudo systemctl is-active --quiet nginx
+
+            echo "===================="
+            echo " FINAL HEALTH CHECK"
+            echo "===================="
+
+            HEALTH_OK=false
+
+            for i in {1..10}; do
+              if curl -fsS http://localhost/api/health | grep -qx "ok"; then
+                echo "health check OK ($i)"
+                HEALTH_OK=true
+                break
+              fi
+              echo "waiting app... ($i)"
+              sleep 2
+            done
+
+            if [ "$HEALTH_OK" != true ]; then
+              echo "❌ FINAL HEALTH CHECK FAILED"
+              exit 1
+            fi
+
+            echo "===================="
+            echo " DEPLOY SUCCESS"
+            echo "===================="
