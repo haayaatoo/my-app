@@ -29,6 +29,7 @@ from .serializers import (
 )
 
 from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, MonthlyProjectReportSerializer, PPInterviewSerializer, BPProspectSerializer
+from django.http import JsonResponse
 
 def health_check(request):
     return JsonResponse({"status": "ok"})
