@@ -1,0 +1,6 @@
+name,email,position,project_name,planner,skills,engineer_status,phase
+田中太郎,tanaka@example.com,シニアエンジニア,ECサイト開発,佐藤プランナー,"React,Node.js,AWS",アサイン済,"設計,開発,テスト"
+山田花子,yamada@example.com,リードエンジニア,AIシステム構築,鈴木プランナー,"Python,TensorFlow,Docker",稼働予定,"要件定義,設計"
+鈴木次郎,suzuki@example.com,フロントエンドエンジニア,モバイルアプリ開発,田中プランナー,"React Native,TypeScript",未アサイン,"開発,テスト"
+佐藤美咲,sato@example.com,バックエンドエンジニア,金融システム改修,山田プランナー,"Java,Spring Boot,PostgreSQL",アサイン済,"設計,開発"
+高橋健一,takahashi@example.com,データサイエンティスト,ビッグデータ分析,佐藤プランナー,"Python,Pandas,Machine Learning",稼働予定,"分析,モデル構築"

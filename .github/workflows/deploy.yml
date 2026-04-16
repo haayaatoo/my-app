@@ -1,4 +1,4 @@
-name: Deploy Prodia
+name: Blue/Green Deploy (Green)
 
 on:
   push:
@@ -6,16 +6,15 @@ on:
       - main
 
 jobs:
-  deploy_green:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy Green
-        uses: appleboy/ssh-action@v1.0.3
+      - name: SSH Deploy
+        uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            set -euo pipefail
-            /usr/local/bin/deploy_green.sh
+            sudo /usr/local/bin/deploy_green.sh
