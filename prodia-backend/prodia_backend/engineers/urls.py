@@ -15,6 +15,7 @@ from .views import (
     MonthlyProjectReportViewSet,
     PPInterviewViewSet,
     BPProspectViewSet,
+    health_check,
 )
 from . import calendar_views
 
