@@ -30,6 +30,9 @@ from .serializers import (
 
 from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, MonthlyProjectReportSerializer
 
+def health_check(request):
+    return JsonResponse({"status": "ok"})
+
 class EngineerViewSet(viewsets.ModelViewSet):
     queryset = Engineer.objects.all()
     serializer_class = EngineerSerializer
