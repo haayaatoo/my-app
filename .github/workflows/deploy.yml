@@ -60,7 +60,7 @@ jobs:
               sudo /usr/local/bin/restore.sh --select "$ROLLBACK_DB" --auto
 
               echo "🔁 restarting services..."
-              sudo systemctl restart gunicorn
+              sudo systemctl restart prodia
               sudo systemctl restart nginx
 
               echo "===================="
@@ -108,7 +108,7 @@ jobs:
             echo " RESTART SERVICES"
             echo "===================="
 
-            sudo systemctl restart gunicorn
+            sudo systemctl restart prodia
             sudo systemctl restart nginx
             sleep 3
 
@@ -122,7 +122,7 @@ jobs:
             HEALTH_OK=false
 
             for i in {1..10}; do
-              if curl -fsS http://localhost/api/health | grep -qx "ok"; then
+              if curl -fsS http://localhost/api/health | grep -q "ok"; then
                 echo "health check OK ($i)"
                 HEALTH_OK=true
                 break
