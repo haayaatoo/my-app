@@ -32,7 +32,7 @@ from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, Mon
 from django.http import JsonResponse
 
 def health_check(request):
-    return JsonResponse({"status": "ok"})
+    return JsonResponse({"status": "ng"}, status=500)
 
 class EngineerViewSet(viewsets.ModelViewSet):
     queryset = Engineer.objects.all()
