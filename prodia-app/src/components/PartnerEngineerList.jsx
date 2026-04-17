@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useToast } from "./Toast";
-import DeleteDropZone from "./DeleteDropZone";
 import EngineerMemo from "./EngineerMemo";
 
 const API_BASE = "/api";
@@ -35,7 +34,7 @@ const RATE_FIELDS = [
 ];
 
 const formatRate = (v) => {
-  const raw = String(v ?? "").replace(/,/g, "").replace(/[^0-9]/g, "");
+  const raw = String(v ?? "").replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ').replace(/,/g, "").replace(/[^0-9]/g, "");
   return raw ? Number(raw).toLocaleString() : "";
 };
 
@@ -555,7 +554,10 @@ function PartnerForm({ initial, onClose, onSave }) {
                   <input className={inp} placeholder="9:00-18:00" value={form.work_hours} onChange={(e) => set("work_hours", e.target.value)} />
                 </Field>
                 <Field label="実働時間">
-                  <input className={inp} placeholder="8h" value={form.actual_work_hours} onChange={(e) => set("actual_work_hours", e.target.value)} />
+                  <div className="flex items-center gap-1">
+                    <input className={inp} placeholder="8" value={form.actual_work_hours} onChange={(e) => set("actual_work_hours", e.target.value)} />
+                    <span className="text-slate-500 text-sm font-medium">h</span>
+                  </div>
                 </Field>
               </div>
             </>
@@ -568,22 +570,34 @@ function PartnerForm({ initial, onClose, onSave }) {
                 <input className={inp} placeholder="例: 株式会社メイテツコム" value={form.client_company} onChange={(e) => set("client_company", e.target.value)} />
               </Field>
               <div className="grid grid-cols-3 gap-3">
-                <Field label="基本単価（円）">
-                  <input type="text" inputMode="numeric" className={inp} placeholder="730,000" value={form.client_unit_price} onChange={(e) => setRate("client_unit_price", e.target.value)} />
+                <Field label="基本単価">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 text-sm font-medium">¥</span>
+                    <input type="text" inputMode="numeric" className={inp} placeholder="730,000" value={form.client_unit_price} onChange={(e) => setRate("client_unit_price", e.target.value)} />
+                  </div>
                 </Field>
                 <Field label="精算幅">
-                  <input className={inp} placeholder="140-180h" value={form.client_settlement_range} onChange={(e) => set("client_settlement_range", e.target.value)} />
+                  <div className="flex items-center gap-1">
+                    <input className={inp} placeholder="140-180" value={form.client_settlement_range} onChange={(e) => set("client_settlement_range", e.target.value)} />
+                    <span className="text-slate-500 text-sm font-medium">h</span>
+                  </div>
                 </Field>
                 <Field label="精算単位">
                   <input className={inp} placeholder="15分" value={form.client_settlement_unit} onChange={(e) => set("client_settlement_unit", e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="超過単価（円）">
-                  <input type="text" inputMode="numeric" className={inp} placeholder="4,050" value={form.client_overtime_rate} onChange={(e) => setRate("client_overtime_rate", e.target.value)} />
+                <Field label="超過単価">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 text-sm font-medium">¥</span>
+                    <input type="text" inputMode="numeric" className={inp} placeholder="4,050" value={form.client_overtime_rate} onChange={(e) => setRate("client_overtime_rate", e.target.value)} />
+                  </div>
                 </Field>
-                <Field label="控除単価（円）">
-                  <input type="text" inputMode="numeric" className={inp} placeholder="5,210" value={form.client_deduction_rate} onChange={(e) => setRate("client_deduction_rate", e.target.value)} />
+                <Field label="控除単価">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 text-sm font-medium">¥</span>
+                    <input type="text" inputMode="numeric" className={inp} placeholder="5,210" value={form.client_deduction_rate} onChange={(e) => setRate("client_deduction_rate", e.target.value)} />
+                  </div>
                 </Field>
               </div>
               <Field label="支払サイト">
@@ -611,22 +625,34 @@ function PartnerForm({ initial, onClose, onSave }) {
           {tab === "partner" && (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <Field label="基本単価（円）">
-                  <input type="text" inputMode="numeric" className={inp} placeholder="660,000" value={form.partner_unit_price} onChange={(e) => setRate("partner_unit_price", e.target.value)} />
+                <Field label="基本単価">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 text-sm font-medium">¥</span>
+                    <input type="text" inputMode="numeric" className={inp} placeholder="660,000" value={form.partner_unit_price} onChange={(e) => setRate("partner_unit_price", e.target.value)} />
+                  </div>
                 </Field>
                 <Field label="精算幅">
-                  <input className={inp} placeholder="140-180h" value={form.partner_settlement_range} onChange={(e) => set("partner_settlement_range", e.target.value)} />
+                  <div className="flex items-center gap-1">
+                    <input className={inp} placeholder="140-180" value={form.partner_settlement_range} onChange={(e) => set("partner_settlement_range", e.target.value)} />
+                    <span className="text-slate-500 text-sm font-medium">h</span>
+                  </div>
                 </Field>
                 <Field label="精算単位">
                   <input className={inp} placeholder="15分" value={form.partner_settlement_unit} onChange={(e) => set("partner_settlement_unit", e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="超過単価（円）">
-                  <input type="text" inputMode="numeric" className={inp} placeholder="3,660" value={form.partner_overtime_rate} onChange={(e) => setRate("partner_overtime_rate", e.target.value)} />
+                <Field label="超過単価">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 text-sm font-medium">¥</span>
+                    <input type="text" inputMode="numeric" className={inp} placeholder="3,660" value={form.partner_overtime_rate} onChange={(e) => setRate("partner_overtime_rate", e.target.value)} />
+                  </div>
                 </Field>
-                <Field label="控除単価（円）">
-                  <input type="text" inputMode="numeric" className={inp} placeholder="4,710" value={form.partner_deduction_rate} onChange={(e) => setRate("partner_deduction_rate", e.target.value)} />
+                <Field label="控除単価">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 text-sm font-medium">¥</span>
+                    <input type="text" inputMode="numeric" className={inp} placeholder="4,710" value={form.partner_deduction_rate} onChange={(e) => setRate("partner_deduction_rate", e.target.value)} />
+                  </div>
                 </Field>
               </div>
               <Field label="支払サイト">
@@ -1003,8 +1029,6 @@ export default function PartnerEngineerList() {
         />
       )}
 
-      {/* ドロップして削除ゾーン */}
-      <DeleteDropZone onDrop={handleDropDelete} />
     </div>
   );
 }

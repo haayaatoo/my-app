@@ -42,6 +42,13 @@ class Engineer(models.Model):
     name = models.CharField(max_length=100)
     email = models.EmailField(unique=True, blank=True, null=True)  # メールアドレス（ログイン用）
     position = models.CharField(max_length=50, blank=True, null=True)  # 役職（空欄可）
+    gender = models.CharField(
+        max_length=10,
+        choices=[('male', '男性'), ('female', '女性')],
+        blank=True,
+        null=True,
+        verbose_name='性別'
+    )
     project_name = models.CharField(max_length=100, blank=True, null=True)
     planner = models.CharField(max_length=100, blank=True, null=True)
     skills = models.JSONField()  # 複数スキル
@@ -51,6 +58,12 @@ class Engineer(models.Model):
     # 売上予測機能用の新規フィールド
     # プロジェクト・売上情報
     monthly_rate = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='月単価（円）')
+    rate_type = models.CharField(
+        max_length=10,
+        choices=[('monthly', '月単価'), ('hourly', '時給単価')],
+        default='monthly',
+        verbose_name='単価種別'
+    )
     project_start_date = models.DateField(blank=True, null=True, verbose_name='プロジェクト開始日')
     project_end_date = models.DateField(blank=True, null=True, verbose_name='プロジェクト終了予定日')
     contract_extended_at = models.DateTimeField(blank=True, null=True, verbose_name='契約延長日')

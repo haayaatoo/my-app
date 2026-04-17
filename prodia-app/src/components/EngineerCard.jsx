@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import "./EngineerCard.css";
 
 function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemoClick, refreshTrigger }) {
-  const { name, position, skills, planner, engineer_status, phase, project, project_location } = engineer || {};
+  const { name, position, gender, skills, planner, engineer_status, phase, project, project_location } = engineer || {};
   const [isDragging, setIsDragging] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [memoCount, setMemoCount] = useState(0);
@@ -157,9 +157,11 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
                     : getHighestPriority() === 'medium'
                       ? 'bg-gradient-to-br from-orange-400 to-yellow-400'  // 中：オレンジ
                       : 'bg-gradient-to-br from-blue-400 to-cyan-400'      // 低：青
-                  : 'bg-gradient-to-br from-indigo-300 to-blue-400'        // メモなし：デフォルト
+                  : gender === 'female'
+                    ? 'bg-gradient-to-br from-pink-400 to-rose-400'        // 女性：ピンク
+                    : 'bg-gradient-to-br from-indigo-300 to-blue-400'      // 男性/その他：デフォルト
               }`}>
-                <i className="fas fa-user-tie"></i>
+                <i className={gender === 'female' ? 'fas fa-user' : 'fas fa-user-tie'}></i>
                 {/* メモ状態オーバーレイ */}
                 {memoCount > 0 && (
                   <div className="absolute -bottom-1 -right-1">

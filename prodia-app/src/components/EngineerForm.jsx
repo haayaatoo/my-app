@@ -2,11 +2,10 @@
 
 import React, { useState } from "react";
 
-// 役職選択肢
-const POSITION_OPTIONS = [
-  "マネージャー",
-  "チーフ", 
-  "なし"
+// 性別選択肢
+const GENDER_OPTIONS = [
+  { value: 'male', label: '男性' },
+  { value: 'female', label: '女性' },
 ];
 
 // 担当プランナー選択肢
@@ -42,7 +41,7 @@ const PHASE_OPTIONS = [
 ];
 
 const formatRate = (v) => {
-  const raw = String(v ?? "").replace(/,/g, "").replace(/[^0-9]/g, "");
+  const raw = String(v ?? "").replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ').replace(/,/g, "").replace(/[^0-9]/g, "");
   return raw ? Number(raw).toLocaleString() : "";
 };
 
@@ -52,7 +51,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
       ? { ...initialData, monthly_rate: formatRate(initialData.monthly_rate) }
       : {
           name: "",
-          position: "",
+          gender: "",
+          rate_type: "monthly",
           project_name: "",
           planner: "",
           skills: [],
@@ -116,8 +116,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
 
   const handleSubmit = async (e, continueAfter = false) => {
     e.preventDefault();
-    if (!form.name || !form.position) {
-      setError("名前と役職は必須です");
+    if (!form.name) {
+      setError("名前は必須です");
       return;
     }
     
@@ -135,6 +135,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
         email: uniqueEmail,
         skills: form.skills,
         phase: form.phase,
+        rate_type: form.rate_type || 'monthly',
         monthly_rate: form.monthly_rate ? form.monthly_rate.replace(/,/g, "") : "",
         project_start_date: form.project_start_date || null,
         project_end_date: form.project_end_date || null,
@@ -147,7 +148,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
       if (continueAfter) {
         setForm({
           name: "",
-          position: "",
+          gender: "",
+          rate_type: "monthly",
           project_name: "",
           planner: "",
           skills: [],
@@ -171,8 +173,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <form className="bg-gradient-to-br from-white via-slate-50 to-stone-50 rounded-3xl shadow-2xl p-8 w-full max-w-2xl animate-fade-in max-h-[95vh] overflow-y-auto border border-white/60" 
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onCancel}>
+      <form className="bg-gradient-to-br from-white via-slate-50 to-stone-50 rounded-3xl shadow-2xl p-8 w-full max-w-2xl animate-fade-in max-h-[95vh] overflow-y-auto border border-white/60" onClick={e => e.stopPropagation()}
             style={{
               boxShadow: '0 25px 70px rgba(0,0,0,0.15), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
             }}
@@ -241,35 +243,69 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                 </div>
               </div>
             </div>
-            {/* 役職 */}
+            {/* 性別 */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                役職 <span className="text-red-500">*</span>
+                性別
               </label>
               <div className="relative">
-                <select 
-                  name="position" 
-                  value={form.position} 
-                  onChange={handleChange} 
-                  required 
+                <select
+                  name="gender"
+                  value={form.gender}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-white/80 text-lg font-medium appearance-none cursor-pointer pr-12"
-                  style={{
-                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)'
-                  }}
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
                 >
                   <option value="">選択してください</option>
-                  {POSITION_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{option}</option>
+                  {GENDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <i className="fas fa-chevron-down text-slate-400"></i>
+                  <i className="fas fa-venus-mars text-slate-400"></i>
                 </div>
               </div>
             </div>
           </div>
         </div>
-        {/* プロジェクト情報セクション */}
+        {/* アサイン状況セクション */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+            <i className="fas fa-briefcase text-blue-500"></i>
+            アサイン状況
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { value: "アサイン済", label: "アサイン済", color: "emerald", icon: "fa-check-circle" },
+              { value: "未アサイン", label: "未アサイン", color: "orange", icon: "fa-clock" },
+            ].map(opt => (
+              <button
+                type="button"
+                key={opt.value}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 transform hover:scale-105 ${
+                  form.engineer_status === opt.value 
+                    ? `bg-gradient-to-r from-${opt.color}-500 to-${opt.color}-600 text-white border-${opt.color}-500 shadow-lg` 
+                    : `bg-white text-${opt.color}-600 border-${opt.color}-200 hover:border-${opt.color}-300 hover:bg-${opt.color}-50`
+                }`}
+                onClick={() => setForm(f => ({
+                  ...f,
+                  engineer_status: opt.value,
+                  ...(opt.value === '未アサイン' ? {
+                    project_name: '', planner: '', client_company: '',
+                    monthly_rate: '', project_start_date: '', project_end_date: '', project_location: ''
+                  } : {})
+                }))}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <i className={`fas ${opt.icon}`}></i>
+                  <span className="font-medium whitespace-nowrap">{opt.label}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* プロジェクト情報セクション（アサイン済のみ表示） */}
+        {form.engineer_status === 'アサイン済' && (
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
             <i className="fas fa-project-diagram text-emerald-500"></i>
@@ -341,25 +377,35 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
               </div>
             </div>
 
-            {/* 月単価 */}
+            {/* 単価 */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                月単価（円）
+                {form.rate_type === 'monthly' ? '月単価' : '時給単価'}
               </label>
-              <div className="relative">
+              <div className="flex items-center gap-2">
+                {/* スライドトグル */}
+                <div className="relative flex bg-slate-100 rounded-full p-1 w-36 shrink-0 cursor-pointer select-none"
+                  onClick={() => setForm(f => ({ ...f, rate_type: f.rate_type === 'monthly' ? 'hourly' : 'monthly', monthly_rate: '' }))}
+                >
+                  {/* スライドピル */}
+                  <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full shadow transition-all duration-300 ${form.rate_type === 'monthly' ? 'left-1' : 'left-[calc(50%+3px)]'}`}></div>
+                  <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.rate_type === 'monthly' ? 'text-emerald-600' : 'text-slate-400'}`}>月単価</span>
+                  <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.rate_type === 'hourly' ? 'text-emerald-600' : 'text-slate-400'}`}>時給単価</span>
+                </div>
+                <span className="text-slate-500 font-medium text-lg shrink-0">¥</span>
                 <input
                   type="text"
                   inputMode="numeric"
                   name="monthly_rate"
                   value={form.monthly_rate}
                   onChange={handleRateChange}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                  className="flex-1 min-w-0 px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
                   style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
-                  placeholder="650,000"
+                  placeholder={form.rate_type === 'monthly' ? '650,000' : '3,000'}
                 />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <i className="fas fa-yen-sign text-slate-300"></i>
-                </div>
+                {form.rate_type === 'hourly' && (
+                  <span className="text-slate-500 font-medium text-base whitespace-nowrap shrink-0">/h</span>
+                )}
               </div>
             </div>
 
@@ -420,6 +466,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
             </div>
           </div>
         </div>
+        )}
         {/* スキル選択セクション */}
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
@@ -542,33 +589,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
             ステータス情報
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* アサイン状況 */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">アサイン状況</label>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { value: "アサイン済", label: "アサイン済", color: "emerald", icon: "fa-check-circle" },
-                  { value: "未アサイン", label: "未アサイン", color: "orange", icon: "fa-clock" },
-                ].map(opt => (
-                  <button
-                    type="button"
-                    key={opt.value}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 transform hover:scale-105 ${
-                      form.engineer_status === opt.value 
-                        ? `bg-gradient-to-r from-${opt.color}-500 to-${opt.color}-600 text-white border-${opt.color}-500 shadow-lg` 
-                        : `bg-white text-${opt.color}-600 border-${opt.color}-200 hover:border-${opt.color}-300 hover:bg-${opt.color}-50`
-                    }`}
-                    onClick={() => setForm(f => ({ ...f, engineer_status: opt.value }))}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <i className={`fas ${opt.icon}`}></i>
-                      <span className="font-medium whitespace-nowrap">{opt.label}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-6">
             {/* 経験フェーズ */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-3">経験フェーズ（複数選択可）</label>

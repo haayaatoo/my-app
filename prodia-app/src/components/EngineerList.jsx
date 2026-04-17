@@ -4,7 +4,6 @@ import { useToast } from "./Toast";
 import EngineerCard from "./EngineerCard";
 import EngineerForm from "./EngineerForm";
 import EngineerStats from "./EngineerStats";
-import DeleteDropZone from "./DeleteDropZone";
 import EngineerMemo from "./EngineerMemo";
 import CSVImporter from "./CSVImporter";
 import PPSalesProgress from "./PPSalesProgress";
@@ -42,63 +41,6 @@ function AnimatedLoader() {
 }
 
 // モダン・ラグジュアリーヘッダーコンポーネント
-function EngineerListHeader({ engineersCount, onAddNew, showStats, onToggleStats }) {
-  return (
-    <div
-      className="relative overflow-hidden soft-panel soft-panel-accent p-8 rounded-3xl mb-8"
-      style={{
-        boxShadow: '0 25px 70px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
-      }}
-    >
-      
-      {/* 上品な装飾要素 */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300"></div>
-      
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-medium text-slate-700 mb-3 tracking-wide">
-              <span className="font-display">
-                エンジニア管理
-              </span>
-            </h1>
-            <p className="text-slate-500 text-lg font-normal">
-              登録数: <span className="text-amber-600 font-medium text-xl">{engineersCount}</span>名のプロフェッショナル
-            </p>
-          </div>
-        </div>
-        
-        {/* タブナビゲーション */}
-        <div className="flex bg-white rounded-2xl p-1 shadow-lg">
-          <button
-            onClick={() => onToggleStats()}
-            className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
-              showStats
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-            }`}
-          >
-            <i className="fas fa-tachometer-alt"></i>
-            ダッシュボード
-          </button>
-          <button
-            onClick={() => onToggleStats()}
-            className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
-              !showStats
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
-            }`}
-          >
-            <i className="fas fa-users"></i>
-            エンジニアリスト
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
 export default function EngineerList() {
   const toast = useToast();
   const [engineers, setEngineers] = useState([]);
@@ -282,14 +224,6 @@ export default function EngineerList() {
         toast.success("削除完了!");
       })
       .catch(err => toast.error(err.message));
-  };
-
-  // ドロップゾーンからの削除
-  const handleDropDelete = (engineerId) => {
-    const engineer = engineers.find(e => e.id === engineerId);
-    if (engineer && window.confirm(`${engineer.name}さんを削除しますか？`)) {
-      handleDelete(engineerId);
-    }
   };
 
   // フォームのキャンセル
@@ -1057,10 +991,8 @@ export default function EngineerList() {
         />
       )}
 
-      {/* 削除ドロップゾーン */}
-      <DeleteDropZone onDrop={handleDropDelete} />
-          </>
-        )}
+      </>
+      )}
       </div>
   </div>
   );
