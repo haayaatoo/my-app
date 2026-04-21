@@ -44,9 +44,11 @@ function SmartDateInput({ value, onChange, name, className, style, focusColorCla
     if (digits.length === 8) {
       const isoDate = `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
       onChange({ target: { name, value: isoDate } });
-    } else {
+    } else if (digits.length === 0) {
+      // 全消去した場合のみリセット
       onChange({ target: { name, value: "" } });
     }
+    // 1～7桁の途中入力中は親に通知しない（入力中の値を保持）
   };
 
   // カーソルを常に末尾へ移動

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "./Toast";
 import EngineerMemo from "./EngineerMemo";
 
@@ -24,6 +24,104 @@ function Field({ label, children, required }) {
         {label}{required && <span className="text-red-400 ml-1">*</span>}
       </label>
       {children}
+    </div>
+  );
+}
+
+// 手入力+カレンダー対応の日付入力（YYYY/MM/DD自動フォーマット）
+function SmartDateInput({ value, onChange, className }) {
+  const [displayValue, setDisplayValue] = useState("");
+  const textInputRef = useRef(null);
+  const hiddenDateRef = useRef(null);
+
+  useEffect(() => {
+    if (value) {
+      const parts = value.split("-");
+      if (parts.length === 3) {
+        setDisplayValue(`${parts[0]}/${parts[1]}/${parts[2]}`);
+      } else {
+        setDisplayValue(value);
+      }
+    } else {
+      setDisplayValue("");
+    }
+  }, [value]);
+
+  const handleTextChange = (e) => {
+    const cleaned = e.target.value.replace(/[^0-9/]/g, "");
+    const digits = cleaned.replace(/\//g, "").slice(0, 8);
+    let formatted = "";
+    if (digits.length <= 4) {
+      formatted = digits;
+    } else if (digits.length <= 6) {
+      formatted = `${digits.slice(0, 4)}/${digits.slice(4)}`;
+    } else {
+      formatted = `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6, 8)}`;
+    }
+    setDisplayValue(formatted);
+    if (digits.length === 8) {
+      onChange(`${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`);
+    } else if (digits.length === 0) {
+      onChange("");
+    }
+    // 1～7桁の途中入力中は親に通知しない（入力中の値を保持）
+  };
+
+  useEffect(() => {
+    const el = textInputRef.current;
+    if (el && document.activeElement === el) {
+      const len = displayValue.length;
+      el.setSelectionRange(len, len);
+    }
+  }, [displayValue]);
+
+  const handleCalendarChange = (e) => {
+    const iso = e.target.value;
+    if (iso) {
+      const parts = iso.split("-");
+      setDisplayValue(`${parts[0]}/${parts[1]}/${parts[2]}`);
+      onChange(iso);
+    }
+  };
+
+  const openCalendar = () => {
+    if (hiddenDateRef.current) {
+      try { hiddenDateRef.current.showPicker(); }
+      catch { hiddenDateRef.current.focus(); hiddenDateRef.current.click(); }
+    }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        ref={textInputRef}
+        type="text"
+        value={displayValue}
+        onChange={handleTextChange}
+        className={`${className} pr-9`}
+        placeholder="YYYY/MM/DD"
+        maxLength={10}
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={openCalendar}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+        tabIndex={-1}
+        aria-label="カレンダーで選択"
+      >
+        <i className="fas fa-calendar-alt text-sm"></i>
+      </button>
+      <input
+        ref={hiddenDateRef}
+        type="date"
+        value={value || ""}
+        onChange={handleCalendarChange}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
     </div>
   );
 }
@@ -536,10 +634,18 @@ function PartnerForm({ initial, onClose, onSave }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="契約開始日">
-                  <input type="date" className={inp} value={form.contract_start} onChange={(e) => set("contract_start", e.target.value)} />
+                  <SmartDateInput
+                    value={form.contract_start}
+                    onChange={(v) => set("contract_start", v)}
+                    className={inp}
+                  />
                 </Field>
                 <Field label="契約終了日">
-                  <input type="date" className={inp} value={form.contract_end} onChange={(e) => set("contract_end", e.target.value)} />
+                  <SmartDateInput
+                    value={form.contract_end}
+                    onChange={(v) => set("contract_end", v)}
+                    className={inp}
+                  />
                 </Field>
               </div>
               <div className="grid grid-cols-3 gap-3">
