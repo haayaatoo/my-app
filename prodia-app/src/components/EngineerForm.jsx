@@ -1,6 +1,120 @@
 
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+
+// 日付入力コンポーネント（手入力+カレンダー対応、YYYY/MM/DD自動フォーマット）
+function SmartDateInput({ value, onChange, name, className, style, focusColorClass = "focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" }) {
+  const [displayValue, setDisplayValue] = useState("");
+  const textInputRef = useRef(null);
+  const hiddenDateRef = useRef(null);
+
+  // 外部から value が変わったとき（初期値、フォームリセット）にdisplay同期
+  useEffect(() => {
+    if (value) {
+      const parts = value.split("-");
+      if (parts.length === 3) {
+        setDisplayValue(`${parts[0]}/${parts[1]}/${parts[2]}`);
+      } else {
+        setDisplayValue(value);
+      }
+    } else {
+      setDisplayValue("");
+    }
+  }, [value]);
+
+  const handleTextChange = (e) => {
+    const raw = e.target.value;
+    // 数字と"/"のみ許容
+    const cleaned = raw.replace(/[^0-9/]/g, "");
+    const digits = cleaned.replace(/\//g, "").slice(0, 8);
+
+    // 桁数に応じて自動スラッシュ挿入
+    let formatted = "";
+    if (digits.length <= 4) {
+      formatted = digits;
+    } else if (digits.length <= 6) {
+      formatted = `${digits.slice(0, 4)}/${digits.slice(4)}`;
+    } else {
+      formatted = `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6, 8)}`;
+    }
+
+    setDisplayValue(formatted);
+
+    // 8桁揃ったら親フォームに ISO 形式で通知
+    if (digits.length === 8) {
+      const isoDate = `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+      onChange({ target: { name, value: isoDate } });
+    } else {
+      onChange({ target: { name, value: "" } });
+    }
+  };
+
+  // カーソルを常に末尾へ移動
+  useEffect(() => {
+    const el = textInputRef.current;
+    if (el && document.activeElement === el) {
+      const len = displayValue.length;
+      el.setSelectionRange(len, len);
+    }
+  }, [displayValue]);
+
+  // カレンダーで日付選択されたとき
+  const handleCalendarChange = (e) => {
+    const isoDate = e.target.value; // YYYY-MM-DD
+    if (isoDate) {
+      const parts = isoDate.split("-");
+      setDisplayValue(`${parts[0]}/${parts[1]}/${parts[2]}`);
+      onChange({ target: { name, value: isoDate } });
+    }
+  };
+
+  const openCalendar = () => {
+    if (hiddenDateRef.current) {
+      try {
+        hiddenDateRef.current.showPicker();
+      } catch {
+        hiddenDateRef.current.focus();
+        hiddenDateRef.current.click();
+      }
+    }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        ref={textInputRef}
+        type="text"
+        value={displayValue}
+        onChange={handleTextChange}
+        className={`${className} pr-10`}
+        style={style}
+        placeholder="YYYY/MM/DD"
+        maxLength={10}
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={openCalendar}
+        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+        tabIndex={-1}
+        aria-label="カレンダーで選択"
+      >
+        <i className="fas fa-calendar-alt"></i>
+      </button>
+      {/* 非表示のネイティブdateインプット（カレンダーUIのため） */}
+      <input
+        ref={hiddenDateRef}
+        type="date"
+        value={value || ""}
+        onChange={handleCalendarChange}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
 
 // 性別選択肢
 const GENDER_OPTIONS = [
@@ -48,7 +162,13 @@ const formatRate = (v) => {
 export default function EngineerForm({ onSubmit, onCancel, initialData }) {
   const [form, setForm] = useState(
     initialData
-      ? { ...initialData, monthly_rate: formatRate(initialData.monthly_rate) }
+      ? {
+          ...initialData,
+          monthly_rate: formatRate(initialData.monthly_rate),
+          project_locations: initialData.project_location
+            ? initialData.project_location.split(", ").map(s => s.trim()).filter(Boolean)
+            : [""],
+        }
       : {
           name: "",
           gender: "",
@@ -62,7 +182,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
           monthly_rate: "",
           project_start_date: "",
           project_end_date: "",
-          project_location: "",
+          project_locations: [""],
         }
   );
   const [error, setError] = useState("");
@@ -139,6 +259,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
         monthly_rate: form.monthly_rate ? form.monthly_rate.replace(/,/g, "") : "",
         project_start_date: form.project_start_date || null,
         project_end_date: form.project_end_date || null,
+        project_location: form.project_locations.filter(v => v.trim()).join(", "),
       }, continueAfter);
       
       // 成功メッセージを表示
@@ -159,7 +280,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
           monthly_rate: "",
           project_start_date: "",
           project_end_date: "",
-          project_location: "",
+          project_locations: [""],
         });
         
         // 成功メッセージを3秒後に消去
@@ -173,26 +294,46 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onCancel}>
-      <form className="bg-gradient-to-br from-white via-slate-50 to-stone-50 rounded-3xl shadow-2xl p-8 w-full max-w-2xl animate-fade-in max-h-[95vh] overflow-y-auto border border-white/60" onClick={e => e.stopPropagation()}
-            style={{
-              boxShadow: '0 25px 70px rgba(0,0,0,0.15), 0 10px 30px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)'
-            }}
-            onSubmit={handleSubmit}>
-        {/* ヘッダー */}
-        <div className="relative mb-8 pb-6 border-b border-gradient-to-r from-amber-200 via-stone-200 to-amber-200">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300 rounded-full"></div>
-          
-          <h2 className={`text-3xl font-bold mb-2 tracking-wide flex items-center gap-3 ${initialData ? 'text-emerald-700' : 'text-blue-700'}`}>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${initialData ? 'bg-gradient-to-br from-emerald-500 to-green-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'} text-white shadow-lg`}>
-              <i className={`fas ${initialData ? 'fa-edit' : 'fa-user-plus'} text-xl`}></i>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      {/* 背景オーバーレイ */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+      {/* ===== 中央モーダル本体 ===== */}
+      <form
+        className="relative w-full max-w-2xl flex flex-col bg-gradient-to-b from-white to-slate-50 rounded-2xl overflow-hidden"
+        style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.2)', animation: 'modalFadeIn 0.22s cubic-bezier(0.16,1,0.3,1)', maxHeight: '92vh' }}
+        onClick={e => e.stopPropagation()}
+        onSubmit={handleSubmit}
+      >
+        {/* ===== 固定ヘッダー ===== */}
+        <div className="flex-shrink-0 px-8 py-5 bg-white border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${initialData ? 'bg-gradient-to-br from-emerald-500 to-green-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'} text-white shadow-md`}>
+              <i className={`fas ${initialData ? 'fa-edit' : 'fa-user-plus'}`}></i>
             </div>
-            {initialData ? 'エンジニア編集' : 'エンジニア新規登録'}
-          </h2>
-          <p className="text-slate-600 ml-15">
-            {initialData ? 'エンジニア情報を更新します' : '新しいエンジニアを登録します'}
-          </p>
+            <div>
+              <h2 className={`text-xl font-bold leading-tight ${initialData ? 'text-emerald-700' : 'text-blue-700'}`}>
+                {initialData ? 'エンジニア編集' : 'エンジニア新規登録'}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {initialData ? 'エンジニア情報を更新します' : '新しいエンジニアを登録します'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
+            aria-label="閉じる"
+          >
+            <i className="fas fa-times"></i>
+          </button>
         </div>
+        {/* カラーライン */}
+        <div className={`h-1 flex-shrink-0 bg-gradient-to-r ${initialData ? 'from-emerald-400 via-green-300 to-emerald-400' : 'from-blue-400 via-indigo-300 to-blue-400'}`} />
+
+        {/* ===== スクロール可能なコンテンツ領域 ===== */}
+        <div className="flex-1 overflow-y-auto px-8 py-6">
         {error && (
           <div className="text-red-700 mb-6 font-semibold bg-gradient-to-r from-red-50 to-rose-50 p-4 rounded-2xl border border-red-200 shadow-sm">
             <div className="flex items-center gap-3">
@@ -262,7 +403,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   ))}
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <i className="fas fa-venus-mars text-slate-400"></i>
+                  <i className="fas fa-user-circle text-slate-400"></i>
                 </div>
               </div>
             </div>
@@ -292,7 +433,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   engineer_status: opt.value,
                   ...(opt.value === '未アサイン' ? {
                     project_name: '', planner: '', client_company: '',
-                    monthly_rate: '', project_start_date: '', project_end_date: '', project_location: ''
+                    monthly_rate: '', project_start_date: '', project_end_date: '', project_locations: ['']
                   } : {})
                 }))}
               >
@@ -313,16 +454,17 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* プロジェクト名 */}
+
+            {/* ① プロジェクト内容 */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 プロジェクト内容
               </label>
               <div className="relative">
-                <input 
-                  name="project_name" 
-                  value={form.project_name} 
-                  onChange={handleChange} 
+                <input
+                  name="project_name"
+                  value={form.project_name}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
                   style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
                   placeholder="ECサイト開発"
@@ -332,32 +474,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                 </div>
               </div>
             </div>
-            
-            {/* 担当プランナー */}
-            <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                担当プランナー
-              </label>
-              <div className="relative">
-                <select 
-                  name="planner" 
-                  value={form.planner} 
-                  onChange={handleChange} 
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium appearance-none cursor-pointer pr-12"
-                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
-                >
-                  <option value="">選択してください</option>
-                  {PLANNER_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <i className="fas fa-chevron-down text-slate-400"></i>
-                </div>
-              </div>
-            </div>
 
-            {/* クライアント先企業名 */}
+            {/* ② クライアント先企業名 */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 クライアント先企業名
@@ -377,93 +495,146 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
               </div>
             </div>
 
-            {/* 単価 */}
+            {/* ③ プロジェクト所在地（複数入力） */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                {form.rate_type === 'monthly' ? '月単価' : '時給単価'}
+                プロジェクト所在地
               </label>
-              <div className="flex items-center gap-2">
+              <div className="space-y-2">
+                {form.project_locations.map((loc, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={loc}
+                        onChange={e => {
+                          const updated = [...form.project_locations];
+                          updated[idx] = e.target.value;
+                          setForm(f => ({ ...f, project_locations: updated }));
+                        }}
+                        className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                        style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                        placeholder="例: 名古屋市中区 / フルリモート"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <i className="fas fa-map-marker-alt text-slate-300"></i>
+                      </div>
+                    </div>
+                    {form.project_locations.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, project_locations: f.project_locations.filter((_, i) => i !== idx) }))}
+                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 transition-all flex-shrink-0"
+                        aria-label="削除"
+                      >
+                        <i className="fas fa-minus text-sm"></i>
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, project_locations: [...f.project_locations, ""] }))}
+                  className="flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors mt-1"
+                >
+                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-emerald-100 hover:bg-emerald-200 transition-colors">
+                    <i className="fas fa-plus text-xs"></i>
+                  </span>
+                  所在地を追加
+                </button>
+              </div>
+            </div>
+
+            {/* ④ 担当プランナー */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                担当プランナー
+              </label>
+              <div className="relative">
+                <select
+                  name="planner"
+                  value={form.planner}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium appearance-none cursor-pointer pr-12"
+                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                >
+                  <option value="">選択してください</option>
+                  {PLANNER_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <i className="fas fa-chevron-down text-slate-400"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* ⑤ 参画開始日 */}
+            <div className="relative">
+              <label className="flex items-center min-h-[1.75rem] text-sm font-medium text-slate-700 mb-2">
+                参画開始日
+              </label>
+              <SmartDateInput
+                name="project_start_date"
+                value={form.project_start_date}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+              />
+            </div>
+
+            {/* ⑥ 契約終了予定日 */}
+            <div className="relative">
+              <label className="flex items-center gap-1.5 min-h-[1.75rem] text-sm font-medium text-slate-700 mb-2">
+                契約終了予定日
+                <span className="text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-normal">アラート対象</span>
+                <span className="text-slate-400 cursor-default" title="設定すると稼働率ダッシュボードのアラートに表示されます">
+                  <i className="fas fa-info-circle text-[11px]"></i>
+                </span>
+              </label>
+              <SmartDateInput
+                name="project_end_date"
+                value={form.project_end_date}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+              />
+            </div>
+
+            {/* ⑦ 単価（フル幅） */}
+            <div className="relative md:col-span-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-slate-700">
+                  {form.rate_type === 'monthly' ? '月単価' : '時給単価'}
+                </label>
                 {/* スライドトグル */}
-                <div className="relative flex bg-slate-100 rounded-full p-1 w-36 shrink-0 cursor-pointer select-none"
+                <div
+                  className="relative flex bg-slate-100 rounded-full p-1 w-36 cursor-pointer select-none"
                   onClick={() => setForm(f => ({ ...f, rate_type: f.rate_type === 'monthly' ? 'hourly' : 'monthly', monthly_rate: '' }))}
                 >
-                  {/* スライドピル */}
                   <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full shadow transition-all duration-300 ${form.rate_type === 'monthly' ? 'left-1' : 'left-[calc(50%+3px)]'}`}></div>
                   <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.rate_type === 'monthly' ? 'text-emerald-600' : 'text-slate-400'}`}>月単価</span>
                   <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.rate_type === 'hourly' ? 'text-emerald-600' : 'text-slate-400'}`}>時給単価</span>
                 </div>
-                <span className="text-slate-500 font-medium text-lg shrink-0">¥</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium text-lg flex-shrink-0">¥</span>
                 <input
                   type="text"
                   inputMode="numeric"
                   name="monthly_rate"
                   value={form.monthly_rate}
                   onChange={handleRateChange}
-                  className="flex-1 min-w-0 px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                  className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
                   style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
                   placeholder={form.rate_type === 'monthly' ? '650,000' : '3,000'}
                 />
                 {form.rate_type === 'hourly' && (
-                  <span className="text-slate-500 font-medium text-base whitespace-nowrap shrink-0">/h</span>
+                  <span className="text-slate-500 font-medium text-base flex-shrink-0">/h</span>
                 )}
               </div>
             </div>
 
-            {/* 参画開始日（プロジェクト内容入力時のみ表示） */}
-            {form.project_name && (
-              <div className="relative">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  参画開始日
-                </label>
-                <input
-                  type="date"
-                  name="project_start_date"
-                  value={form.project_start_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium"
-                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
-                />
-              </div>
-            )}
-
-            {/* 契約終了予定日（プロジェクト内容入力時のみ表示） */}
-            {form.project_name && (
-              <div className="relative">
-                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-2">
-                  契約終了予定日
-                  <span className="text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-normal">アラート対象</span>
-                </label>
-                <input
-                  type="date"
-                  name="project_end_date"
-                  value={form.project_end_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-200 outline-none transition-all bg-white/80 text-lg font-medium"
-                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
-                />
-                <p className="text-[11px] text-slate-400 mt-1.5">設定すると稼働率ダッシュボードのアラートに表示されます</p>
-              </div>
-            )}
-
-            {/* プロジェクト所在地 */}
-            <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                プロジェクト所在地
-              </label>
-              <div className="relative">
-                <input
-                  name="project_location"
-                  value={form.project_location}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
-                  style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
-                  placeholder="例: 名古屋市中区 / フルリモート"
-                />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <i className="fas fa-map-marker-alt text-slate-300"></i>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         )}
@@ -633,73 +804,59 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
             </div>
           </div>
         </div>
-        {/* アクションボタン */}
-        <div className="mt-10 pt-6 border-t border-slate-200">
-          <div className="flex flex-col sm:flex-row gap-4 justify-end">
+        </div>{/* ===== スクロール可能なコンテンツ領域 終了 ===== */}
+
+        {/* ===== 固定フッター（アクションボタン） ===== */}
+        <div className="flex-shrink-0 px-8 py-5 bg-white/95 backdrop-blur-sm border-t border-slate-200" style={{ boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
+          <div className="flex flex-col sm:flex-row gap-3 justify-end">
             {/* キャンセルボタン */}
-            <button 
-              type="button" 
-              className="px-6 py-3 bg-gradient-to-r from-slate-100 to-gray-100 text-slate-600 rounded-xl font-semibold shadow-md hover:shadow-lg hover:from-slate-200 hover:to-gray-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 btn-no-wrap btn-fixed-size btn-responsive" 
+            <button
+              type="button"
+              className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               onClick={onCancel}
               disabled={isSubmitting}
             >
               <i className="fas fa-times"></i>
               キャンセル
             </button>
-            
+
             {/* 新規登録時のみ連続登録ボタンを表示 */}
             {!initialData && (
-              <button 
+              <button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
                 disabled={isSubmitting}
-                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-emerald-600 hover:to-green-700 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 btn-no-wrap btn-fixed-size btn-responsive"
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg hover:from-emerald-600 hover:to-green-700 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i>
-                    登録中...
-                  </>
+                  <><i className="fas fa-spinner fa-spin"></i>登録中...</>
                 ) : (
-                  <>
-                    <i className="fas fa-plus-circle"></i>
-                    登録して続ける
-                  </>
+                  <><i className="fas fa-plus-circle"></i>登録して続ける</>
                 )}
               </button>
             )}
-            
+
             {/* メイン送信ボタン */}
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={isSubmitting}
-              className={`px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 btn-no-wrap btn-fixed-size btn-responsive ${
-                initialData 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700' 
+              className={`px-8 py-2.5 rounded-xl font-bold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 ${
+                initialData
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
                   : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700'
               }`}
             >
               {isSubmitting ? (
-                <>
-                  <i className="fas fa-spinner fa-spin"></i>
-                  {initialData ? "更新中..." : "登録中..."}
-                </>
+                <><i className="fas fa-spinner fa-spin"></i>{initialData ? "更新中..." : "登録中..."}</>
               ) : (
-                <>
-                  <i className={`fas ${initialData ? 'fa-save' : 'fa-check'}`}></i>
-                  {initialData ? "更新して完了" : "登録して完了"}
-                </>
+                <><i className={`fas ${initialData ? 'fa-save' : 'fa-check'}`}></i>{initialData ? "更新して完了" : "登録して完了"}</>
               )}
             </button>
           </div>
-          
-          {/* フォームのヒント */}
-          <div className="mt-4 text-center">
-            <p className="text-xs text-slate-500">
-              <i className="fas fa-info-circle mr-1"></i>
-              必須項目（<span className="text-red-500">*</span>）は入力必須です
-            </p>
-          </div>
+          <p className="text-xs text-slate-400 mt-3 text-center">
+            <i className="fas fa-info-circle mr-1"></i>
+            必須項目（<span className="text-red-500">*</span>）は入力必須です
+          </p>
         </div>
       </form>
     </div>

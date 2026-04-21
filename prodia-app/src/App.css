@@ -37,6 +37,18 @@
   }
 }
 
+/* サイドパネル（ドロワー）スライドインアニメーション */
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); opacity: 0.4; }
+  to   { transform: translateX(0);    opacity: 1;   }
+}
+
+/* 中央モーダル フェードイン */
+@keyframes modalFadeIn {
+  from { transform: scale(0.95) translateY(8px); opacity: 0; }
+  to   { transform: scale(1)    translateY(0);   opacity: 1; }
+}
+
 /* Shared soft-gradient helpers so non-analytics pages inherit the same aura */
 .soft-page {
   position: relative;

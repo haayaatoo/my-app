@@ -187,6 +187,103 @@ const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMon
   );
 };
 
+// 今月のアクションカード
+const MonthlyActionsCard = ({ engineers }) => {
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const thisMonth = now.getMonth(); // 0-indexed
+
+  // 今月中に契約終了するアサイン済エンジニア
+  const endingThisMonth = engineers.filter(e => {
+    if (e.engineer_status !== 'アサイン済' || !e.project_end_date) return false;
+    const end = new Date(e.project_end_date);
+    return end.getFullYear() === thisYear && end.getMonth() === thisMonth;
+  }).sort((a, b) => new Date(a.project_end_date) - new Date(b.project_end_date));
+
+  const monthLabel = `${thisYear}年${thisMonth + 1}月`;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 flex flex-col h-full">
+      <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+        <i className="fas fa-calendar-alt text-indigo-500"></i>
+        今月のアクション
+      </h3>
+      <p className="text-xs text-slate-400 mb-4">{monthLabel}中に次のアサイン先を決める必要があるエンジニア</p>
+
+      {endingThisMonth.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center py-6 text-slate-400">
+          <i className="fas fa-check-circle text-3xl mb-2 text-emerald-400"></i>
+          <p className="text-sm">今月中に契約終了のエンジニアはいません</p>
+        </div>
+      ) : (
+        <div className="space-y-2 flex-1">
+          {endingThisMonth.map(e => {
+            const end = new Date(e.project_end_date);
+            const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+            const isUrgent = daysLeft <= 7;
+            const isVeryUrgent = daysLeft <= 3;
+            return (
+              <div
+                key={e.id}
+                className={`flex items-center gap-3 p-3 rounded-xl border ${
+                  isVeryUrgent
+                    ? 'bg-red-50 border-red-200'
+                    : isUrgent
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-indigo-50 border-indigo-200'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  isVeryUrgent ? 'bg-red-100' : isUrgent ? 'bg-amber-100' : 'bg-indigo-100'
+                }`}>
+                  <i className={`fas fa-user text-sm ${
+                    isVeryUrgent ? 'text-red-500' : isUrgent ? 'text-amber-500' : 'text-indigo-500'
+                  }`}></i>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold truncate ${
+                    isVeryUrgent ? 'text-red-800' : isUrgent ? 'text-amber-800' : 'text-indigo-800'
+                  }`}>{e.name}</p>
+                  <p className={`text-xs truncate ${
+                    isVeryUrgent ? 'text-red-600' : isUrgent ? 'text-amber-600' : 'text-indigo-600'
+                  }`}>
+                    {e.project_name || '案件名未設定'} &nbsp;·&nbsp; {e.planner || '担当未設定'}
+                  </p>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    isVeryUrgent
+                      ? 'bg-red-200 text-red-700'
+                      : isUrgent
+                      ? 'bg-amber-200 text-amber-700'
+                      : 'bg-indigo-200 text-indigo-700'
+                  }`}>
+                    {daysLeft <= 0 ? '本日終了' : `残${daysLeft}日`}
+                  </span>
+                  <p className={`text-[10px] mt-0.5 ${
+                    isVeryUrgent ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-indigo-400'
+                  }`}>
+                    {e.project_end_date.replace(/-/g, '/')} 終了
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {endingThisMonth.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <p className="text-xs text-slate-500 flex items-center gap-1">
+            <i className="fas fa-info-circle text-slate-400"></i>
+            合計 <span className="font-bold text-indigo-600">{endingThisMonth.length}名</span> のアサイン先確保が必要です
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // 今日のアクションカード
 const TodayActionsCard = ({ interviews, waitingEngineers }) => {
   const today = new Date().toISOString().split('T')[0];
@@ -195,7 +292,7 @@ const TodayActionsCard = ({ interviews, waitingEngineers }) => {
   const urgentWaiting = waitingEngineers.filter(w => w.urgency === 'high');
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
+    <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 flex flex-col h-full">
       <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
         <i className="fas fa-exclamation-circle text-red-500"></i>
         今日のアクション
@@ -709,18 +806,22 @@ const EngineerStats = ({ engineers }) => {
           bpPrevMonth={bpPrevMonth}
         />
 
-        <TodayActionsCard 
-          interviews={ppInterviews.map(i => ({
-            ...i,
-            engineer: i.engineer_name,
-            company: i.company_name,
-            date: i.interview_date,
-            time: i.interview_time,
-            deadline: i.response_deadline,
-            type: 'PP'
-          }))}
-          waitingEngineers={WAITING_ENGINEERS} 
-        />
+        {/* アクションエリア：今月 / 今日 横並び */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <MonthlyActionsCard engineers={engineers} />
+          <TodayActionsCard
+            interviews={ppInterviews.map(i => ({
+              ...i,
+              engineer: i.engineer_name,
+              company: i.company_name,
+              date: i.interview_date,
+              time: i.interview_time,
+              deadline: i.response_deadline,
+              type: 'PP'
+            }))}
+            waitingEngineers={WAITING_ENGINEERS}
+          />
+        </div>
 
         {/* 📊 ZONE 2: 戦況（KPI） */}
         <div className="mb-6">
