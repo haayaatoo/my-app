@@ -39,6 +39,144 @@ const formatUnitPrice = (val) => {
   return dec !== undefined ? `${formatted}.${dec}` : formatted;
 };
 
+// 日付入力（手入力 YYYY/MM/DD + カレンダー選択）
+function SmartDateInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (value) {
+      const p = value.split('-');
+      setDisplayValue(p.length === 3 ? `${p[0]}/${p[1]}/${p[2]}` : value);
+    } else {
+      setDisplayValue('');
+    }
+  }, [value]);
+
+  const handleText = (e) => {
+    const cleaned = e.target.value.replace(/[^0-9/]/g, '');
+    const digits = cleaned.replace(/\//g, '').slice(0, 8);
+    let fmt = '';
+    if (digits.length <= 4) fmt = digits;
+    else if (digits.length <= 6) fmt = `${digits.slice(0,4)}/${digits.slice(4)}`;
+    else fmt = `${digits.slice(0,4)}/${digits.slice(4,6)}/${digits.slice(6,8)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 8) onChange({ target: { name, value: `${digits.slice(0,4)}-${digits.slice(4,6)}-${digits.slice(6,8)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openCalendar = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input ref={textRef} type="text" value={displayValue} onChange={handleText}
+        className={`${className} pr-10`} placeholder="YYYY/MM/DD" maxLength={10} inputMode="numeric" autoComplete="off" />
+      <button type="button" onClick={openCalendar} tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+        <i className="fas fa-calendar-alt"></i>
+      </button>
+      <input ref={pickerRef} type="date" value={value || ''} tabIndex={-1} aria-hidden="true"
+        onChange={(e) => { const p = e.target.value.split('-'); if (p.length===3) { setDisplayValue(`${p[0]}/${p[1]}/${p[2]}`); onChange({ target: { name, value: e.target.value } }); } }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden" />
+    </div>
+  );
+}
+
+// 時間入力（手入力 HH:MM + ピッカー選択）
+function SmartTimeInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => { setDisplayValue(value || ''); }, [value]);
+
+  const handleText = (e) => {
+    const digits = e.target.value.replace(/[^0-9:]/g, '').replace(/:/g, '').slice(0, 4);
+    const fmt = digits.length <= 2 ? digits : `${digits.slice(0,2)}:${digits.slice(2)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 4) onChange({ target: { name, value: `${digits.slice(0,2)}:${digits.slice(2,4)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openPicker = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input ref={textRef} type="text" value={displayValue} onChange={handleText}
+        className={`${className} pr-10`} placeholder="HH:MM" maxLength={5} inputMode="numeric" autoComplete="off" />
+      <button type="button" onClick={openPicker} tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+        <i className="fas fa-clock"></i>
+      </button>
+      <input ref={pickerRef} type="time" value={value || ''} tabIndex={-1} aria-hidden="true"
+        onChange={(e) => { setDisplayValue(e.target.value); onChange({ target: { name, value: e.target.value } }); }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden" />
+    </div>
+  );
+}
+
+// 年月入力（手入力 YYYY/MM + ピッカー選択）
+function SmartMonthInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (value) {
+      const p = value.split('-');
+      setDisplayValue(p.length === 2 ? `${p[0]}/${p[1]}` : value);
+    } else {
+      setDisplayValue('');
+    }
+  }, [value]);
+
+  const handleText = (e) => {
+    const digits = e.target.value.replace(/[^0-9/]/g, '').replace(/\//g, '').slice(0, 6);
+    const fmt = digits.length <= 4 ? digits : `${digits.slice(0,4)}/${digits.slice(4)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 6) onChange({ target: { name, value: `${digits.slice(0,4)}-${digits.slice(4,6)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openPicker = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input ref={textRef} type="text" value={displayValue} onChange={handleText}
+        className={`${className} pr-10`} placeholder="YYYY/MM" maxLength={7} inputMode="numeric" autoComplete="off" />
+      <button type="button" onClick={openPicker} tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+        <i className="fas fa-calendar-alt"></i>
+      </button>
+      <input ref={pickerRef} type="month" value={value || ''} tabIndex={-1} aria-hidden="true"
+        onChange={(e) => { const p = e.target.value.split('-'); if (p.length===2) { setDisplayValue(`${p[0]}/${p[1]}`); onChange({ target: { name, value: e.target.value } }); } }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden" />
+    </div>
+  );
+}
+
 export default function PPSalesProgress() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,8 +199,8 @@ export default function PPSalesProgress() {
     company_name: '',
     interview_date: '',
     interview_time: '',
-    sales_person: '温水',
-    status: '日程調整中',
+    sales_person: '',
+    status: '',
     start_month: '',
     response_deadline: '',
     unit_price: '',
@@ -228,7 +366,6 @@ export default function PPSalesProgress() {
       '岡田': 'bg-gradient-to-br from-blue-400 to-blue-600',
       '野田': 'bg-gradient-to-br from-pink-400 to-rose-600',
       '服部': 'bg-gradient-to-br from-cyan-400 to-teal-600',
-      '山口': 'bg-gradient-to-br from-amber-400 to-yellow-600'
     };
     return colors[person] || 'bg-gradient-to-br from-gray-400 to-gray-600';
   };
@@ -246,7 +383,7 @@ export default function PPSalesProgress() {
       .then(created => {
         setInterviews(prev => [created, ...prev]);
         setShowNewInterviewModal(false);
-        setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '温水', status: '日程調整中', start_month: '', response_deadline: '', unit_price: '', notes: '' });
+        setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '', status: '', start_month: '', response_deadline: '', unit_price: '', notes: '' });
       });
   };
 
@@ -342,7 +479,6 @@ export default function PPSalesProgress() {
               <option value="岡田">岡田</option>
               <option value="野田">野田</option>
               <option value="服部">服部</option>
-              <option value="山口">山口</option>
             </select>
           </div>
         </div>
@@ -623,7 +759,10 @@ export default function PPSalesProgress() {
 
       {/* 新規面談追加モーダル */}
       {showNewInterviewModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowNewInterviewModal(false); setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '', status: '', start_month: '', response_deadline: '', unit_price: '', notes: '' }); } }}
+        >
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-t-3xl">
               <h3 className="text-2xl font-bold flex items-center gap-3">
@@ -632,7 +771,10 @@ export default function PPSalesProgress() {
               </h3>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div
+              className="p-6 space-y-4"
+              onFocusCapture={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+            >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">エンジニア名 *</label>
@@ -641,7 +783,7 @@ export default function PPSalesProgress() {
                     value={newInterview.engineer_name}
                     onChange={(e) => setNewInterview({ ...newInterview, engineer_name: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="例: 浜田"
+                    placeholder="例: 浜田太郎"
                   />
                 </div>
                 
@@ -652,14 +794,14 @@ export default function PPSalesProgress() {
                     value={newInterview.company_name}
                     onChange={(e) => setNewInterview({ ...newInterview, company_name: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="例: メイテツコム"
+                    placeholder="例: 株式会社メイテツコム"
                   />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">面談日</label>
-                  <input
-                    type="date"
+                  <SmartDateInput
+                    name="interview_date"
                     value={newInterview.interview_date}
                     onChange={(e) => setNewInterview({ ...newInterview, interview_date: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -668,8 +810,8 @@ export default function PPSalesProgress() {
                 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">面談時間</label>
-                  <input
-                    type="time"
+                  <SmartTimeInput
+                    name="interview_time"
                     value={newInterview.interview_time}
                     onChange={(e) => setNewInterview({ ...newInterview, interview_time: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -683,13 +825,13 @@ export default function PPSalesProgress() {
                     onChange={(e) => setNewInterview({ ...newInterview, sales_person: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
+                    <option value="">選択してください</option>
                     <option value="温水">温水</option>
                     <option value="瀬戸山">瀬戸山</option>
                     <option value="上前">上前</option>
                     <option value="岡田">岡田</option>
                     <option value="野田">野田</option>
                     <option value="服部">服部</option>
-                    <option value="山口">山口</option>
                   </select>
                 </div>
                 
@@ -700,6 +842,7 @@ export default function PPSalesProgress() {
                     onChange={(e) => setNewInterview({ ...newInterview, status: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
+                    <option value="">選択してください</option>
                     <option value="日程調整中">日程調整中</option>
                     <option value="面談予定">面談予定</option>
                     <option value="面談済み／回答待ち">面談済み／回答待ち</option>
@@ -710,8 +853,8 @@ export default function PPSalesProgress() {
                 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">開始月 *</label>
-                  <input
-                    type="month"
+                  <SmartMonthInput
+                    name="start_month"
                     value={newInterview.start_month}
                     onChange={(e) => setNewInterview({ ...newInterview, start_month: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -720,8 +863,8 @@ export default function PPSalesProgress() {
                 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">回答期限</label>
-                  <input
-                    type="date"
+                  <SmartDateInput
+                    name="response_deadline"
                     value={newInterview.response_deadline}
                     onChange={(e) => setNewInterview({ ...newInterview, response_deadline: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -730,23 +873,26 @@ export default function PPSalesProgress() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">単価（万円）</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">¥</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={formatUnitPrice(newInterview.unit_price)}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/,/g, '');
-                      if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
-                        setNewInterview({ ...newInterview, unit_price: raw });
-                      }
-                    }}
-                    className="w-full pl-8 pr-12 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="例: 80"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">万円</span>
+                <label className="block text-sm font-medium text-slate-700 mb-2">単価</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">¥</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatUnitPrice(newInterview.unit_price)}
+                      onChange={(e) => {
+                        const normalized = e.target.value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+                        const raw = normalized.replace(/,/g, '');
+                        if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
+                          setNewInterview({ ...newInterview, unit_price: raw });
+                        }
+                      }}
+                      className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="例: 80"
+                    />
+                  </div>
+                  <span className="text-sm font-medium text-slate-600 whitespace-nowrap">万円</span>
                 </div>
               </div>
               
@@ -850,7 +996,6 @@ export default function PPSalesProgress() {
                       <option value="岡田">岡田</option>
                       <option value="野田">野田</option>
                       <option value="服部">服部</option>
-                      <option value="山口">山口</option>
                     </select>
                   </div>
                   

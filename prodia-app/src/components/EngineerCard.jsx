@@ -8,7 +8,7 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [memoCount, setMemoCount] = useState(0);
   const [memoStats, setMemoStats] = useState({ total: 0, urgent: 0, high: 0, pending: 0 });
-  const [isMemoAreaHovered, setIsMemoAreaHovered] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
 
   // NEW / 延長バッジ判定
   // last_user_updated_at は新規登録時はnull、更新時のみセットされる
@@ -78,6 +78,20 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
     onMemoClick && onMemoClick(name);
   };
 
+  // カードクリック：フリップ切り替え
+  const handleCardClick = (e) => {
+    // ボタン・チェックボックス・リンクのクリックは無視
+    if (e.target.closest('button') || e.target.closest('input[type="checkbox"]') || e.target.closest('a')) return;
+    setIsFlipped(prev => !prev);
+  };
+
+  // ダブルクリック：編集開始
+  const handleCardDoubleClick = (e) => {
+    if (e.target.closest('button') || e.target.closest('input[type="checkbox"]') || e.target.closest('a')) return;
+    setIsFlipped(false);
+    onEdit(engineer);
+  };
+
   // ドラッグ&ドロップハンドラー
   const handleDragStart = (e) => {
     setIsDragging(true);
@@ -100,42 +114,56 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
 
   return (
     <>
-      <div 
-        className={`engineer-card ${isDragging ? 'dragging' : ''} ${isSelected ? 'ring-2 ring-blue-500' : ''} ${isMemoAreaHovered ? 'memo-hovered' : ''}`}
+      <div
+        className={`engineer-card relative ${isDragging ? 'dragging' : ''} ${isFlipped ? 'flipped' : ''}`}
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDoubleClick={() => onEdit(engineer)}
+        onClick={handleCardClick}
+        onDoubleClick={handleCardDoubleClick}
       >
+        {/* 選択チェックボックス：card-innerの外に配置して裏返りに影響されないようにする */}
+        <div
+          className="absolute top-2 right-2 z-30"
+          onClick={e => e.stopPropagation()}
+          onDoubleClick={e => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => onSelect(engineer.id, e.target.checked)}
+            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+          />
+        </div>
+
+        {/* 編集・削除ボタン：card-innerの外に配置して裏返りに影響されないようにする */}
+        <div
+          className="absolute top-2 left-2 z-30 flex gap-1"
+          onClick={e => e.stopPropagation()}
+          onDoubleClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => onEdit(engineer)}
+            className="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm transition-all shadow-md hover:shadow-lg transform hover:scale-110"
+            title="編集"
+          >
+            <i className="fas fa-edit"></i>
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            className="bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm transition-all shadow-md hover:shadow-lg transform hover:scale-110"
+            title="削除"
+          >
+            <i className="fas fa-trash"></i>
+          </button>
+        </div>
+
+        {/* 選択時のリング：card-innerの外で管理 */}
+        {isSelected && (
+          <div className="absolute inset-0 rounded-2xl ring-2 ring-blue-500 z-20 pointer-events-none" />
+        )}
+
         <div className="card-inner relative">
-          {/* 選択チェックボックス */}
-          <div className="absolute top-2 right-2 z-10">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={(e) => onSelect(engineer.id, e.target.checked)}
-              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-          
-          {/* 編集・削除ボタン */}
-          <div className="absolute top-2 left-2 z-10 flex gap-1">
-            <button
-              onClick={() => onEdit(engineer)}
-              className="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm transition-all shadow-md hover:shadow-lg transform hover:scale-110"
-              title="編集"
-            >
-              <i className="fas fa-edit"></i>
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              className="bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm transition-all shadow-md hover:shadow-lg transform hover:scale-110"
-              title="削除"
-            >
-              <i className="fas fa-trash"></i>
-            </button>
-          </div>
 
           {/* カード表 */}
           <div className={`card-front bg-white rounded-2xl shadow-lg p-6 w-full min-h-[360px] flex flex-col items-center justify-between relative transition-all duration-300 ${
@@ -234,9 +262,7 @@ function EngineerCard({ engineer, onEdit, onDelete, isSelected, onSelect, onMemo
 
             {/* メモボタンエリア */}
             <div 
-              className="w-full mt-auto memo-area"
-              onMouseEnter={() => setIsMemoAreaHovered(true)}
-              onMouseLeave={() => setIsMemoAreaHovered(false)}
+              className="w-full mt-auto"
             >
               <div className="flex justify-center gap-2">
                 <button

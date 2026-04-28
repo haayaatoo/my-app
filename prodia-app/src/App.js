@@ -14,6 +14,7 @@ import CsCaseManager from "./components/CsCaseManager";
 import Calendar from "./components/Calendar";
 import DealPipeline from "./components/DealPipeline";
 import UtilizationDashboard from "./components/UtilizationDashboard";
+import ActivityTimeline from "./components/ActivityTimeline";
 
 const CS_CASE_ALLOWED = ['y-okada@1dr.co.jp'];
 
@@ -291,6 +292,19 @@ function MainLayout({ page, setPage, handleLogout }) {
               collapsed={collapsed}
             />
             <NavButton
+              isActive={page === "timeline"}
+              onClick={() => setPage("timeline")}
+              iconClass="fas fa-history"
+              label="操作タイムライン"
+              activeColors={{
+                icon: "bg-indigo-500",
+                bg: "bg-gradient-to-r from-indigo-100 to-violet-100",
+                border: "border-indigo-200/50",
+                iconHover: "group-hover:bg-indigo-100 group-hover:text-indigo-600",
+              }}
+              collapsed={collapsed}
+            />
+            <NavButton
               isActive={page === "settings"}
               onClick={() => setPage("settings")}
               iconClass="fas fa-cog"
@@ -329,8 +343,9 @@ function MainLayout({ page, setPage, handleLogout }) {
 
       {/* メイン画面 */}
       <main className="flex-1 overflow-auto">
-        {page === "dashboard" && <Dashboard />}
+        {page === "dashboard" && <Dashboard onNavigate={setPage} />}
         {page === "utilization" && <UtilizationDashboard />}
+        {page === "timeline" && <ActivityTimeline />}
         {page === "engineers" && <EngineerList />}
         {page === "skill-sheets" && <SkillSheetManager />}
         {page === "interviews" && <InterviewManager />}

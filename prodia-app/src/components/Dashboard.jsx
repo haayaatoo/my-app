@@ -1,32 +1,46 @@
 import React, { useEffect, useState } from "react";
 // import { useUser } from "../contexts/UserContext";
 
-// 🎉 面白い仕掛け：動的なメッセージシステム
-const EXECUTIVE_MESSAGES = [
-  { text: "今日も素晴らしいチームですね！", icon: "fas fa-star", color: "text-amber-600" },
-  { text: "エンジニアの生産性が向上中です", icon: "fas fa-chart-line", color: "text-emerald-600" },
-  { text: "新しい才能が加わりました", icon: "fas fa-rocket", color: "text-blue-600" },
-  { text: "プロジェクト進行が順調です", icon: "fas fa-trophy", color: "text-purple-600" },
-  { text: "技術スタックが多様化しています", icon: "fas fa-code", color: "text-indigo-600" }
-];
+// ──────────────────────────────────────────────
+// アラート計算ヘルパー（UtilizationDashboard と共通ロジック）
+// ──────────────────────────────────────────────
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr); target.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / (1000 * 60 * 60 * 24));
+}
 
-// スキルレーダーチャート風の視覚化
-const SKILL_CATEGORIES = [
-  { name: "フロントエンド", skills: ["React", "Vue.js", "Angular"], color: "bg-blue-500" },
-  { name: "バックエンド", skills: ["Python", "Node.js", "Django"], color: "bg-green-500" },
-  { name: "データベース", skills: ["PostgreSQL", "MongoDB", "MySQL"], color: "bg-purple-500" },
-  { name: "インフラ", skills: ["AWS", "Docker", "Kubernetes"], color: "bg-orange-500" },
-  { name: "AI/ML", skills: ["TensorFlow", "PyTorch", "Scikit-learn"], color: "bg-pink-500" }
-];
+function extensionCheckDate(endDateStr) {
+  if (!endDateStr) return null;
+  const base = new Date(endDateStr);
+  base.setMonth(base.getMonth() - 1);
+  const dow = base.getDay();
+  const monday = new Date(base);
+  if (dow === 0) monday.setDate(monday.getDate() + 1);
+  else if (dow === 6) monday.setDate(monday.getDate() + 2);
+  else monday.setDate(monday.getDate() - (dow - 1));
+  return monday;
+}
+
+function hasExtensionAlert(endDateStr) {
+  const checkDate = extensionCheckDate(endDateStr);
+  if (!checkDate) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const check = new Date(checkDate); check.setHours(0, 0, 0, 0);
+  const end = new Date(endDateStr); end.setHours(0, 0, 0, 0);
+  const daysToEnd = Math.round((end - today) / 86400000);
+  if (daysToEnd <= 0) return false;
+  const daysToCheck = Math.round((check - today) / 86400000);
+  return daysToCheck <= 14;
+}
 
 // 高級感のあるアニメーションカウンター（モダンラグジュアリー）
 function AnimatedCounter({ end, label, prefix = "", suffix = "", color = "blue", icon }) {
   const safeEnd = (end !== undefined && end !== null && !isNaN(end) && isFinite(end)) ? Math.max(0, Math.round(end)) : 0;
   const [count, setCount] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
-    setIsVisible(true);
     if (safeEnd === 0) {
       setCount(0);
       return;
@@ -227,223 +241,190 @@ function RevenueCard({ engineers }) {
   );
 }
 
-// アラートカード
-function AlertCard({ engineers }) {
-  const unassigned = engineers.filter(e => e.engineer_status === '未アサイン');
-  const criticalSkills = ['React', 'Python', 'AWS', 'TypeScript'];
-  const availableSkills = unassigned.flatMap(e => e.skills || []);
-  const missingSkills = criticalSkills.filter(skill => 
-    !availableSkills.some(available => available.toLowerCase().includes(skill.toLowerCase()))
+// ──────────────────────────────────────────────
+// アラートサマリーバナー（IDR + BP + 待機中 + 延長確認待ち）
+// ──────────────────────────────────────────────
+function AlertSummaryBanner({ engineers, partners, onNavigate }) {
+  // IDR: 30日以内契約終了（稼働中のみ）
+  const idrExpiring = engineers.filter(e => {
+    if (e.engineer_status !== 'アサイン済' || !e.project_end_date) return false;
+    const d = daysUntil(e.project_end_date);
+    return d !== null && d >= 0 && d <= 30;
+  });
+  const idrUrgent  = idrExpiring.filter(e => daysUntil(e.project_end_date) <= 14);
+  const idrWarning = idrExpiring.filter(e => daysUntil(e.project_end_date) > 14);
+
+  // IDR: 待機中・フェードアウト
+  const idrWaiting = engineers.filter(e =>
+    e.engineer_status === '未アサイン' || e.engineer_status === 'フェードアウト'
   );
-  
+
+  // IDR: 延長確認待ち
+  const idrExtension = engineers.filter(e =>
+    e.project_end_date && hasExtensionAlert(e.project_end_date)
+  );
+
+  // BP: 30日以内契約終了
+  const bpExpiring = (partners || []).filter(p => {
+    if (!p.contract_end) return false;
+    const d = daysUntil(p.contract_end);
+    return d !== null && d >= 0 && d <= 30;
+  });
+  const bpUrgent  = bpExpiring.filter(p => daysUntil(p.contract_end) <= 14);
+  const bpWarning = bpExpiring.filter(p => daysUntil(p.contract_end) > 14);
+
+  // BP: 延長確認待ち
+  const bpExtension = (partners || []).filter(p =>
+    p.contract_end && hasExtensionAlert(p.contract_end)
+  );
+
+  const totalUrgent = idrUrgent.length + bpUrgent.length;
+  const extensionCount = idrExtension.length + bpExtension.length;
+  const totalAlert = idrExpiring.length + bpExpiring.length + idrWaiting.length + extensionCount;
+
+  // バナーカラー
+  const bannerCls = totalUrgent > 0
+    ? 'bg-red-50 border-red-200'
+    : totalAlert > 0
+    ? 'bg-orange-50 border-orange-200'
+    : 'bg-emerald-50 border-emerald-200';
+
+  const iconCls = totalUrgent > 0
+    ? 'bg-red-100 text-red-500'
+    : totalAlert > 0
+    ? 'bg-orange-100 text-orange-500'
+    : 'bg-emerald-100 text-emerald-500';
+
+  const titleCls = totalUrgent > 0 ? 'text-red-800' : totalAlert > 0 ? 'text-orange-800' : 'text-emerald-800';
+
+  // バッジ定義
+  const badges = [
+    idrUrgent.length  > 0 && { label: `IDR 緊急 ${idrUrgent.length}件`,          cls: 'bg-red-100 text-red-700 border-red-200' },
+    idrWarning.length > 0 && { label: `IDR 30日以内 ${idrWarning.length}件`,     cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+    bpUrgent.length   > 0 && { label: `BP 緊急 ${bpUrgent.length}件`,            cls: 'bg-red-100 text-red-700 border-red-200' },
+    bpWarning.length  > 0 && { label: `BP 30日以内 ${bpWarning.length}件`,       cls: 'bg-violet-100 text-violet-700 border-violet-200' },
+    idrWaiting.length > 0 && { label: `待機中 ${idrWaiting.length}名`,           cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    extensionCount    > 0 && { label: `延長確認待ち ${extensionCount}件`,         cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  ].filter(Boolean);
+
   return (
-    <div className="bg-white p-5 rounded-xl shadow-lg border-l-4 border-red-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap">🚨 アラート</h3>
-        <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-bold">
-          {unassigned.length + missingSkills.length}件
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-x-6 gap-y-2">
-        {unassigned.length > 0 && (
-          <div className="flex items-center gap-2">
-            <i className="fas fa-clock text-yellow-500"></i>
-            <span className="text-sm">未アサイン: {unassigned.length}名</span>
+    <div
+      className={`rounded-xl border px-5 py-4 cursor-pointer hover:shadow-md transition-all ${bannerCls}`}
+      onClick={() => onNavigate && onNavigate('utilization')}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${iconCls}`}>
+            <i className="fas fa-bell text-sm"></i>
           </div>
-        )}
-        {missingSkills.length > 0 && (
-          <div className="flex items-center gap-2">
-            <i className="fas fa-exclamation-triangle text-red-500"></i>
-            <span className="text-sm">不足スキル: {missingSkills.join(', ')}</span>
+          <div className="min-w-0">
+            <p className={`text-sm font-bold mb-1.5 flex items-center gap-2 flex-wrap ${titleCls}`}>
+              エンジニアアラートサマリー
+              {totalUrgent > 0 && (
+                <span className="text-xs font-bold text-white bg-red-500 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <i className="fas fa-exclamation text-[9px]"></i>
+                  緊急 {totalUrgent}件
+                </span>
+              )}
+            </p>
+            {totalAlert > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {badges.map((b, i) => (
+                  <span key={i} className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${b.cls}`}>
+                    {b.label}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-emerald-600 flex items-center gap-1">
+                <i className="fas fa-check-circle text-[11px]"></i>
+                対応が必要なアラートはありません
+              </p>
+            )}
           </div>
-        )}
-        {unassigned.length === 0 && missingSkills.length === 0 && (
-          <div className="flex items-center gap-2 text-green-600">
-            <i className="fas fa-check-circle"></i>
-            <span className="text-sm">すべて正常です</span>
-          </div>
-        )}
+        </div>
+        <div className="flex items-center gap-1 text-xs font-semibold text-slate-400 flex-shrink-0 hover:text-indigo-600 transition-colors whitespace-nowrap mt-1">
+          稼働率管理で詳細を確認
+          <i className="fas fa-arrow-right text-[10px] ml-0.5"></i>
+        </div>
       </div>
     </div>
   );
 }
 
-// インタラクティブスキル分析カード
-function SkillAnalysisCard({ engineers }) {
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [isHovering, setIsHovering] = useState(false);
-  
-  const skillCounts = {};
-  engineers.forEach(engineer => {
-    if (Array.isArray(engineer.skills)) {
-      engineer.skills.forEach(skill => {
-        skillCounts[skill] = (skillCounts[skill] || 0) + 1;
-      });
-    }
-  });
-  
-  // カテゴリ別のスキル統計
-  const categoryStats = SKILL_CATEGORIES.map(category => {
-    const categorySkills = category.skills.filter(skill => skillCounts[skill]);
-    const totalCount = categorySkills.reduce((sum, skill) => sum + (skillCounts[skill] || 0), 0);
-    const coverage = (categorySkills.length / category.skills.length) * 100;
-    
-    return {
-      ...category,
-      totalCount,
-      coverage,
-      skills: categorySkills.map(skill => ({
-        name: skill,
-        count: skillCounts[skill] || 0
-      }))
-    };
-  });
+// 直近タイムライン（localStorageから最新5〜10件）
+const TIMELINE_ACTION_CONFIG = {
+  create: { label: '新規登録', icon: 'fa-plus-circle', color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  update: { label: '更新',     icon: 'fa-edit',        color: 'text-blue-500',    bg: 'bg-blue-50',    border: 'border-blue-200'    },
+  delete: { label: '削除',     icon: 'fa-trash-alt',   color: 'text-red-500',     bg: 'bg-red-50',     border: 'border-red-200'     },
+};
 
-  const topSkills = Object.entries(skillCounts)
-    .sort(([,a], [,b]) => b - a)
-    .slice(0, 6);
-    
-  const marketValue = {
-    'React': '高',
-    'TypeScript': '高',
-    'Python': '高',
-    'AWS': '最高',
-    'Docker': '中',
-    'Node.js': '高'
+function RecentTimeline({ onNavigate }) {
+  const [logs, setLogs] = useState([]);
+
+  useEffect(() => {
+    try {
+      const data = JSON.parse(localStorage.getItem('prodia_activity_log') || '[]');
+      setLogs(data.slice(0, 8));
+    } catch { setLogs([]); }
+  }, []);
+
+  const formatDate = (iso) => {
+    const d = new Date(iso);
+    const today = new Date();
+    const isToday = d.toDateString() === today.toDateString();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+    const timeStr = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return `今日 ${timeStr}`;
+    if (isYesterday) return `昨日 ${timeStr}`;
+    return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }) + ` ${timeStr}`;
   };
 
   return (
-    <div
-      className="relative p-8 bg-gradient-to-br from-white/80 via-amber-50/60 to-stone-100/80 rounded-3xl border border-white/80 shadow-2xl overflow-hidden group hover:bg-white/90 transition-all duration-500"
-      style={{
-        boxShadow: '0 25px 60px rgba(0,0,0,0.10), 0 10px 25px rgba(0,0,0,0.08)'
-      }}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-    >
-      {/* ラグジュアリーなパーティクル効果 */}
-      {isHovering && (
-        <div className="absolute inset-0 pointer-events-none z-0">
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-2 h-2 bg-amber-300 rounded-full animate-ping opacity-30"
-              style={{
-                top: `${20 + (i * 10)}%`,
-                left: `${10 + (i * 11)}%`,
-                animationDelay: `${i * 0.2}s`,
-                animationDuration: '2s'
-              }}
-            />
-          ))}
+    <div className="bg-white border border-slate-200 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <i className="fas fa-history text-indigo-500"></i>
+          最近の操作
+        </h3>
+        <button
+          onClick={() => onNavigate && onNavigate('timeline')}
+          className="text-xs text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 transition-colors"
+        >
+          もっと見る
+          <i className="fas fa-arrow-right text-[10px]"></i>
+        </button>
+      </div>
+
+      {logs.length === 0 ? (
+        <div className="text-center py-6 text-slate-300">
+          <i className="fas fa-clock text-2xl mb-2 block"></i>
+          <p className="text-xs">操作履歴がまだありません</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log) => {
+            const cfg = TIMELINE_ACTION_CONFIG[log.action] || TIMELINE_ACTION_CONFIG.update;
+            return (
+              <div key={log.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border ${cfg.bg} ${cfg.border}`}>
+                <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                  <i className={`fas ${cfg.icon} text-xs ${cfg.color}`}></i>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-800 truncate">
+                    <span className="font-bold">{log.user_name}</span>
+                    <span className="text-slate-400 mx-1">が</span>
+                    <span className="font-semibold">{log.target_name}</span>
+                    <span className="text-slate-400 ml-1">を{cfg.label}しました。</span>
+                  </p>
+                </div>
+                <span className="text-[10px] text-slate-400 flex-shrink-0">{formatDate(log.created_at)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
-
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-2xl font-semibold text-slate-800 tracking-wide flex items-center gap-3">
-            <i className="fas fa-chart-bar text-amber-500 text-3xl"></i>
-            エンジニア統計
-          </h3>
-          <div className={`text-3xl transition-all duration-500 ${isHovering ? 'rotate-12 scale-110' : ''} text-amber-600/80`}>
-            <i className="fas fa-chart-bar"></i>
-          </div>
-        </div>
-
-        {/* カテゴリ選択 */}
-        <div className="mb-8">
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-6">
-            {categoryStats.map((category, index) => (
-              <button
-                key={category.name}
-                onClick={() => setSelectedCategory(selectedCategory === category.name ? null : category.name)}
-                className={`p-4 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 font-semibold shadow-sm border-2 ${
-                  selectedCategory === category.name
-                    ? 'bg-gradient-to-br from-amber-100 to-stone-100 border-amber-400 shadow-lg'
-                    : 'bg-white/70 border-white/60 hover:bg-white/90'
-                }`}
-                style={{
-                  animationDelay: `${index * 0.1}s`
-                }}
-              >
-                <div className={`w-7 h-7 ${category.color} rounded-lg mx-auto mb-2 transition-all duration-300 ${
-                  selectedCategory === category.name ? 'shadow-lg' : ''
-                }`}></div>
-                <div className="text-xs font-bold text-slate-700 tracking-wide">{category.name}</div>
-                <div className="text-xs text-slate-500 mt-1">{category.totalCount}人</div>
-                <div className="w-full bg-stone-200 rounded-full h-1 mt-2">
-                  <div
-                    className={`${category.color} h-1 rounded-full transition-all duration-500`}
-                    style={{ width: `${category.coverage}%` }}
-                  ></div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 選択カテゴリ詳細 */}
-        {selectedCategory && (
-          <div className="mb-8 p-6 bg-gradient-to-r from-amber-50 to-stone-50 rounded-2xl border border-amber-200/60 animate-fade-in shadow">
-            {(() => {
-              const category = categoryStats.find(c => c.name === selectedCategory);
-              return (
-                <div>
-                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <div className={`w-4 h-4 ${category.color} rounded mr-2`}></div>
-                    {category.name}領域の詳細
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {category.skills.map(skill => (
-                      <div key={skill.name} className="p-3 bg-white/90 rounded-xl border border-white/60 shadow-sm">
-                        <div className="font-bold text-slate-700 text-base">{skill.name}</div>
-                        <div className="text-xs text-slate-500 mt-1">{skill.count}名が保有</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* 人気スキルランキング */}
-        <div className="space-y-4">
-          <h4 className="text-lg font-bold text-slate-800 mb-4">🏆 人気スキルランキング</h4>
-          {topSkills.map(([skill, count], index) => (
-            <div
-              key={skill}
-              className="flex items-center justify-between p-4 bg-white/80 rounded-2xl hover:bg-white/90 transition-all duration-300 transform hover:scale-102 border border-white/60 shadow-sm"
-              style={{
-                animationDelay: `${index * 0.1}s`
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-stone-400 rounded-xl flex items-center justify-center text-white font-bold text-sm">
-                  {index + 1}
-                </div>
-                <span className="font-bold text-slate-700 text-base">{skill}</span>
-                <span className={`ml-3 text-xs px-2 py-1 rounded-full font-semibold ${
-                  marketValue[skill] === '最高' ? 'bg-red-100 text-red-800' :
-                  marketValue[skill] === '高' ? 'bg-orange-100 text-orange-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {marketValue[skill] || '標準'}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="text-slate-600 mr-3 font-bold">{count}名</span>
-                <div className="w-20 bg-stone-200 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-amber-400 to-stone-400 h-2 rounded-full transition-all duration-1000 delay-300"
-                    style={{ width: `${(count / Math.max(...Object.values(skillCounts))) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -771,16 +752,103 @@ function RealTimeMarketTrends() {
   );
 }
 
-export default function Dashboard() {
+// ──────────────────────────────────────────────
+// 男女比率ドーナツチャート
+// ──────────────────────────────────────────────
+function GenderPieChart({ engineers }) {
+  const maleCount = engineers.filter(e => e.gender === 'male').length;
+  const femaleCount = engineers.filter(e => e.gender === 'female').length;
+  const unknownCount = engineers.filter(e => !e.gender || (e.gender !== 'male' && e.gender !== 'female')).length;
+  const total = engineers.length;
+
+  const malePercent = total > 0 ? Math.round((maleCount / total) * 100) : 0;
+  const femalePercent = total > 0 ? Math.round((femaleCount / total) * 100) : 0;
+  const unknownPercent = total > 0 ? 100 - malePercent - femalePercent : 0;
+
+  const radius = 60;
+  const circumference = 2 * Math.PI * radius;
+
+  const segments = [];
+  if (maleCount > 0) segments.push({ label: '男性', count: maleCount, percent: malePercent, color: '#3b82f6' });
+  if (femaleCount > 0) segments.push({ label: '女性', count: femaleCount, percent: femalePercent, color: '#ec4899' });
+  if (unknownCount > 0) segments.push({ label: '未設定', count: unknownCount, percent: unknownPercent, color: '#94a3b8' });
+
+  let cumulativeAngle = 0;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-6">
+      <div className="flex items-center gap-2 mb-6">
+        <i className="fas fa-users text-violet-500 text-lg"></i>
+        <h3 className="text-base font-semibold text-slate-700">男女比率</h3>
+        <span className="ml-auto text-xs text-slate-400">IDRエンジニア</span>
+      </div>
+
+      {total === 0 ? (
+        <div className="flex items-center justify-center h-40 text-slate-400 text-sm">
+          データがありません
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-6">
+          {/* SVGドーナツチャート */}
+          <div className="relative">
+            <svg width="160" height="160" viewBox="0 0 160 160">
+              {segments.length === 0 ? (
+                <circle cx="80" cy="80" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="24" />
+              ) : (
+                segments.map((seg) => {
+                  const segLength = (seg.percent / 100) * circumference;
+                  const rotation = -90 + cumulativeAngle;
+                  cumulativeAngle += (seg.percent / 100) * 360;
+                  return (
+                    <circle
+                      key={seg.label}
+                      cx="80" cy="80" r={radius}
+                      fill="none"
+                      stroke={seg.color}
+                      strokeWidth="24"
+                      strokeDasharray={`${segLength} ${circumference}`}
+                      strokeDashoffset={0}
+                      transform={`rotate(${rotation}, 80, 80)`}
+                    />
+                  );
+                })
+              )}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold text-slate-700">{total}</span>
+              <span className="text-xs text-slate-400">総人数</span>
+            </div>
+          </div>
+
+          {/* 凡例 */}
+          <div className="w-full space-y-2">
+            {segments.map(seg => (
+              <div key={seg.label} className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }}></div>
+                  <span className="text-sm text-slate-600">{seg.label}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-700">{seg.count}名</span>
+                  <span className="text-xs text-slate-400 w-10 text-right">{seg.percent}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Dashboard({ onNavigate }) {
   // const { user } = useUser(); // 現在未使用
   const [engineers, setEngineers] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   
-  // 🎉 面白い仕掛け：動的メッセージシステム
-  const [currentMessage, setCurrentMessage] = useState(0);
-
   // 💰 売上シミュレーション用状態
   const [showRevenueSimulation, setShowRevenueSimulation] = useState(false);
   const [simulationParams, setSimulationParams] = useState({
@@ -793,10 +861,13 @@ export default function Dashboard() {
   // エンジニアデータを取得
   const fetchEngineers = (isManual = false) => {
     if (isManual) setIsRefreshing(true);
-    fetch("/api/engineers/")
-      .then((res) => res.json())
-      .then((data) => {
-        setEngineers(data);
+    Promise.all([
+      fetch("/api/engineers/").then(r => r.json()),
+      fetch("/api/partner-engineers/").then(r => r.json()),
+    ])
+      .then(([engData, bpData]) => {
+        setEngineers(Array.isArray(engData) ? engData : []);
+        setPartners(Array.isArray(bpData) ? bpData : []);
         setLoading(false);
         setIsRefreshing(false);
       })
@@ -809,15 +880,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchEngineers();
-  }, []);
-
-  // 🎉 面白い仕掛け：メッセージローテーション
-  useEffect(() => {
-    const messageInterval = setInterval(() => {
-      setCurrentMessage((prev) => (prev + 1) % EXECUTIVE_MESSAGES.length);
-    }, 4000);
-    
-    return () => clearInterval(messageInterval);
   }, []);
 
   // エンジニア数更新時にシミュレーションパラメータを更新
@@ -969,6 +1031,16 @@ export default function Dashboard() {
         </div>
       </div>
       <div className="flex-1 overflow-auto px-6 py-5">
+
+        {/* アラートサマリーバナー */}
+        <div className="mb-4">
+          <AlertSummaryBanner engineers={engineers} partners={partners} onNavigate={onNavigate} />
+        </div>
+
+        {/* 直近タイムライン */}
+        <div className="mb-6">
+          <RecentTimeline onNavigate={onNavigate} />
+        </div>
 
         {/* KPIメトリクス */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
@@ -1125,21 +1197,12 @@ export default function Dashboard() {
         </div>
 
         {/* メインコンテンツエリア */}
-        <div className="space-y-6 mb-8 opacity-0 animate-slide-in-from-bottom" style={{animationDelay: '800ms', animationFillMode: 'forwards'}}>
-          {/* アラート - 全幅コンパクト表示 */}
-          <div className="opacity-0 animate-slide-in-from-left" style={{animationDelay: '900ms', animationFillMode: 'forwards'}}>
-            <AlertCard engineers={engineers} />
-          </div>
-
-          {/* 売上と稼働状況を横並び */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 opacity-0 animate-slide-in-from-left" style={{animationDelay: '1000ms', animationFillMode: 'forwards'}}>
+        <div className="space-y-6 mb-8">
+          {/* 売上・稼働状況・男女比率を横並び */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <RevenueCard engineers={engineers} />
             <ScheduleCard engineers={engineers} />
-          </div>
-
-          {/* スキル分析 - 全幅表示 */}
-          <div className="opacity-0 animate-slide-in-from-left" style={{animationDelay: '1100ms', animationFillMode: 'forwards'}}>
-            <SkillAnalysisCard engineers={engineers} />
+            <GenderPieChart engineers={engineers} />
           </div>
         </div>
 

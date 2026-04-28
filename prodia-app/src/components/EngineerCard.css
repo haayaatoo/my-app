@@ -17,19 +17,8 @@
   transform-style: preserve-3d;
 }
 
-.engineer-card:hover .card-inner {
+.engineer-card.flipped .card-inner {
   transform: rotateY(180deg);
-}
-
-/* メモボタンエリアホバー時はフリップを無効化 */
-.engineer-card.memo-hovered:hover .card-inner {
-  transform: rotateY(0deg) !important;
-}
-
-/* メモボタンエリア専用スタイル */
-.memo-area {
-  position: relative;
-  z-index: 20;
 }
 
 .card-front,

@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useToast } from "./Toast";
+import { useUser } from "../contexts/UserContext";
 import EngineerCard from "./EngineerCard";
 import EngineerForm from "./EngineerForm";
 import EngineerStats from "./EngineerStats";
@@ -40,9 +41,41 @@ function AnimatedLoader() {
   );
 }
 
+// フィールド名の日本語ラベルマッピング
+const FIELD_LABELS = {
+  name: '名前',
+  gender: '性別',
+  engineer_status: 'ステータス',
+  project_name: '案件名',
+  planner: '担当者',
+  client_company: 'クライアント企業',
+  monthly_rate: '月単価',
+  project_start_date: '案件開始日',
+  project_end_date: '案件終了日',
+};
+
+// 操作ログを localStorage に記録
+function logActivity(action, targetName, userName, details = null) {
+  try {
+    const logs = JSON.parse(localStorage.getItem('prodia_activity_log') || '[]');
+    const entry = {
+      id: Date.now(),
+      action,
+      target_type: 'engineer',
+      target_name: targetName || '不明',
+      user_name: userName || 'システム',
+      details: details,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [entry, ...logs].slice(0, 100);
+    localStorage.setItem('prodia_activity_log', JSON.stringify(updated));
+  } catch { /* ignore */ }
+}
+
 // モダン・ラグジュアリーヘッダーコンポーネント
 export default function EngineerList() {
   const toast = useToast();
+  const { user } = useUser();
   const [engineers, setEngineers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -165,6 +198,38 @@ export default function EngineerList() {
       }
 
       await response.json();
+
+      // 更新時の変更フィールドを検知
+      let details = null;
+      if (editingEngineer) {
+        const changes = [];
+        const checkFields = [
+          'name', 'gender', 'engineer_status', 'project_name', 'planner',
+          'client_company', 'monthly_rate', 'project_start_date', 'project_end_date'
+        ];
+        checkFields.forEach(field => {
+          const oldVal = String(editingEngineer[field] ?? '');
+          const newVal = String(form[field] ?? '');
+          if (oldVal !== newVal) {
+            const label = FIELD_LABELS[field] || field;
+            changes.push(`${label}: ${oldVal || '(未設定)'} → ${newVal || '(未設定)'}`);
+          }
+        });
+        // スキルの変更
+        const added = (form.skills || []).filter(s => !(editingEngineer.skills || []).includes(s));
+        const removed = (editingEngineer.skills || []).filter(s => !(form.skills || []).includes(s));
+        if (added.length) changes.push(`スキル追加: ${added.join(', ')}`);
+        if (removed.length) changes.push(`スキル削除: ${removed.join(', ')}`);
+        // フェーズの変更
+        const oldPhase = (editingEngineer.phase || []).sort().join(',');
+        const newPhase = (form.phase || []).sort().join(',');
+        if (oldPhase !== newPhase) {
+          changes.push(`工程: ${(editingEngineer.phase || []).join('・') || '(未設定)'} → ${(form.phase || []).join('・') || '(未設定)'}`);
+        }
+        if (changes.length > 0) details = changes.join('、');
+      }
+
+      logActivity(editingEngineer ? 'update' : 'create', form.name, user?.name, details);
       
       // 連続登録でなければフォームを閉じる
       if (!continueAfter) {
@@ -215,11 +280,13 @@ export default function EngineerList() {
 
   // 削除
   const handleDelete = (engineerId) => {
+    const target = engineers.find(e => e.id === engineerId);
     fetch(`/api/engineers/${engineerId}/`, {
       method: "DELETE",
     })
       .then(res => {
         if (!res.ok) throw new Error("削除に失敗しました");
+        logActivity('delete', target?.name || '不明', user?.name);
         fetchEngineers();
         toast.success("削除完了!");
       })
