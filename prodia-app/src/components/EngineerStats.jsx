@@ -1,12 +1,8 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
-import { useToast } from './Toast';
 import DetailedAnalytics from './DetailedAnalytics';
 
 // 決定実績データ（月別） - APIから取得予定
 const DECISIONS_BY_MONTH = {};
-
-// 待機エンジニアデータ - APIから取得予定
-const WAITING_ENGINEERS = [];
 
 const useCountUp = (target = 0, duration = 1200) => {
   const [value, setValue] = useState(0);
@@ -285,11 +281,10 @@ const MonthlyActionsCard = ({ engineers }) => {
 };
 
 // 今日のアクションカード
-const TodayActionsCard = ({ interviews, waitingEngineers }) => {
+const TodayActionsCard = ({ interviews }) => {
   const today = new Date().toISOString().split('T')[0];
   const todayInterviews = interviews.filter(i => i.date === today);
   const urgentDeadlines = interviews.filter(i => i.deadline === today);
-  const urgentWaiting = waitingEngineers.filter(w => w.urgency === 'high');
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 flex flex-col h-full">
@@ -323,19 +318,7 @@ const TodayActionsCard = ({ interviews, waitingEngineers }) => {
           </div>
         )}
 
-        {urgentWaiting.length > 0 && (
-          <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-            <i className="fas fa-user-clock text-amber-500 mt-1"></i>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">待機予定（緊急）: {urgentWaiting.length}名</p>
-              <p className="text-xs text-amber-600">
-                {urgentWaiting.map(w => `${w.name}(${w.days_left}日後終了)`).join(', ')}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {urgentDeadlines.length === 0 && todayInterviews.length === 0 && urgentWaiting.length === 0 && (
+        {urgentDeadlines.length === 0 && todayInterviews.length === 0 && (
           <div className="text-center py-4 text-slate-400">
             <i className="fas fa-check-circle text-3xl mb-2"></i>
             <p className="text-sm">緊急アクションはありません</p>
@@ -527,63 +510,7 @@ const DecisionRankingSection = ({ decisions, onDetailClick, onOpenDetailAnalytic
   );
 };
 
-// 待機予定者リスト
-const WaitingEngineersList = ({ waitingEngineers }) => {
-  const getUrgencyColor = (urgency) => {
-    if (urgency === 'high') return 'border-red-300 bg-red-50';
-    if (urgency === 'medium') return 'border-amber-300 bg-amber-50';
-    return 'border-emerald-300 bg-emerald-50';
-  };
-
-  const getUrgencyIcon = (urgency) => {
-    if (urgency === 'high') return <i className="fas fa-circle text-red-500"></i>;
-    if (urgency === 'medium') return <i className="fas fa-circle text-yellow-500"></i>;
-    return <i className="fas fa-circle text-green-500"></i>;
-  };
-
-  return (
-    <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
-      <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-        <i className="fas fa-user-clock text-orange-500"></i>
-        待機予定者リスト（アサイン緊急度順）
-      </h3>
-      
-      <div className="space-y-3">
-        {waitingEngineers.map(eng => (
-          <div 
-            key={eng.id} 
-            className={`border-2 rounded-xl p-4 ${getUrgencyColor(eng.urgency)} hover:shadow-md transition-all cursor-pointer`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <span>{getUrgencyIcon(eng.urgency)}</span>
-                <div>
-                  <h4 className="font-bold text-slate-800">{eng.name}</h4>
-                  <p className="text-xs text-slate-600">
-                    {eng.skills.join(' / ')}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-slate-700">{eng.unit_price.toLocaleString()}円</p>
-                <p className="text-xs text-slate-500">単価</p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-600">終了予定: {eng.end_date}</span>
-              <span className={`font-bold ${eng.urgency === 'high' ? 'text-red-600' : eng.urgency === 'medium' ? 'text-amber-600' : 'text-emerald-600'}`}>
-                あと{eng.days_left}日
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 const EngineerStats = ({ engineers }) => {
-  const toast = useToast();
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [modalData, setModalData] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -657,39 +584,6 @@ const EngineerStats = ({ engineers }) => {
       phaseCounts
     };
   }, [engineers]);
-
-  // 実際のCSVエクスポート機能
-  const handleExportCSV = () => {
-    const csvData = engineers.map(e => ({
-      名前: e.name,
-      役職: e.position || '',
-      プロジェクト: e.project_name || '',
-      プランナー: e.planner || '',
-      スキル: Array.isArray(e.skills) ? e.skills.join(', ') : '',
-      ステータス: e.engineer_status,
-      フェーズ: Array.isArray(e.phase) ? e.phase.join(', ') : ''
-    }));
-
-    if (csvData.length === 0) {
-      toast.warning('エクスポートできるエンジニアがまだ登録されていません');
-      return;
-    }
-
-    const csvContent = [
-      Object.keys(csvData[0]).join(','),
-      ...csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `engineers_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-  };
-
-  const handleGenerateReport = () => {
-    toast.info('レポート機能は開発中です！');
-  };
 
   const handleDetailClick = (planner, type, details) => {
     setModalData({ planner, type, details });
@@ -819,7 +713,6 @@ const EngineerStats = ({ engineers }) => {
               deadline: i.response_deadline,
               type: 'PP'
             }))}
-            waitingEngineers={WAITING_ENGINEERS}
           />
         </div>
 
@@ -829,7 +722,7 @@ const EngineerStats = ({ engineers }) => {
             <i className="fas fa-chart-line text-slate-600"></i>
             KPIダッシュボード
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <ModernKpiCard 
               icon="fa-check-circle" 
               label="PP決定" 
@@ -877,15 +770,6 @@ const EngineerStats = ({ engineers }) => {
               unit="%"
               delay={4}
             />
-            <ModernKpiCard 
-              icon="fa-user-clock" 
-              label="待機予定" 
-              value={WAITING_ENGINEERS.length} 
-              sub="アサイン必要" 
-              gradient="from-rose-500 to-pink-600"
-              unit="名"
-              delay={5}
-            />
           </div>
         </div>
 
@@ -894,8 +778,6 @@ const EngineerStats = ({ engineers }) => {
           onDetailClick={handleDetailClick}
           onOpenDetailAnalytics={() => setIsDetailAnalyticsOpen(true)}
         />
-
-        <WaitingEngineersList waitingEngineers={WAITING_ENGINEERS} />
 
         {/* ⚙️ ZONE 3: 戦力（リソース分析） */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -963,37 +845,6 @@ const EngineerStats = ({ engineers }) => {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* クイックアクション */}
-        <div className="mt-6 bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <i className="fas fa-bolt text-purple-500"></i>
-            クイックアクション
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={handleGenerateReport}
-              className="bg-gradient-to-r from-slate-700 to-slate-800 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-            >
-              <i className="fas fa-chart-line"></i>
-              稼働レポート生成
-            </button>
-            <button
-              onClick={handleExportCSV}
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-            >
-              <i className="fas fa-file-csv"></i>
-              CSVエクスポート
-            </button>
-            <button
-              onClick={() => toast.info('データ同期機能は開発中です')}
-              className="bg-gradient-to-r from-purple-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-            >
-              <i className="fas fa-sync-alt"></i>
-              データ同期
-            </button>
           </div>
         </div>
 

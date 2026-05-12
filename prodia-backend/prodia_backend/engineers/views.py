@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.db import transaction
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord, MonthlyProjectReport, PPInterview, BPProspect
+from .models import Engineer, SkillSheet, SalesMemo, MemoAttachment, ProdiaUser, Interview, RecruitmentChannel, SocialMediaPost, Company, CompanyAppointment, Deal, DealActivity, Project, ProjectAssignment, PartnerEngineer, TeleapoRecord, MonthlyProjectReport, PPInterview, BPProspect, CalendarEvent, ActivityLog
 from .serializers import (
     EngineerSerializer, 
     SkillSheetSerializer, 
@@ -28,7 +28,7 @@ from .serializers import (
     ProjectAssignmentSerializer,
 )
 
-from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, MonthlyProjectReportSerializer, PPInterviewSerializer, BPProspectSerializer
+from .serializers import PartnerEngineerSerializer, TeleapoRecordSerializer, MonthlyProjectReportSerializer, PPInterviewSerializer, BPProspectSerializer, CalendarEventSerializer, ActivityLogSerializer
 from django.http import JsonResponse
 
 def health_check(request):
@@ -54,12 +54,20 @@ class EngineerViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         extend = self._detect_extension(instance, request.data.get('project_end_date'), 'project_end_date')
+
+        # waiting_since の自動管理
+        new_status = request.data.get('engineer_status')
+        save_kwargs = {'last_user_updated_at': timezone.now()}
+        if new_status == '未アサイン' and instance.engineer_status != '未アサイン':
+            save_kwargs['waiting_since'] = timezone.now().date()
+        elif new_status and new_status != '未アサイン' and instance.engineer_status == '未アサイン':
+            save_kwargs['waiting_since'] = None
+
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         if extend:
-            serializer.save(contract_extended_at=timezone.now(), last_user_updated_at=timezone.now())
-        else:
-            serializer.save(last_user_updated_at=timezone.now())
+            save_kwargs['contract_extended_at'] = timezone.now()
+        serializer.save(**save_kwargs)
         return Response(serializer.data)
 
     def partial_update(self, request, *args, **kwargs):
@@ -1240,3 +1248,33 @@ class BPProspectViewSet(viewsets.ModelViewSet):
     queryset = BPProspect.objects.all().order_by('-created_at')
     serializer_class = BPProspectSerializer
     permission_classes = [AllowAny]
+
+
+class CalendarEventViewSet(viewsets.ModelViewSet):
+    """カスタムカレンダーイベント CRUD（全ユーザー共有）"""
+    queryset = CalendarEvent.objects.all().order_by('date', 'time')
+    serializer_class = CalendarEventSerializer
+    permission_classes = [AllowAny]
+
+
+class ActivityLogViewSet(viewsets.ModelViewSet):
+    """操作ログ（全ユーザー共有）"""
+    queryset = ActivityLog.objects.all().order_by('-created_at')
+    serializer_class = ActivityLogSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                qs = qs[:int(limit)]
+            except ValueError:
+                pass
+        return qs
+
+    @action(detail=False, methods=['delete'], url_path='clear')
+    def clear(self, request):
+        """ログ全件削除"""
+        ActivityLog.objects.all().delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

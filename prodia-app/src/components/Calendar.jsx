@@ -228,15 +228,29 @@ const Calendar = () => {
   }, []);
 
   // カスタムイベントデータ取得
+  const fetchCustomEvents = () => {
+    fetch('/api/calendar-events/')
+      .then(res => res.json())
+      .then(data => {
+        // APIのスネークケースフィールドをフロント用に変換
+        const mapped = data.map(e => ({
+          ...e,
+          id: `custom-${e.id}`,
+          _dbId: e.id,
+          endTime: e.end_time,
+          isRecurring: e.is_recurring,
+          recurringType: e.recurring_type,
+          recurringEndDate: e.recurring_end_date,
+        }));
+        setEvents(mapped);
+        const assignees = [...new Set(mapped.map(e => e.assignee).filter(Boolean))];
+        setAllAssignees(prev => [...new Set([...prev, ...assignees])]);
+      })
+      .catch(err => console.error('カスタムイベント取得エラー:', err));
+  };
+
   useEffect(() => {
-    const savedEvents = localStorage.getItem('calendarEvents');
-    if (savedEvents) {
-      const parsedEvents = JSON.parse(savedEvents);
-      setEvents(parsedEvents);
-      // 担当者リストを更新
-      const assignees = [...new Set(parsedEvents.map(e => e.assignee).filter(Boolean))];
-      setAllAssignees(prev => [...new Set([...prev, ...assignees])]);
-    }
+    fetchCustomEvents();
   }, []);
 
   // リマインダーチェック
@@ -290,10 +304,9 @@ const Calendar = () => {
     return () => clearInterval(interval);
   }, [events]);
 
-  // イベント保存
+  // イベント保存（互換性のため残すが内部では不使用）
   const saveEvents = (updatedEvents) => {
     setEvents(updatedEvents);
-    localStorage.setItem('calendarEvents', JSON.stringify(updatedEvents));
   };
 
   // 定期予定を展開
@@ -510,7 +523,7 @@ const Calendar = () => {
     }
 
     if (googleConnected) {
-      // Google連携中はGoogleカレンダーのみに保存（localStorageには保存しない）
+      // Google連携中はGoogleカレンダーのみに保存
       fetch('/api/calendar/events/create/', {
         method: 'POST',
         credentials: 'include',
@@ -524,15 +537,39 @@ const Calendar = () => {
           }
         })
         .catch(() => {
-          // Googleへの追加失敗時はlocalStorageに保存
-          const eventToAdd = { id: `custom-${Date.now()}`, ...newEvent };
-          saveEvents([...events, eventToAdd]);
+          // Googleへの追加失敗時はDBに保存
+          fetch('/api/calendar-events/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: newEvent.title, type: newEvent.type, date: newEvent.date,
+              time: newEvent.time, end_time: newEvent.endTime,
+              description: newEvent.description, assignee: newEvent.assignee,
+              reminder: newEvent.reminder, is_recurring: newEvent.isRecurring,
+              recurring_type: newEvent.recurringType, recurring_end_date: newEvent.recurringEndDate,
+            }),
+          })
+            .then(r => r.json())
+            .then(() => fetchCustomEvents())
+            .catch(() => {});
           toast.warning('Googleカレンダーへの追加に失敗したため、Prodia内に保存しました');
         });
     } else {
-      // Google未連携時はlocalStorageに保存
-      const eventToAdd = { id: `custom-${Date.now()}`, ...newEvent };
-      saveEvents([...events, eventToAdd]);
+      // Google未連携時はDBに保存
+      fetch('/api/calendar-events/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newEvent.title, type: newEvent.type, date: newEvent.date,
+          time: newEvent.time, end_time: newEvent.endTime,
+          description: newEvent.description, assignee: newEvent.assignee,
+          reminder: newEvent.reminder, is_recurring: newEvent.isRecurring,
+          recurring_type: newEvent.recurringType, recurring_end_date: newEvent.recurringEndDate,
+        }),
+      })
+        .then(r => r.json())
+        .then(() => fetchCustomEvents())
+        .catch(() => toast.error('イベントの保存に失敗しました'));
     }
 
     // プランナーリストを更新
@@ -584,11 +621,20 @@ const Calendar = () => {
           }
         })
         .catch(() => toast.error('Google予定の更新に失敗しました'));
-    } else if (editingEvent.id.startsWith('custom-')) {
-      const updatedEvents = events.map(e =>
-        e.id === editingEvent.id ? { ...e, ...newEvent } : e
-      );
-      saveEvents(updatedEvents);
+    } else if (editingEvent._dbId) {
+      fetch(`/api/calendar-events/${editingEvent._dbId}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newEvent.title, type: newEvent.type, date: newEvent.date,
+          time: newEvent.time, end_time: newEvent.endTime,
+          description: newEvent.description, assignee: newEvent.assignee,
+          reminder: newEvent.reminder, is_recurring: newEvent.isRecurring,
+          recurring_type: newEvent.recurringType, recurring_end_date: newEvent.recurringEndDate,
+        }),
+      })
+        .then(() => fetchCustomEvents())
+        .catch(() => toast.error('予定の更新に失敗しました'));
     }
 
     resetEventForm();
@@ -608,9 +654,14 @@ const Calendar = () => {
         })
         .catch(() => toast.error('Googleカレンダーからの削除に失敗しました'));
     } else if (eventId.startsWith('custom-')) {
-      const updatedEvents = events.filter(e => e.id !== eventId);
-      saveEvents(updatedEvents);
-      setShowDetailModal(false);
+      const evt = events.find(e => e.id === eventId);
+      if (!evt?._dbId) return;
+      fetch(`/api/calendar-events/${evt._dbId}/`, { method: 'DELETE' })
+        .then(() => {
+          fetchCustomEvents();
+          setShowDetailModal(false);
+        })
+        .catch(() => toast.error('予定の削除に失敗しました'));
     } else {
       toast.warning('PP/BP予定は元の画面から削除してください');
     }
@@ -644,7 +695,18 @@ const Calendar = () => {
       return event;
     });
 
-    saveEvents(updatedEvents);
+    // DB更新
+    if (draggedEvent._dbId) {
+      fetch(`/api/calendar-events/${draggedEvent._dbId}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: formatDate(targetDate) }),
+      })
+        .then(() => fetchCustomEvents())
+        .catch(() => toast.error('移動の保存に失敗しました'));
+    } else {
+      saveEvents(updatedEvents);
+    }
     setDraggedEvent(null);
   };
 

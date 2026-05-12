@@ -277,15 +277,15 @@ export default function BPProgress() {
     start_month: '',
     sales_price: '',
     purchase_price: '',
-    main_planner: '温水',
+    main_planner: '',
     support_planners: [],
-    priority: '中',
-    status: '日程調整中',
+    priority: '',
+    status: '',
     notes: ''
   });
 
   // プランナーリスト
-  const planners = ['温水', '瀬戸山', '上前', '岡田', '野田', '服部', '山口'];
+  const planners = ['温水', '瀬戸山', '上前', '岡田', '野田', '服部'];
 
   // 初回マウント時にAPIからデータ取得
   useEffect(() => {
@@ -509,7 +509,7 @@ export default function BPProgress() {
       .then(created => {
         setProspects(prev => [created, ...prev]);
         setShowNewProspectModal(false);
-        setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '温水', support_planners: [], priority: '中', status: '日程調整中', notes: '' });
+        setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], priority: '', status: '', notes: '' });
       });
   };
 
@@ -598,7 +598,7 @@ export default function BPProgress() {
               <span>= クロスマッチング担当</span>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             {planners.map(planner => (
               <div 
                 key={planner}
@@ -680,7 +680,7 @@ export default function BPProgress() {
               </span>
               <button
                 onClick={() => setShowNewProspectModal(true)}
-                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 text-white rounded-xl hover:shadow-md transition-all duration-300 flex items-center gap-2 font-medium text-sm"
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl hover:shadow-md transition-all duration-300 flex items-center gap-2 font-medium text-sm"
               >
                 <i className="fas fa-plus text-xs"></i>
                 新規見込み登録
@@ -967,7 +967,7 @@ export default function BPProgress() {
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setShowNewProspectModal(false);
-                setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '温水', support_planners: [], priority: '中', status: '日程調整中', notes: '' });
+                setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], priority: '', status: '', notes: '' });
               }
             }}
           >
@@ -1130,6 +1130,7 @@ export default function BPProgress() {
                       onChange={(e) => setNewProspect({ ...newProspect, main_planner: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
+                      <option value="">選択してください</option>
                       {planners.map(planner => (
                         <option key={planner} value={planner}>{planner}</option>
                       ))}
@@ -1143,6 +1144,7 @@ export default function BPProgress() {
                       onChange={(e) => setNewProspect({ ...newProspect, priority: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
+                      <option value="">選択してください</option>
                       <option value="高">高</option>
                       <option value="中">中</option>
                       <option value="低">低</option>
@@ -1179,6 +1181,7 @@ export default function BPProgress() {
                     onChange={(e) => setNewProspect({ ...newProspect, status: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
+                    <option value="">選択してください</option>
                     <option value="日程調整中">日程調整中</option>
                     <option value="面談予定">面談予定</option>
                     <option value="面談済み／回答待ち">面談済み／回答待ち</option>

@@ -560,8 +560,25 @@ function PartnerForm({ initial, onClose, onSave }) {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const setRate = (k, v) => set(k, formatRate(v));
+  // 甲→乙転記マッピング（会社名・単価一切は転記しない）
+  const CLIENT_TO_PARTNER_MAP = {
+    client_planner:              'partner_planner',
+    client_settlement_range:     'partner_settlement_range',
+    client_settlement_unit:      'partner_settlement_unit',
+    client_payment_site:         'partner_payment_site',
+    client_timesheet_format:     'partner_timesheet_format',
+    client_timesheet_collection: 'partner_timesheet_collection',
+    client_invoice_deadline:     'partner_invoice_deadline',
+    client_contact_to:           'partner_contact_to',
+    client_contact_cc:           'partner_contact_cc',
+  };
+
+  const set = (k, v) => setForm((f) => {
+    const next = { ...f, [k]: v };
+    if (CLIENT_TO_PARTNER_MAP[k]) next[CLIENT_TO_PARTNER_MAP[k]] = v;
+    return next;
+  });
+  const setRate = (k, v) => setForm((f) => ({ ...f, [k]: formatRate(v) }));
 
   const addSkill = () => {
     const s = skillInput.trim();
@@ -885,6 +902,9 @@ function PartnerForm({ initial, onClose, onSave }) {
                   <option value="">選択してください</option>
                   {PLANNERS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
+              </Field>
+              <Field label="乙：会社名">
+                <input className={inp} placeholder="例: 株式会社サムシス" value={form.partner_company} onChange={(e) => setForm((f) => ({ ...f, partner_company: e.target.value }))} />
               </Field>
               {/* 乙単価トグル */}
               <div>

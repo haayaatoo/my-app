@@ -54,22 +54,19 @@ const FIELD_LABELS = {
   project_end_date: '案件終了日',
 };
 
-// 操作ログを localStorage に記録
+// 操作ログを DB に記録
 function logActivity(action, targetName, userName, details = null) {
-  try {
-    const logs = JSON.parse(localStorage.getItem('prodia_activity_log') || '[]');
-    const entry = {
-      id: Date.now(),
+  fetch('/api/activity-logs/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       action,
       target_type: 'engineer',
       target_name: targetName || '不明',
       user_name: userName || 'システム',
       details: details,
-      created_at: new Date().toISOString(),
-    };
-    const updated = [entry, ...logs].slice(0, 100);
-    localStorage.setItem('prodia_activity_log', JSON.stringify(updated));
-  } catch { /* ignore */ }
+    }),
+  }).catch(() => { /* ログ失敗は無視 */ });
 }
 
 // モダン・ラグジュアリーヘッダーコンポーネント

@@ -3,7 +3,145 @@ import TeleapoManager from "./TeleapoManager";
 
 const API_BASE = "/api";
 
-const PLANNERS = ["温水", "瀬戸山", "上前", "岡田", "野田", "服部", "山口"];
+// 日付入力（手入力 YYYY/MM/DD + カレンダー選択）
+function SmartDateInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (value) {
+      const p = String(value).split('-');
+      setDisplayValue(p.length === 3 ? `${p[0]}/${p[1]}/${p[2]}` : String(value));
+    } else {
+      setDisplayValue('');
+    }
+  }, [value]);
+
+  const handleText = (e) => {
+    const cleaned = e.target.value.replace(/[^0-9/]/g, '');
+    const digits = cleaned.replace(/\//g, '').slice(0, 8);
+    let fmt = '';
+    if (digits.length <= 4) fmt = digits;
+    else if (digits.length <= 6) fmt = `${digits.slice(0, 4)}/${digits.slice(4)}`;
+    else fmt = `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6, 8)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 8) onChange({ target: { name, value: `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openCalendar = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        ref={textRef}
+        type="text"
+        value={displayValue}
+        onChange={handleText}
+        className={`${className} pr-10`}
+        placeholder="YYYY/MM/DD"
+        maxLength={10}
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={openCalendar}
+        tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <i className="fas fa-calendar-alt"></i>
+      </button>
+      <input
+        ref={pickerRef}
+        type="date"
+        value={value || ''}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const p = e.target.value.split('-');
+          if (p.length === 3) {
+            setDisplayValue(`${p[0]}/${p[1]}/${p[2]}`);
+            onChange({ target: { name, value: e.target.value } });
+          }
+        }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden"
+      />
+    </div>
+  );
+}
+
+// 時間入力（手入力 HH:MM + ピッカー選択）
+function SmartTimeInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => { setDisplayValue(value || ''); }, [value]);
+
+  const handleText = (e) => {
+    const digits = e.target.value.replace(/[^0-9:]/g, '').replace(/:/g, '').slice(0, 4);
+    const fmt = digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 4) onChange({ target: { name, value: `${digits.slice(0, 2)}:${digits.slice(2, 4)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openPicker = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        ref={textRef}
+        type="text"
+        value={displayValue}
+        onChange={handleText}
+        className={`${className} pr-10`}
+        placeholder="HH:MM"
+        maxLength={5}
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={openPicker}
+        tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <i className="fas fa-clock"></i>
+      </button>
+      <input
+        ref={pickerRef}
+        type="time"
+        value={value || ''}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          setDisplayValue(e.target.value);
+          onChange({ target: { name, value: e.target.value } });
+        }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden"
+      />
+    </div>
+  );
+}
+
+const PLANNERS = ["温水", "瀬戸山", "上前", "岡田", "野田", "服部"];
 
 // テーマはインデックス順で自動割り当て — PLANNERS に名前を追加するだけでOK
 const THEME_PALETTE = [
@@ -225,10 +363,14 @@ function AppointmentModal({ mode, initialData, companies, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div
         className="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
         style={{ boxShadow: "0 30px 80px rgba(0,0,0,0.2)" }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* ヘッダー */}
         <div className="relative px-8 pt-8 pb-6 bg-gradient-to-r from-amber-50 to-stone-50 border-b border-amber-100">
@@ -351,8 +493,8 @@ function AppointmentModal({ mode, initialData, companies, onClose, onSave }) {
               <label className="block text-sm font-medium text-slate-600 mb-1.5">
                 日程 <span className="text-red-400">*</span>
               </label>
-              <input
-                type="date"
+              <SmartDateInput
+                name="appointment_date"
                 value={form.appointment_date}
                 onChange={(e) => setForm((f) => ({ ...f, appointment_date: e.target.value }))}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-slate-50 text-slate-700"
@@ -360,8 +502,8 @@ function AppointmentModal({ mode, initialData, companies, onClose, onSave }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1.5">時間（任意）</label>
-              <input
-                type="time"
+              <SmartTimeInput
+                name="appointment_time"
                 value={form.appointment_time}
                 onChange={(e) => setForm((f) => ({ ...f, appointment_time: e.target.value }))}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-slate-50 text-slate-700"
@@ -964,7 +1106,7 @@ export default function CompanyAppointmentManager() {
         </div>
 
         {/* プランナー別カード */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {(() => {
             const ranked = [...stats.byPlanner].sort((a, b) => b.count - a.count);
             const maxCount = ranked[0]?.count || 1;

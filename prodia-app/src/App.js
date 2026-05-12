@@ -279,19 +279,6 @@ function MainLayout({ page, setPage, handleLogout }) {
           )}
           <div className={collapsed ? 'px-2 space-y-1' : 'px-2 space-y-0.5'}>
             <NavButton
-              isActive={page === "calendar"}
-              onClick={() => setPage("calendar")}
-              iconClass="fas fa-calendar-alt"
-              label="カレンダー"
-              activeColors={{
-                icon: "bg-blue-400",
-                bg: "bg-gradient-to-r from-blue-100 to-cyan-100",
-                border: "border-blue-200/50",
-                iconHover: "group-hover:bg-blue-100 group-hover:text-blue-600",
-              }}
-              collapsed={collapsed}
-            />
-            <NavButton
               isActive={page === "timeline"}
               onClick={() => setPage("timeline")}
               iconClass="fas fa-history"
@@ -301,6 +288,19 @@ function MainLayout({ page, setPage, handleLogout }) {
                 bg: "bg-gradient-to-r from-indigo-100 to-violet-100",
                 border: "border-indigo-200/50",
                 iconHover: "group-hover:bg-indigo-100 group-hover:text-indigo-600",
+              }}
+              collapsed={collapsed}
+            />
+            <NavButton
+              isActive={page === "calendar"}
+              onClick={() => setPage("calendar")}
+              iconClass="fas fa-calendar-alt"
+              label="カレンダー"
+              activeColors={{
+                icon: "bg-blue-400",
+                bg: "bg-gradient-to-r from-blue-100 to-cyan-100",
+                border: "border-blue-200/50",
+                iconHover: "group-hover:bg-blue-100 group-hover:text-blue-600",
               }}
               collapsed={collapsed}
             />

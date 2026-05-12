@@ -362,11 +362,17 @@ const TIMELINE_ACTION_CONFIG = {
 function RecentTimeline({ onNavigate }) {
   const [logs, setLogs] = useState([]);
 
+  const fetchLogs = () => {
+    fetch('/api/activity-logs/?limit=8')
+      .then(res => res.json())
+      .then(data => setLogs(Array.isArray(data) ? data.slice(0, 8) : []))
+      .catch(() => {});
+  };
+
   useEffect(() => {
-    try {
-      const data = JSON.parse(localStorage.getItem('prodia_activity_log') || '[]');
-      setLogs(data.slice(0, 8));
-    } catch { setLogs([]); }
+    fetchLogs();
+    const timer = setInterval(fetchLogs, 30000);
+    return () => clearInterval(timer);
   }, []);
 
   const formatDate = (iso) => {

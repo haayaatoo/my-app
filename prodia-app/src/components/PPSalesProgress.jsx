@@ -438,7 +438,7 @@ export default function PPSalesProgress() {
           </h2>
           <button
             onClick={() => setShowNewInterviewModal(true)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 text-sm"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-2 text-sm"
           >
             <i className="fas fa-plus-circle text-xs"></i>
             <span>新規面談追加</span>

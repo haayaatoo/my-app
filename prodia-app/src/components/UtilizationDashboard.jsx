@@ -12,6 +12,16 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / (1000 * 60 * 60 * 24));
 }
 
+// 待機開始日から何日経過したか計算
+function waitingDays(waitingSince) {
+  if (!waitingSince) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const since = new Date(waitingSince);
+  since.setHours(0, 0, 0, 0);
+  return Math.round((today - since) / (1000 * 60 * 60 * 24));
+}
+
 // 緊急度の設定
 function urgencyConfig(days) {
   if (days === null) return null;
@@ -465,7 +475,14 @@ function EngineerTable({ engineers }) {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-col gap-1 items-start">
-                      {cfg ? (
+                      {e.engineer_status === '未アサイン' && e.waiting_since ? (
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full text-white ${
+                          waitingDays(e.waiting_since) >= 30 ? 'bg-red-500' :
+                          waitingDays(e.waiting_since) >= 14 ? 'bg-orange-400' : 'bg-amber-400'
+                        }`}>
+                          待機{waitingDays(e.waiting_since)}日
+                        </span>
+                      ) : cfg ? (
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full text-white ${cfg.badge}`}>
                           {cfg.label}
                         </span>

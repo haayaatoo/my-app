@@ -66,6 +66,7 @@ class Engineer(models.Model):
     )
     project_start_date = models.DateField(blank=True, null=True, verbose_name='プロジェクト開始日')
     project_end_date = models.DateField(blank=True, null=True, verbose_name='プロジェクト終了予定日')
+    waiting_since = models.DateField(blank=True, null=True, verbose_name='待機開始日')
     contract_extended_at = models.DateTimeField(blank=True, null=True, verbose_name='契約延長日')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新日時')
     client_company = models.CharField(max_length=200, blank=True, null=True, verbose_name='派遣先企業名')
@@ -978,4 +979,77 @@ class BPProspect(models.Model):
 
     def __str__(self):
         return f"{self.company_name} - {self.engineer_name} ({self.status})"
+
+
+class CalendarEvent(models.Model):
+    """カスタムカレンダーイベント（全ユーザー共有）"""
+    TYPE_CHOICES = [
+        ('important', '重要'),
+        ('meeting', '会議'),
+        ('other', 'その他'),
+        ('pp', 'PP面談'),
+        ('bp', 'BP商談'),
+        ('google', 'Google'),
+    ]
+    REMINDER_CHOICES = [
+        ('none', 'なし'),
+        ('5min', '5分前'),
+        ('15min', '15分前'),
+        ('30min', '30分前'),
+        ('1hour', '1時間前'),
+        ('1day', '1日前'),
+    ]
+    RECURRING_CHOICES = [
+        ('none', 'なし'),
+        ('daily', '毎日'),
+        ('weekly', '毎週'),
+        ('monthly', '毎月'),
+    ]
+
+    title = models.CharField(max_length=200, verbose_name='タイトル')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='other', verbose_name='種別')
+    date = models.CharField(max_length=10, verbose_name='日付(YYYY-MM-DD)')
+    time = models.CharField(max_length=5, blank=True, default='', verbose_name='開始時刻(HH:MM)')
+    end_time = models.CharField(max_length=5, blank=True, default='', verbose_name='終了時刻(HH:MM)')
+    description = models.TextField(blank=True, default='', verbose_name='説明')
+    assignee = models.CharField(max_length=100, blank=True, default='', verbose_name='担当者')
+    reminder = models.CharField(max_length=10, choices=REMINDER_CHOICES, default='none', verbose_name='リマインダー')
+    is_recurring = models.BooleanField(default=False, verbose_name='繰り返し')
+    recurring_type = models.CharField(max_length=10, choices=RECURRING_CHOICES, default='none', verbose_name='繰り返し種別')
+    recurring_end_date = models.CharField(max_length=10, blank=True, default='', verbose_name='繰り返し終了日')
+    created_by = models.CharField(max_length=100, blank=True, default='', verbose_name='作成者')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='作成日時')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新日時')
+
+    def __str__(self):
+        return f"{self.date} {self.title}"
+
+    class Meta:
+        verbose_name = "カレンダーイベント"
+        verbose_name_plural = "カレンダーイベント"
+        ordering = ['date', 'time']
+
+
+class ActivityLog(models.Model):
+    """操作ログ（全ユーザー共有）"""
+    ACTION_CHOICES = [
+        ('create', '新規登録'),
+        ('update', '更新'),
+        ('delete', '削除'),
+    ]
+
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES, verbose_name='操作種別')
+    target_type = models.CharField(max_length=50, default='engineer', verbose_name='対象種別')
+    target_name = models.CharField(max_length=200, verbose_name='対象名')
+    user_name = models.CharField(max_length=100, blank=True, default='', verbose_name='操作ユーザー')
+    details = models.JSONField(null=True, blank=True, verbose_name='詳細情報')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='操作日時')
+
+    def __str__(self):
+        return f"[{self.action}] {self.target_name} by {self.user_name}"
+
+    class Meta:
+        verbose_name = "操作ログ"
+        verbose_name_plural = "操作ログ"
+        ordering = ['-created_at']
 

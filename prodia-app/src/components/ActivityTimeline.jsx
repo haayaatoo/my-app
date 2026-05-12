@@ -81,14 +81,18 @@ export default function ActivityTimeline() {
   const [filterAction, setFilterAction] = useState('all'); // 'all' | 'create' | 'update' | 'delete'
   const [filterUser, setFilterUser] = useState('all');
 
-  // localStorage からログを読み込む
+  // DB からログを読み込む（30秒ポーリング）
+  const fetchLogs = () => {
+    fetch('/api/activity-logs/')
+      .then(res => res.json())
+      .then(data => setLogs(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  };
+
   useEffect(() => {
-    try {
-      const data = JSON.parse(localStorage.getItem('prodia_activity_log') || '[]');
-      setLogs(data);
-    } catch {
-      setLogs([]);
-    }
+    fetchLogs();
+    const timer = setInterval(fetchLogs, 30000);
+    return () => clearInterval(timer);
   }, []);
 
   // ユーザー一覧
@@ -118,8 +122,9 @@ export default function ActivityTimeline() {
   // ログをクリア（確認あり）
   const handleClear = () => {
     if (!window.confirm('すべての操作履歴を削除しますか？この操作は元に戻せません。')) return;
-    localStorage.removeItem('prodia_activity_log');
-    setLogs([]);
+    fetch('/api/activity-logs/clear/', { method: 'DELETE' })
+      .then(() => setLogs([]))
+      .catch(() => alert('削除に失敗しました'));
   };
 
   return (
@@ -131,8 +136,7 @@ export default function ActivityTimeline() {
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center shadow-sm">
               <i className="fas fa-history text-white text-sm"></i>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">タイムライン</h1>
+            <div>     <h1 className="text-xl font-bold text-slate-800">タイムライン</h1>
               <p className="text-xs text-slate-400 mt-0.5">全操作履歴（最新 100 件）</p>
             </div>
           </div>
@@ -159,6 +163,7 @@ export default function ActivityTimeline() {
               type="text"
               placeholder="名前・対象で検索..."
               value={search}
+
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 placeholder-slate-300"
             />
