@@ -78,7 +78,8 @@ export default function EngineerList() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingEngineer, setEditingEngineer] = useState(null);
-  const [search, setSearch] = useState({ status: '', skill: '', planner: '' });
+  const [search, setSearch] = useState({ status: '', skill: '', planner: '', name: '' });
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
   const [selectedEngineers, setSelectedEngineers] = useState([]);
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
@@ -113,11 +114,20 @@ export default function EngineerList() {
   }, []);
 
   // 検索フィルタ + ソート
+  const nameSuggestions = search.name
+    ? engineers
+        .filter(e => e.name && e.name.includes(search.name))
+        .map(e => e.name)
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .slice(0, 8)
+    : [];
+
   const filtered = engineers.filter(e => {
     const statusMatch = search.status ? (e.engineer_status === search.status) : true;
     const skillMatch = search.skill ? (e.skills && e.skills.some(skill => skill.toLowerCase().includes(search.skill.toLowerCase()))) : true;
     const plannerMatch = search.planner ? (e.planner && e.planner.toLowerCase().includes(search.planner.toLowerCase())) : true;
-    return statusMatch && skillMatch && plannerMatch;
+    const nameMatch = search.name ? (e.name && e.name.includes(search.name)) : true;
+    return statusMatch && skillMatch && plannerMatch && nameMatch;
   }).sort((a, b) => {
     let aValue, bValue;
     switch(sortBy) {
@@ -677,135 +687,157 @@ export default function EngineerList() {
         </div>
       </div>
       {/* モダン・ラグジュアリー検索フィルタ + ソート */}
-      <div className="soft-panel mb-10 p-8 rounded-3xl" style={{
+      <div className="soft-panel mb-6 p-5 rounded-2xl" style={{
         boxShadow: '0 20px 50px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.04)'
       }}>
-        <div className="flex flex-col gap-8">
-          {/* 全選択チェックボックス - エレガント */}
-          <div className="flex items-center">
-            <label className="flex items-center gap-3 cursor-pointer group">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={selectedEngineers.length === filtered.length && filtered.length > 0}
-                  onChange={handleSelectAll}
-                  className="w-5 h-5 text-amber-600 rounded-lg focus:ring-amber-200 focus:ring-4 border-2 border-stone-300 bg-white/90 transition-all duration-300"
-                />
-                <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-amber-100 to-stone-100 opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
-              </div>
-              <span className="text-lg font-normal text-slate-700 tracking-wide">全選択</span>
+        <div className="flex flex-col gap-4">
+          {/* 全選択 + フィルター行 */}
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* 全選択チェックボックス */}
+            <label className="flex items-center gap-2 cursor-pointer group shrink-0">
+              <input
+                type="checkbox"
+                checked={selectedEngineers.length === filtered.length && filtered.length > 0}
+                onChange={handleSelectAll}
+                className="w-4 h-4 text-amber-600 rounded focus:ring-amber-200 border-2 border-stone-300 bg-white/90 transition-all duration-200"
+              />
+              <span className="text-sm font-medium text-slate-600">全選択</span>
             </label>
-          </div>
-          
-          {/* フィルター行 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* アサイン状況 */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-slate-600 tracking-wide">アサイン状況</label>
-              <select 
-                className="w-full px-5 py-4 border-2 border-stone-200/80 rounded-2xl focus:border-amber-400 focus:ring-4 focus:ring-amber-100 transition-all duration-300 text-slate-700 bg-white/90 backdrop-blur-sm font-normal text-lg" 
-                style={{
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
-                }}
-                value={search.status} 
-                onChange={e => setSearch(s => ({ ...s, status: e.target.value }))}
-              >
-                <option value="">すべて</option>
-                <option value="アサイン済">アサイン済</option>
-                <option value="未アサイン">未アサイン</option>
-              </select>
-            </div>
-            
-            {/* スキル検索 */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-slate-600 tracking-wide">スキル（部分一致）</label>
-              <div className="relative">
-                <i className="fas fa-code absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg"></i>
-                <input 
-                  className="w-full pl-14 pr-5 py-4 border-2 border-stone-200/80 rounded-2xl focus:border-amber-400 focus:ring-4 focus:ring-amber-100 transition-all duration-300 text-slate-700 placeholder-slate-400 bg-white/90 backdrop-blur-sm font-normal text-lg" 
-                  style={{
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
-                  }}
-                  value={search.skill} 
-                  onChange={e => setSearch(s => ({ ...s, skill: e.target.value }))} 
-                  placeholder="例: Python, React"
-                />
+
+            {/* フィルター群 */}
+            <div className="flex flex-1 flex-wrap gap-3">
+              {/* 名前検索 */}
+              <div className="relative min-w-[140px] flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">名前</label>
+                <div className="relative">
+                  <i className="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                  <input
+                    className="w-full pl-8 pr-3 py-2 border border-stone-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-200 text-slate-700 placeholder-slate-400 bg-white/90 text-sm"
+                    value={search.name}
+                    onChange={e => {
+                      setSearch(s => ({ ...s, name: e.target.value }));
+                      setShowNameSuggestions(true);
+                    }}
+                    onFocus={() => setShowNameSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowNameSuggestions(false), 150)}
+                    placeholder="例: 山田"
+                  />
+                  {showNameSuggestions && nameSuggestions.length > 0 && (
+                    <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden">
+                      {nameSuggestions.map(name => (
+                        <li
+                          key={name}
+                          className="px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 cursor-pointer transition-colors"
+                          onMouseDown={() => {
+                            setSearch(s => ({ ...s, name }));
+                            setShowNameSuggestions(false);
+                          }}
+                        >
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            {/* プランナー検索 */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-slate-600 tracking-wide">担当プランナー</label>
-              <div className="relative">
-                <i className="fas fa-user-tie absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg"></i>
-                <input 
-                  className="w-full pl-14 pr-5 py-4 border-2 border-stone-200/80 rounded-2xl focus:border-amber-400 focus:ring-4 focus:ring-amber-100 transition-all duration-300 text-slate-700 placeholder-slate-400 bg-white/90 backdrop-blur-sm font-normal text-lg" 
-                  style={{
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
-                  }}
-                  value={search.planner} 
-                  onChange={e => setSearch(s => ({ ...s, planner: e.target.value }))} 
-                  placeholder="例: 佐藤"
-                />
-              </div>
-            </div>
-            
-            {/* ソート機能 */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-slate-600 tracking-wide">並び順</label>
-              <div className="flex gap-3">
-                <select 
-                  className="flex-1 px-5 py-4 border-2 border-stone-200/80 rounded-2xl focus:border-amber-400 focus:ring-4 focus:ring-amber-100 transition-all duration-300 text-slate-700 bg-white/90 backdrop-blur-sm font-normal text-lg" 
-                  style={{
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
-                  }}
-                  value={sortBy} 
-                  onChange={e => setSortBy(e.target.value)}
+
+              {/* アサイン状況 */}
+              <div className="min-w-[120px] flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">アサイン状況</label>
+                <select
+                  className="w-full px-3 py-2 border border-stone-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-200 text-slate-700 bg-white/90 text-sm"
+                  value={search.status}
+                  onChange={e => setSearch(s => ({ ...s, status: e.target.value }))}
                 >
-                  <option value="name">名前</option>
-                  <option value="skills">スキル数</option>
-                  <option value="status">ステータス</option>
+                  <option value="">すべて</option>
+                  <option value="アサイン済">アサイン済</option>
+                  <option value="未アサイン">未アサイン</option>
                 </select>
-                <button
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                  className="px-5 py-4 border-2 border-stone-200/80 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all duration-300 flex items-center justify-center text-slate-600 bg-white/90 backdrop-blur-sm"
-                  style={{
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
-                  }}
-                  title={sortOrder === 'asc' ? '昇順' : '降順'}
-                >
-                  <i className={`fas text-lg ${sortOrder === 'asc' ? 'fa-sort-amount-up' : 'fa-sort-amount-down'}`}></i>
-                </button>
+              </div>
+
+              {/* スキル検索 */}
+              <div className="min-w-[140px] flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">スキル（部分一致）</label>
+                <div className="relative">
+                  <i className="fas fa-code absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                  <input
+                    className="w-full pl-8 pr-3 py-2 border border-stone-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-200 text-slate-700 placeholder-slate-400 bg-white/90 text-sm"
+                    value={search.skill}
+                    onChange={e => setSearch(s => ({ ...s, skill: e.target.value }))}
+                    placeholder="例: Python, React"
+                  />
+                </div>
+              </div>
+
+              {/* プランナー検索 */}
+              <div className="min-w-[130px] flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">担当プランナー</label>
+                <div className="relative">
+                  <i className="fas fa-user-tie absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                  <input
+                    className="w-full pl-8 pr-3 py-2 border border-stone-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-200 text-slate-700 placeholder-slate-400 bg-white/90 text-sm"
+                    value={search.planner}
+                    onChange={e => setSearch(s => ({ ...s, planner: e.target.value }))}
+                    placeholder="例: 佐藤"
+                  />
+                </div>
+              </div>
+
+              {/* 並び順 */}
+              <div className="min-w-[150px] flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">並び順</label>
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 px-3 py-2 border border-stone-200 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-200 text-slate-700 bg-white/90 text-sm"
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
+                  >
+                    <option value="name">名前</option>
+                    <option value="skills">スキル数</option>
+                    <option value="status">ステータス</option>
+                  </select>
+                  <button
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="px-3 py-2 border border-stone-200 rounded-xl hover:border-amber-400 hover:bg-amber-50 transition-all duration-200 flex items-center justify-center text-slate-600 bg-white/90"
+                    title={sortOrder === 'asc' ? '昇順' : '降順'}
+                  >
+                    <i className={`fas text-sm ${sortOrder === 'asc' ? 'fa-sort-amount-up' : 'fa-sort-amount-down'}`}></i>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-          
+
           {/* アクティブフィルターの表示 */}
-          {(search.status || search.skill || search.planner) && (
-            <div className="pt-6 border-t border-stone-200/50">
-              <div className="flex flex-wrap gap-3">
-                <span className="text-sm font-medium text-slate-600 mr-3">アクティブフィルター:</span>
+          {(search.status || search.skill || search.planner || search.name) && (
+            <div className="pt-3 border-t border-stone-200/50">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs font-medium text-slate-500">フィルター中:</span>
+                {search.name && (
+                  <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium">
+                    名前: "{search.name}"
+                  </span>
+                )}
                 {search.status && (
-                  <span className="px-4 py-2 bg-amber-100 text-amber-800 rounded-xl text-sm font-medium">
+                  <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium">
                     状況: {search.status}
                   </span>
                 )}
                 {search.skill && (
-                  <span className="px-4 py-2 bg-stone-100 text-stone-700 rounded-xl text-sm font-medium">
+                  <span className="px-3 py-1 bg-stone-100 text-stone-700 rounded-lg text-xs font-medium">
                     スキル: "{search.skill}"
                   </span>
                 )}
                 {search.planner && (
-                  <span className="px-4 py-2 bg-stone-100 text-stone-700 rounded-xl text-sm font-medium">
+                  <span className="px-3 py-1 bg-stone-100 text-stone-700 rounded-lg text-xs font-medium">
                     プランナー: "{search.planner}"
                   </span>
                 )}
                 <button
-                  onClick={() => setSearch({ status: '', skill: '', planner: '' })}
-                  className="px-4 py-2 bg-stone-200 hover:bg-stone-300 text-slate-600 rounded-xl text-sm font-medium transition-all duration-300"
+                  onClick={() => setSearch({ status: '', skill: '', planner: '', name: '' })}
+                  className="px-3 py-1 bg-stone-200 hover:bg-stone-300 text-slate-600 rounded-lg text-xs font-medium transition-all duration-200"
                 >
-                  <i className="fas fa-times mr-2"></i>
-                  クリア
+                  <i className="fas fa-times mr-1"></i>クリア
                 </button>
               </div>
             </div>
@@ -958,7 +990,7 @@ export default function EngineerList() {
                 <h3 className="text-2xl font-bold text-gray-400 mb-3">該当するエンジニアがいません</h3>
                 <p className="text-gray-400 text-lg mb-4">検索条件を変更してみてください</p>
                 <button 
-                  onClick={() => setSearch({ status: '', skill: '', planner: '' })}
+                  onClick={() => setSearch({ status: '', skill: '', planner: '', name: '' })}
                   className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-semibold hover:scale-105 transform transition-all duration-300 shadow-md"
                 >
                   <i className="fas fa-refresh mr-2"></i>
