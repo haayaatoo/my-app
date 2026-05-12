@@ -376,7 +376,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   name="name" 
                   value={form.name} 
                   onChange={handleChange} 
-                  required 
+                  required
+                  autoComplete="off"
                   className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
                   style={{
                     boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)'
