@@ -132,7 +132,7 @@ export default function ActivityTimeline() {
               <i className="fas fa-history text-white text-sm"></i>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-800">操作タイムライン</h1>
+              <h1 className="text-xl font-bold text-slate-800">タイムライン</h1>
               <p className="text-xs text-slate-400 mt-0.5">全操作履歴（最新 100 件）</p>
             </div>
           </div>

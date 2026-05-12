@@ -1,6 +1,227 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
 
+// 全角数字→半角数字（必要最小限）
+const toHalfWidthDigits = (s) => String(s ?? '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+// 数値文字列に3桁コンマを挿入（表示専用）
+const formatNumberWithCommas = (val) => {
+  if (val === '' || val === null || val === undefined) return '';
+  const raw = toHalfWidthDigits(String(val)).replace(/,/g, '');
+  if (!/^\d*$/.test(raw)) return String(val);
+  return raw.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+// 日付入力（手入力 YYYY/MM/DD + カレンダー選択）
+function SmartDateInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (value) {
+      const p = String(value).split('-');
+      setDisplayValue(p.length === 3 ? `${p[0]}/${p[1]}/${p[2]}` : String(value));
+    } else {
+      setDisplayValue('');
+    }
+  }, [value]);
+
+  const handleText = (e) => {
+    const cleaned = e.target.value.replace(/[^0-9/]/g, '');
+    const digits = cleaned.replace(/\//g, '').slice(0, 8);
+    let fmt = '';
+    if (digits.length <= 4) fmt = digits;
+    else if (digits.length <= 6) fmt = `${digits.slice(0, 4)}/${digits.slice(4)}`;
+    else fmt = `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6, 8)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 8) onChange({ target: { name, value: `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openCalendar = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        ref={textRef}
+        type="text"
+        value={displayValue}
+        onChange={handleText}
+        className={`${className} pr-10`}
+        placeholder="YYYY/MM/DD"
+        maxLength={10}
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={openCalendar}
+        tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <i className="fas fa-calendar-alt"></i>
+      </button>
+      <input
+        ref={pickerRef}
+        type="date"
+        value={value || ''}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const p = e.target.value.split('-');
+          if (p.length === 3) {
+            setDisplayValue(`${p[0]}/${p[1]}/${p[2]}`);
+            onChange({ target: { name, value: e.target.value } });
+          }
+        }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden"
+      />
+    </div>
+  );
+}
+
+// 時間入力（手入力 HH:MM + ピッカー選択）
+function SmartTimeInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => { setDisplayValue(value || ''); }, [value]);
+
+  const handleText = (e) => {
+    const digits = e.target.value.replace(/[^0-9:]/g, '').replace(/:/g, '').slice(0, 4);
+    const fmt = digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 4) onChange({ target: { name, value: `${digits.slice(0, 2)}:${digits.slice(2, 4)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openPicker = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        ref={textRef}
+        type="text"
+        value={displayValue}
+        onChange={handleText}
+        className={`${className} pr-10`}
+        placeholder="HH:MM"
+        maxLength={5}
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={openPicker}
+        tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <i className="fas fa-clock"></i>
+      </button>
+      <input
+        ref={pickerRef}
+        type="time"
+        value={value || ''}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          setDisplayValue(e.target.value);
+          onChange({ target: { name, value: e.target.value } });
+        }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden"
+      />
+    </div>
+  );
+}
+
+// 年月入力（手入力 YYYY/MM + ピッカー選択）
+function SmartMonthInput({ value, onChange, name, className }) {
+  const [displayValue, setDisplayValue] = React.useState('');
+  const textRef = React.useRef(null);
+  const pickerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (value) {
+      const p = String(value).split('-');
+      setDisplayValue(p.length === 2 ? `${p[0]}/${p[1]}` : String(value));
+    } else {
+      setDisplayValue('');
+    }
+  }, [value]);
+
+  const handleText = (e) => {
+    const digits = e.target.value.replace(/[^0-9/]/g, '').replace(/\//g, '').slice(0, 6);
+    const fmt = digits.length <= 4 ? digits : `${digits.slice(0, 4)}/${digits.slice(4)}`;
+    setDisplayValue(fmt);
+    if (digits.length === 6) onChange({ target: { name, value: `${digits.slice(0, 4)}-${digits.slice(4, 6)}` } });
+    else if (digits.length === 0) onChange({ target: { name, value: '' } });
+  };
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el && document.activeElement === el) el.setSelectionRange(displayValue.length, displayValue.length);
+  }, [displayValue]);
+
+  const openPicker = () => {
+    try { pickerRef.current?.showPicker(); } catch { pickerRef.current?.focus(); }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        ref={textRef}
+        type="text"
+        value={displayValue}
+        onChange={handleText}
+        className={`${className} pr-10`}
+        placeholder="YYYY/MM"
+        maxLength={7}
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={openPicker}
+        tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <i className="fas fa-calendar-alt"></i>
+      </button>
+      <input
+        ref={pickerRef}
+        type="month"
+        value={value || ''}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const p = e.target.value.split('-');
+          if (p.length === 2) {
+            setDisplayValue(`${p[0]}/${p[1]}`);
+            onChange({ target: { name, value: e.target.value } });
+          }
+        }}
+        className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden"
+      />
+    </div>
+  );
+}
+
 // カンバンボードのカラム定義
 const KANBAN_COLUMNS = [
   { id: 'scheduling', title: '日程調整中', icon: 'fa-calendar-plus', color: 'from-slate-500 to-slate-600' },
@@ -278,6 +499,8 @@ export default function BPProgress() {
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const payload = {
       ...newProspect,
+      sales_price: newProspect.sales_price === '' ? '' : Number(String(newProspect.sales_price).replace(/,/g, '')),
+      purchase_price: newProspect.purchase_price === '' ? '' : Number(String(newProspect.purchase_price).replace(/,/g, '')),
       interview_count: { main: 1, support: newProspect.support_planners.length > 0 ? 0.5 : 0 },
       history: [{ timestamp, user: newProspect.main_planner || '不明', changes: [{ field: '作成', old: '', new: '新規登録' }] }]
     };
@@ -739,9 +962,20 @@ export default function BPProgress() {
 
         {/* 新規見込み登録モーダル */}
         {showNewProspectModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gradient-to-r from-amber-500 to-yellow-600 text-white p-6 rounded-t-2xl">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowNewProspectModal(false);
+                setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '温水', support_planners: [], priority: '中', status: '日程調整中', notes: '' });
+              }
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-gradient-to-r from-amber-500 to-yellow-600 text-white p-6 rounded-t-2xl">
                 <h3 className="text-2xl font-bold flex items-center gap-2">
                   <i className="fas fa-plus-circle"></i>
                   新規BP見込み登録
@@ -791,8 +1025,8 @@ export default function BPProgress() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">面談日</label>
-                    <input
-                      type="date"
+                    <SmartDateInput
+                      name="interview_date"
                       value={newProspect.interview_date}
                       onChange={(e) => setNewProspect({ ...newProspect, interview_date: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -801,8 +1035,8 @@ export default function BPProgress() {
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">面談時間</label>
-                    <input
-                      type="time"
+                    <SmartTimeInput
+                      name="interview_time"
                       value={newProspect.interview_time}
                       onChange={(e) => setNewProspect({ ...newProspect, interview_time: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -813,8 +1047,8 @@ export default function BPProgress() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">決定日</label>
-                    <input
-                      type="date"
+                    <SmartDateInput
+                      name="decision_date"
                       value={newProspect.decision_date}
                       onChange={(e) => setNewProspect({ ...newProspect, decision_date: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -822,8 +1056,8 @@ export default function BPProgress() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">開始月</label>
-                    <input
-                      type="month"
+                    <SmartMonthInput
+                      name="start_month"
                       value={newProspect.start_month}
                       onChange={(e) => setNewProspect({ ...newProspect, start_month: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -833,26 +1067,44 @@ export default function BPProgress() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">売上単価 <span className="text-xs text-slate-400">（円）</span></label>
-                    <input
-                      type="number"
-                      value={newProspect.sales_price}
-                      onChange={(e) => setNewProspect({ ...newProspect, sales_price: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      placeholder="例: 600000"
-                      min="0"
-                    />
+                    <label className="block text-sm font-medium text-slate-700 mb-2">売上単価</label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">¥</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumberWithCommas(newProspect.sales_price)}
+                          onChange={(e) => {
+                            const raw = toHalfWidthDigits(e.target.value).replace(/,/g, '');
+                            if (raw === '' || /^\d*$/.test(raw)) setNewProspect({ ...newProspect, sales_price: raw });
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          placeholder="例: 600,000"
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">円</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">仕入れ単価 <span className="text-xs text-slate-400">（円）</span></label>
-                    <input
-                      type="number"
-                      value={newProspect.purchase_price}
-                      onChange={(e) => setNewProspect({ ...newProspect, purchase_price: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      placeholder="例: 500000"
-                      min="0"
-                    />
+                    <label className="block text-sm font-medium text-slate-700 mb-2">仕入れ単価</label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">¥</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumberWithCommas(newProspect.purchase_price)}
+                          onChange={(e) => {
+                            const raw = toHalfWidthDigits(e.target.value).replace(/,/g, '');
+                            if (raw === '' || /^\d*$/.test(raw)) setNewProspect({ ...newProspect, purchase_price: raw });
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          placeholder="例: 500,000"
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">円</span>
+                    </div>
                   </div>
                 </div>
 
@@ -970,8 +1222,19 @@ export default function BPProgress() {
 
         {/* 編集モーダル */}
         {showEditModal && editingProspect && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowEditModal(false);
+                setEditingProspect(null);
+              }
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 rounded-t-2xl">
                 <h3 className="text-2xl font-bold flex items-center gap-2">
                   <i className="fas fa-edit"></i>
@@ -1020,8 +1283,8 @@ export default function BPProgress() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">面談日</label>
-                    <input
-                      type="date"
+                    <SmartDateInput
+                      name="interview_date"
                       value={editingProspect.interview_date}
                       onChange={(e) => setEditingProspect({ ...editingProspect, interview_date: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1030,8 +1293,8 @@ export default function BPProgress() {
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">面談時間</label>
-                    <input
-                      type="time"
+                    <SmartTimeInput
+                      name="interview_time"
                       value={editingProspect.interview_time}
                       onChange={(e) => setEditingProspect({ ...editingProspect, interview_time: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1042,8 +1305,8 @@ export default function BPProgress() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">決定日</label>
-                    <input
-                      type="date"
+                    <SmartDateInput
+                      name="decision_date"
                       value={editingProspect.decision_date || ''}
                       onChange={(e) => setEditingProspect({ ...editingProspect, decision_date: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1051,8 +1314,8 @@ export default function BPProgress() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">開始月</label>
-                    <input
-                      type="month"
+                    <SmartMonthInput
+                      name="start_month"
                       value={editingProspect.start_month || ''}
                       onChange={(e) => setEditingProspect({ ...editingProspect, start_month: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1062,26 +1325,44 @@ export default function BPProgress() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">売上単価 <span className="text-xs text-slate-400">（円）</span></label>
-                    <input
-                      type="number"
-                      value={editingProspect.sales_price || ''}
-                      onChange={(e) => setEditingProspect({ ...editingProspect, sales_price: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="例: 600000"
-                      min="0"
-                    />
+                    <label className="block text-sm font-medium text-slate-700 mb-2">売上単価</label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">¥</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumberWithCommas(editingProspect.sales_price ?? '')}
+                          onChange={(e) => {
+                            const raw = toHalfWidthDigits(e.target.value).replace(/,/g, '');
+                            if (raw === '' || /^\d*$/.test(raw)) setEditingProspect({ ...editingProspect, sales_price: raw === '' ? '' : raw });
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="例: 600,000"
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">円</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">仕入れ単価 <span className="text-xs text-slate-400">（円）</span></label>
-                    <input
-                      type="number"
-                      value={editingProspect.purchase_price || ''}
-                      onChange={(e) => setEditingProspect({ ...editingProspect, purchase_price: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="例: 500000"
-                      min="0"
-                    />
+                    <label className="block text-sm font-medium text-slate-700 mb-2">仕入れ単価</label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">¥</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumberWithCommas(editingProspect.purchase_price ?? '')}
+                          onChange={(e) => {
+                            const raw = toHalfWidthDigits(e.target.value).replace(/,/g, '');
+                            if (raw === '' || /^\d*$/.test(raw)) setEditingProspect({ ...editingProspect, purchase_price: raw === '' ? '' : raw });
+                          }}
+                          className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="例: 500,000"
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-slate-600 whitespace-nowrap">円</span>
+                    </div>
                   </div>
                 </div>
 

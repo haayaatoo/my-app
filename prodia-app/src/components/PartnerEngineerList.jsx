@@ -131,6 +131,22 @@ const RATE_FIELDS = [
   "partner_unit_price", "partner_overtime_rate", "partner_deduction_rate",
 ];
 
+const PLANNERS = ['温水', '瀬戸山', '上前', '岡田', '野田', '服部'];
+
+// 精算幅「下限-上限」形式のパース・組み立て
+const parseSettlementRange = (val) => {
+  const clean = String(val ?? '').replace(/h$/i, '').trim();
+  const idx = clean.lastIndexOf('-');
+  if (idx <= 0) return { lower: clean, upper: '' };
+  return { lower: clean.slice(0, idx), upper: clean.slice(idx + 1) };
+};
+const buildSettlementRange = (lower, upper) => {
+  const l = lower.trim();
+  const u = upper.trim();
+  if (!l && !u) return '';
+  return `${l}-${u}`;
+};
+
 const formatRate = (v) => {
   const raw = String(v ?? "").replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ').replace(/,/g, "").replace(/[^0-9]/g, "");
   return raw ? Number(raw).toLocaleString() : "";
@@ -139,11 +155,13 @@ const formatRate = (v) => {
 const EMPTY_FORM = {
   name: "", name_kana: "", partner_company: "", skills: [],
   planner: "", status: "active",
+  client_planner: "", partner_planner: "",
   project_name: "", nearest_station: "", remote: "no",
   contract_start: "", contract_end: "", extension_possibility: "unknown",
   calendar_type: "通常カレンダー", work_hours: "9:00-18:00", actual_work_hours: "8h",
   // 甲
   client_company: "",
+  client_rate_type: "monthly",
   client_unit_price: "", client_settlement_range: "140-180h",
   client_overtime_rate: "", client_deduction_rate: "",
   client_settlement_unit: "15分", client_payment_site: "月末日締め、翌月末日支払い",
@@ -151,6 +169,7 @@ const EMPTY_FORM = {
   client_invoice_deadline: "第2営業日まで",
   client_contact_to: "", client_contact_cc: "",
   // 乙
+  partner_rate_type: "monthly",
   partner_unit_price: "", partner_settlement_range: "140-180h",
   partner_overtime_rate: "", partner_deduction_rate: "",
   partner_settlement_unit: "15分", partner_payment_site: "月末日締め、翌月末日支払い",
@@ -235,7 +254,7 @@ function PartnerCard({ engineer, onEdit, onDelete, onMemo, isSelected, onSelect,
     <>
     <div
       className={`relative cursor-pointer transition-all duration-200 ${isDragging ? 'opacity-50 rotate-3 scale-95 z-50' : ''}`}
-      style={{ perspective: "1200px", height: "320px" }}
+      style={{ perspective: "1200px", height: "380px" }}
       onClick={() => !isDragging && setFlipped((f) => !f)}
       draggable
       onDragStart={handleDragStart}
@@ -365,68 +384,110 @@ function PartnerCard({ engineer, onEdit, onDelete, onMemo, isSelected, onSelect,
 
         {/* ── 裏面（契約情報） ── */}
         <div
-          className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-md p-5 flex flex-col overflow-hidden"
+          className="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-800 rounded-2xl shadow-md flex flex-col overflow-hidden"
           style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-white font-bold text-sm">{engineer.name}</p>
+          {/* 裏面ヘッダー */}
+          <div className="flex items-center justify-end px-4 pt-3 pb-2 border-b border-slate-600">
             <p className="text-slate-400 text-[10px] flex items-center gap-1">
               <i className="fas fa-sync-alt text-[9px]"></i> 戻る
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 text-xs scrollbar-thin">
-            {/* 甲セクション */}
-            <div>
-              <p className="text-amber-400 font-bold text-[10px] uppercase tracking-wider mb-1.5">
-                【甲】{engineer.client_company || "―"}
-              </p>
-              <ContractRow label="案件名"    value={engineer.project_name} />
-              <ContractRow label="最寄り駅"  value={engineer.nearest_station} />
-              <ContractRow label="リモート"  value={REMOTE_LABELS[engineer.remote]} />
-              <ContractRow label="契約期間"  value={`${fmtDate(engineer.contract_start)} 〜 ${fmtDate(engineer.contract_end)}`} />
-              <ContractRow label="延長"      value={EXTENSION_LABELS[engineer.extension_possibility]} />
-              <ContractRow label="勤務時間"  value={`${engineer.work_hours}（実働 ${engineer.actual_work_hours}）`} />
-              <ContractRow label="甲基本単価" value={fmt(engineer.client_unit_price)} highlight />
-              <ContractRow label="精算幅"    value={engineer.client_settlement_range} />
-              <ContractRow label="超過単価"  value={engineer.client_overtime_rate ? `¥${Number(engineer.client_overtime_rate).toLocaleString()}` : "―"} />
-              <ContractRow label="控除単価"  value={engineer.client_deduction_rate  ? `¥${Number(engineer.client_deduction_rate).toLocaleString()}`  : "―"} />
-              <ContractRow label="支払サイト" value={engineer.client_payment_site} />
-              <ContractRow label="勤怠回収"  value={engineer.client_timesheet_collection} />
-              <ContractRow label="請求書期限" value={engineer.client_invoice_deadline} />
-              {engineer.client_contact_to && <ContractRow label="送付先 To" value={engineer.client_contact_to} />}
-              {engineer.client_contact_cc && <ContractRow label="送付先 Cc" value={engineer.client_contact_cc} />}
-            </div>
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
 
-            {/* 乙セクション */}
-            <div className="border-t border-slate-700 pt-2 mt-2">
-              <p className="text-sky-400 font-bold text-[10px] uppercase tracking-wider mb-1.5">
-                【乙】{engineer.partner_company}
+            {/* 案件概要ブロック */}
+            <div className="bg-slate-600/50 rounded-xl p-2.5 space-y-1.5">
+              <p className="text-slate-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 mb-1">
+                <i className="fas fa-briefcase text-amber-400"></i> 案件情報
               </p>
-              <ContractRow label="乙基本単価" value={fmt(engineer.partner_unit_price)} highlight />
-              <ContractRow label="精算幅"    value={engineer.partner_settlement_range} />
-              <ContractRow label="超過単価"  value={engineer.partner_overtime_rate ? `¥${Number(engineer.partner_overtime_rate).toLocaleString()}` : "―"} />
-              <ContractRow label="控除単価"  value={engineer.partner_deduction_rate  ? `¥${Number(engineer.partner_deduction_rate).toLocaleString()}`  : "―"} />
-              <ContractRow label="支払サイト" value={engineer.partner_payment_site} />
-              <ContractRow label="勤怠回収"  value={engineer.partner_timesheet_collection} />
-              <ContractRow label="請求書期限" value={engineer.partner_invoice_deadline} />
-              {engineer.partner_contact_to && <ContractRow label="送付先 To" value={engineer.partner_contact_to} />}
-              {engineer.partner_contact_cc && <ContractRow label="送付先 Cc" value={engineer.partner_contact_cc} />}
-            </div>
-
-            {/* 弊社 */}
-            {(engineer.our_admin_to || engineer.our_admin_cc) && (
-              <div className="border-t border-slate-700 pt-2 mt-2">
-                <p className="text-emerald-400 font-bold text-[10px] uppercase tracking-wider mb-1.5">弊社事務担当</p>
-                {engineer.our_admin_to && <ContractRow label="To" value={engineer.our_admin_to} />}
-                {engineer.our_admin_cc && <ContractRow label="Cc" value={engineer.our_admin_cc} />}
+              {engineer.project_name && (
+                <p className="text-white text-xs font-semibold">{engineer.project_name}</p>
+              )}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {(engineer.contract_start || engineer.contract_end) && (
+                  <div className="col-span-2">
+                    <span className="text-slate-400 text-[10px]">契約期間</span>
+                    <p className="text-slate-200 text-[11px]">{fmtDate(engineer.contract_start)} 〜 {fmtDate(engineer.contract_end)}</p>
+                  </div>
+                )}
+                {engineer.nearest_station && (
+                  <div>
+                    <span className="text-slate-400 text-[10px]">最寄り駅</span>
+                    <p className="text-slate-200 text-[11px]">{engineer.nearest_station}</p>
+                  </div>
+                )}
+                {engineer.remote && (
+                  <div>
+                    <span className="text-slate-400 text-[10px]">リモート</span>
+                    <p className="text-slate-200 text-[11px]">{REMOTE_LABELS[engineer.remote]}</p>
+                  </div>
+                )}
+                {engineer.work_hours && (
+                  <div>
+                    <span className="text-slate-400 text-[10px]">勤務時間</span>
+                    <p className="text-slate-200 text-[11px]">{engineer.work_hours}（実働 {engineer.actual_work_hours}）</p>
+                  </div>
+                )}
+                {engineer.extension_possibility && (
+                  <div>
+                    <span className="text-slate-400 text-[10px]">延長</span>
+                    <p className="text-slate-200 text-[11px]">{EXTENSION_LABELS[engineer.extension_possibility]}</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
-            {engineer.notes && (
-              <div className="border-t border-slate-700 pt-2 mt-2">
-                <p className="text-slate-400 text-[10px] mb-1">備考</p>
-                <p className="text-slate-300 text-[11px] leading-relaxed whitespace-pre-wrap">{engineer.notes}</p>
+            {/* 甲乙単価ブロック（横並び） */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* 甲 */}
+              <div className="bg-amber-500/20 border border-amber-500/30 rounded-xl p-2.5">
+                <p className="text-amber-400 text-[10px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <i className="fas fa-building text-[9px]"></i> 甲
+                </p>
+                <p className="text-white font-bold text-base leading-tight">
+                  {engineer.client_unit_price ? `¥${Number(engineer.client_unit_price).toLocaleString()}` : "―"}
+                </p>
+                {engineer.client_company && <p className="text-slate-400 text-[10px] mt-0.5 truncate">{engineer.client_company}</p>}
+                {engineer.client_settlement_range && (
+                  <p className="text-amber-300/70 text-[10px] mt-0.5">{engineer.client_settlement_range}</p>
+                )}
+              </div>
+              {/* 乙 */}
+              <div className="bg-sky-500/20 border border-sky-500/30 rounded-xl p-2.5">
+                <p className="text-sky-400 text-[10px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <i className="fas fa-handshake text-[9px]"></i> 乙
+                </p>
+                <p className="text-white font-bold text-base leading-tight">
+                  {engineer.partner_unit_price ? `¥${Number(engineer.partner_unit_price).toLocaleString()}` : "―"}
+                </p>
+                {engineer.partner_company && <p className="text-slate-400 text-[10px] mt-0.5 truncate">{engineer.partner_company}</p>}
+                {engineer.partner_settlement_range && (
+                  <p className="text-sky-300/70 text-[10px] mt-0.5">{engineer.partner_settlement_range}</p>
+                )}
+              </div>
+            </div>
+
+            {/* 詳細情報（折りたたまれた追加情報） */}
+            {(engineer.client_payment_site || engineer.client_timesheet_collection || engineer.partner_payment_site || engineer.notes) && (
+              <div className="bg-slate-600/40 rounded-xl p-2.5 space-y-1">
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <i className="fas fa-info-circle text-[9px]"></i> 詳細
+                </p>
+                {engineer.client_payment_site && <ContractRow label="甲 支払サイト" value={engineer.client_payment_site} />}
+                {engineer.client_timesheet_collection && <ContractRow label="甲 勤怠回収" value={engineer.client_timesheet_collection} />}
+                {engineer.client_invoice_deadline && <ContractRow label="甲 請求期限" value={engineer.client_invoice_deadline} />}
+                {engineer.partner_payment_site && <ContractRow label="乙 支払サイト" value={engineer.partner_payment_site} />}
+                {engineer.partner_timesheet_collection && <ContractRow label="乙 勤怠回収" value={engineer.partner_timesheet_collection} />}
+                {engineer.partner_invoice_deadline && <ContractRow label="乙 請求期限" value={engineer.partner_invoice_deadline} />}
+                {engineer.our_admin_to && <ContractRow label="事務 To" value={engineer.our_admin_to} />}
+                {engineer.our_admin_cc && <ContractRow label="事務 Cc" value={engineer.our_admin_cc} />}
+                {engineer.notes && (
+                  <div className="pt-1 border-t border-slate-600 mt-1">
+                    <span className="text-slate-400 text-[10px]">備考</span>
+                    <p className="text-slate-300 text-[11px] leading-relaxed whitespace-pre-wrap mt-0.5">{engineer.notes}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -473,8 +534,8 @@ function ContractRow({ label, value, highlight }) {
   if (!value || value === "―" || value === "/ ―" || value === "― 〜 ―") return null;
   return (
     <div className="flex gap-2 leading-snug">
-      <span className="text-slate-500 shrink-0 w-20 text-[10px]">{label}</span>
-      <span className={`${highlight ? "text-amber-300 font-bold" : "text-slate-300"} text-[10px] break-all`}>{value}</span>
+      <span className="text-slate-400 shrink-0 w-[72px] text-[10px]">{label}</span>
+      <span className={`${highlight ? "text-amber-300 font-bold" : "text-slate-200"} text-xs break-all`}>{value}</span>
     </div>
   );
 }
@@ -487,6 +548,8 @@ function PartnerForm({ initial, onClose, onSave }) {
     if (!src) return EMPTY_FORM;
     const f = { ...src };
     RATE_FIELDS.forEach((k) => { f[k] = formatRate(f[k]); });
+    if (!f.client_rate_type) f.client_rate_type = "monthly";
+    if (!f.partner_rate_type) f.partner_rate_type = "monthly";
     return f;
   };
 
@@ -494,6 +557,8 @@ function PartnerForm({ initial, onClose, onSave }) {
   const [skillInput, setSkillInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState("basic"); // basic | client | partner | admin
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setRate = (k, v) => set(k, formatRate(v));
@@ -512,17 +577,28 @@ function PartnerForm({ initial, onClose, onSave }) {
 
   // Field / inp / sel はモジュールレベルで定義済み（フォーカスバグ防止）
 
-  const handleSave = async () => {
-    if (!form.name || !form.partner_company) return;
+  const handleSave = async (continueAfter = false) => {
+    if (!form.name || !form.partner_company) {
+      setError("技術者氏名と所属会社は必須です");
+      return;
+    }
+    setError("");
     setSaving(true);
     const submitForm = { ...form };
     RATE_FIELDS.forEach((k) => { if (submitForm[k]) submitForm[k] = submitForm[k].replace(/,/g, ""); });
-    await onSave(submitForm);
+    const succeeded = await onSave(submitForm, continueAfter);
+    if (succeeded && continueAfter) {
+      setForm(EMPTY_FORM);
+      setSkillInput("");
+      setSuccessMessage("登録完了！続けて登録できます");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    }
     setSaving(false);
   };
 
   const TAB_LIST = [
     { key: "basic",   label: "基本情報",  icon: "fa-user" },
+    { key: "project", label: "案件情報",  icon: "fa-briefcase" },
     { key: "client",  label: "甲 契約",   icon: "fa-file-contract" },
     { key: "partner", label: "乙 契約",   icon: "fa-handshake" },
     { key: "admin",   label: "事務・備考", icon: "fa-envelope" },
@@ -533,13 +609,31 @@ function PartnerForm({ initial, onClose, onSave }) {
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-[600px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* ヘッダー */}
-        <div className="px-6 py-4 border-b border-slate-100 bg-indigo-50 flex items-center justify-between">
-          <h2 className="font-bold text-slate-800 flex items-center gap-2">
-            <i className="fas fa-user-tie text-indigo-500"></i>
-            {initial?.id ? "BPエンジニア編集" : "BPエンジニア登録"}
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+        <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${initial?.id ? 'bg-gradient-to-br from-emerald-500 to-green-600' : 'bg-gradient-to-br from-indigo-500 to-purple-600'} text-white shadow-md`}>
+              <i className={`fas ${initial?.id ? 'fa-edit' : 'fa-user-tie'}`}></i>
+            </div>
+            <div>
+              <h2 className={`text-xl font-bold leading-tight ${initial?.id ? 'text-emerald-700' : 'text-indigo-700'}`}>
+                {initial?.id ? "BPエンジニア編集" : "BPエンジニア新規登録"}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {initial?.id ? "BPエンジニア情報を更新します" : "新しいBPエンジニアを登録します"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
+            aria-label="閉じる"
+          >
+            <i className="fas fa-times"></i>
+          </button>
         </div>
+        {/* カラーライン */}
+        <div className={`h-1 flex-shrink-0 bg-gradient-to-r ${initial?.id ? 'from-emerald-400 via-green-300 to-emerald-400' : 'from-indigo-400 via-purple-300 to-indigo-400'}`} />
 
         {/* タブ */}
         <div className="flex border-b border-slate-100 bg-slate-50">
@@ -560,6 +654,26 @@ function PartnerForm({ initial, onClose, onSave }) {
 
         {/* フォーム本体 */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          {error && (
+            <div className="text-red-700 font-semibold bg-gradient-to-r from-red-50 to-rose-50 p-4 rounded-2xl border border-red-200 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="fas fa-exclamation-triangle text-red-600"></i>
+                </div>
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+          {successMessage && (
+            <div className="text-emerald-700 font-semibold bg-gradient-to-r from-emerald-50 to-green-50 p-4 rounded-2xl border border-emerald-200 shadow-sm animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="fas fa-check-circle text-emerald-600"></i>
+                </div>
+                <span>{successMessage}</span>
+              </div>
+            </div>
+          )}
 
           {/* ── 基本情報タブ ── */}
           {tab === "basic" && (
@@ -575,18 +689,13 @@ function PartnerForm({ initial, onClose, onSave }) {
               <Field label="所属会社（BP会社名）" required>
                 <input className={inp} placeholder="例: 株式会社サムシス" value={form.partner_company} onChange={(e) => set("partner_company", e.target.value)} />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="担当プランナー">
-                  <input className={inp} placeholder="例: 温水" value={form.planner} onChange={(e) => set("planner", e.target.value)} />
-                </Field>
-                <Field label="ステータス">
-                  <select className={sel} value={form.status} onChange={(e) => set("status", e.target.value)}>
-                    {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                      <option key={k} value={k}>{v.label}</option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
+              <Field label="ステータス">
+                <select className={sel} value={form.status} onChange={(e) => set("status", e.target.value)}>
+                  {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
+                </select>
+              </Field>
 
               {/* スキル */}
               <Field label="スキル">
@@ -613,10 +722,12 @@ function PartnerForm({ initial, onClose, onSave }) {
                 </div>
               </Field>
 
-              {/* 案件情報 */}
-              <div className="pt-1 border-t border-slate-100">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">案件情報</p>
-              </div>
+            </>
+          )}
+
+          {/* ── 案件情報タブ ── */}
+          {tab === "project" && (
+            <>
               <Field label="案件名">
                 <input className={inp} placeholder="例: インフラ運用・業務改善" value={form.project_name} onChange={(e) => set("project_name", e.target.value)} />
               </Field>
@@ -672,26 +783,65 @@ function PartnerForm({ initial, onClose, onSave }) {
           {/* ── 甲契約タブ ── */}
           {tab === "client" && (
             <>
+              <Field label="担当プランナー">
+                <select className={sel} value={form.client_planner} onChange={(e) => set("client_planner", e.target.value)}>
+                  <option value="">選択してください</option>
+                  {PLANNERS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </Field>
               <Field label="甲：会社名">
                 <input className={inp} placeholder="例: 株式会社メイテツコム" value={form.client_company} onChange={(e) => set("client_company", e.target.value)} />
               </Field>
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="基本単価">
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-500 text-sm font-medium">¥</span>
-                    <input type="text" inputMode="numeric" className={inp} placeholder="730,000" value={form.client_unit_price} onChange={(e) => setRate("client_unit_price", e.target.value)} />
+              {/* 甲単価トグル */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    {form.client_rate_type === 'monthly' ? '月単価' : '時給単価'}
+                  </label>
+                  <div
+                    className="relative flex bg-slate-100 rounded-full p-1 w-36 cursor-pointer select-none"
+                    onClick={() => set("client_rate_type", form.client_rate_type === 'monthly' ? 'hourly' : 'monthly')}
+                  >
+                    <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full shadow transition-all duration-300 ${form.client_rate_type === 'monthly' ? 'left-1' : 'left-[calc(50%+3px)]'}`}></div>
+                    <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.client_rate_type === 'monthly' ? 'text-indigo-600' : 'text-slate-400'}`}>月単価</span>
+                    <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.client_rate_type === 'hourly' ? 'text-indigo-600' : 'text-slate-400'}`}>時給単価</span>
                   </div>
-                </Field>
-                <Field label="精算幅">
-                  <div className="flex items-center gap-1">
-                    <input className={inp} placeholder="140-180" value={form.client_settlement_range} onChange={(e) => set("client_settlement_range", e.target.value)} />
-                    <span className="text-slate-500 text-sm font-medium">h</span>
-                  </div>
-                </Field>
-                <Field label="精算単位">
-                  <input className={inp} placeholder="15分" value={form.client_settlement_unit} onChange={(e) => set("client_settlement_unit", e.target.value)} />
-                </Field>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 font-medium text-sm flex-shrink-0">¥</span>
+                  <input type="text" inputMode="numeric" className={inp} placeholder={form.client_rate_type === 'monthly' ? '730,000' : '3,000'} value={form.client_unit_price} onChange={(e) => setRate("client_unit_price", e.target.value)} />
+                  {form.client_rate_type === 'hourly' && (
+                    <span className="text-slate-500 font-medium text-sm flex-shrink-0">/h</span>
+                  )}
+                </div>
               </div>
+              <Field label="時間単位">
+                <input className={inp} placeholder="15分" value={form.client_settlement_unit} onChange={(e) => set("client_settlement_unit", e.target.value)} />
+              </Field>
+              {form.client_rate_type === 'monthly' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="時間幅（下限）">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text" inputMode="numeric" className={inp} placeholder="140"
+                        value={parseSettlementRange(form.client_settlement_range).lower}
+                        onChange={(e) => set("client_settlement_range", buildSettlementRange(e.target.value, parseSettlementRange(form.client_settlement_range).upper))}
+                      />
+                      <span className="text-slate-500 text-sm font-medium shrink-0">h</span>
+                    </div>
+                  </Field>
+                  <Field label="時間幅（上限）">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text" inputMode="numeric" className={inp} placeholder="180"
+                        value={parseSettlementRange(form.client_settlement_range).upper}
+                        onChange={(e) => set("client_settlement_range", buildSettlementRange(parseSettlementRange(form.client_settlement_range).lower, e.target.value))}
+                      />
+                      <span className="text-slate-500 text-sm font-medium shrink-0">h</span>
+                    </div>
+                  </Field>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="超過単価">
                   <div className="flex items-center gap-1">
@@ -730,23 +880,62 @@ function PartnerForm({ initial, onClose, onSave }) {
           {/* ── 乙契約タブ ── */}
           {tab === "partner" && (
             <>
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="基本単価">
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-500 text-sm font-medium">¥</span>
-                    <input type="text" inputMode="numeric" className={inp} placeholder="660,000" value={form.partner_unit_price} onChange={(e) => setRate("partner_unit_price", e.target.value)} />
+              <Field label="担当プランナー">
+                <select className={sel} value={form.partner_planner} onChange={(e) => set("partner_planner", e.target.value)}>
+                  <option value="">選択してください</option>
+                  {PLANNERS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </Field>
+              {/* 乙単価トグル */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    {form.partner_rate_type === 'monthly' ? '月単価' : '時給単価'}
+                  </label>
+                  <div
+                    className="relative flex bg-slate-100 rounded-full p-1 w-36 cursor-pointer select-none"
+                    onClick={() => set("partner_rate_type", form.partner_rate_type === 'monthly' ? 'hourly' : 'monthly')}
+                  >
+                    <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full shadow transition-all duration-300 ${form.partner_rate_type === 'monthly' ? 'left-1' : 'left-[calc(50%+3px)]'}`}></div>
+                    <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.partner_rate_type === 'monthly' ? 'text-indigo-600' : 'text-slate-400'}`}>月単価</span>
+                    <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.partner_rate_type === 'hourly' ? 'text-indigo-600' : 'text-slate-400'}`}>時給単価</span>
                   </div>
-                </Field>
-                <Field label="精算幅">
-                  <div className="flex items-center gap-1">
-                    <input className={inp} placeholder="140-180" value={form.partner_settlement_range} onChange={(e) => set("partner_settlement_range", e.target.value)} />
-                    <span className="text-slate-500 text-sm font-medium">h</span>
-                  </div>
-                </Field>
-                <Field label="精算単位">
-                  <input className={inp} placeholder="15分" value={form.partner_settlement_unit} onChange={(e) => set("partner_settlement_unit", e.target.value)} />
-                </Field>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 font-medium text-sm flex-shrink-0">¥</span>
+                  <input type="text" inputMode="numeric" className={inp} placeholder={form.partner_rate_type === 'monthly' ? '660,000' : '3,000'} value={form.partner_unit_price} onChange={(e) => setRate("partner_unit_price", e.target.value)} />
+                  {form.partner_rate_type === 'hourly' && (
+                    <span className="text-slate-500 font-medium text-sm flex-shrink-0">/h</span>
+                  )}
+                </div>
               </div>
+              <Field label="時間単位">
+                <input className={inp} placeholder="15分" value={form.partner_settlement_unit} onChange={(e) => set("partner_settlement_unit", e.target.value)} />
+              </Field>
+              {form.partner_rate_type === 'monthly' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="時間幅（下限）">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text" inputMode="numeric" className={inp} placeholder="140"
+                        value={parseSettlementRange(form.partner_settlement_range).lower}
+                        onChange={(e) => set("partner_settlement_range", buildSettlementRange(e.target.value, parseSettlementRange(form.partner_settlement_range).upper))}
+                      />
+                      <span className="text-slate-500 text-sm font-medium shrink-0">h</span>
+                    </div>
+                  </Field>
+                  <Field label="時間幅（上限）">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text" inputMode="numeric" className={inp} placeholder="180"
+                        value={parseSettlementRange(form.partner_settlement_range).upper}
+                        onChange={(e) => set("partner_settlement_range", buildSettlementRange(parseSettlementRange(form.partner_settlement_range).lower, e.target.value))}
+                      />
+                      <span className="text-slate-500 text-sm font-medium shrink-0">h</span>
+                    </div>
+                  </Field>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="超過単価">
                   <div className="flex items-center gap-1">
@@ -805,17 +994,53 @@ function PartnerForm({ initial, onClose, onSave }) {
         </div>
 
         {/* フッター */}
-        <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving || !form.name || !form.partner_company}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition-all disabled:opacity-40"
-          >
-            {saving ? "保存中..." : "保存する"}
-          </button>
-          <button onClick={onClose} className="px-4 py-2.5 border border-slate-200 text-slate-500 rounded-xl text-sm hover:bg-slate-50">
-            キャンセル
-          </button>
+        <div className="flex-shrink-0 px-6 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200" style={{ boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
+          <div className="flex flex-row gap-2 justify-end">
+            {/* キャンセルボタン */}
+            <button
+              type="button"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 whitespace-nowrap text-sm"
+              onClick={onClose}
+              disabled={saving}
+            >
+              <i className="fas fa-times"></i>
+              キャンセル
+            </button>
+
+            {/* 新規登録時のみ連続登録ボタンを表示 */}
+            {!initial?.id && (
+              <button
+                type="button"
+                onClick={() => handleSave(true)}
+                disabled={saving}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg hover:from-emerald-600 hover:to-green-700 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-1.5 whitespace-nowrap text-sm"
+              >
+                {saving ? (
+                  <><i className="fas fa-spinner fa-spin"></i>登録中...</>
+                ) : (
+                  <><i className="fas fa-plus-circle"></i>登録して続ける</>
+                )}
+              </button>
+            )}
+
+            {/* メイン送信ボタン */}
+            <button
+              type="button"
+              onClick={() => handleSave(false)}
+              disabled={saving}
+              className={`px-4 py-2.5 rounded-xl font-bold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-1.5 whitespace-nowrap text-sm ${
+                initial?.id
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
+                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700'
+              }`}
+            >
+              {saving ? (
+                <><i className="fas fa-spinner fa-spin"></i>{initial?.id ? "更新中..." : "登録中..."}</>
+              ) : (
+                <><i className={`fas ${initial?.id ? 'fa-save' : 'fa-check'}`}></i>{initial?.id ? "更新して完了" : "登録して完了"}</>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -882,7 +1107,7 @@ export default function PartnerEngineerList() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const handleSave = async (form) => {
+  const handleSave = async (form, continueAfter = false) => {
     const method = form.id ? "PUT" : "POST";
     const url = form.id ? `${API_BASE}/partner-engineers/${form.id}/` : `${API_BASE}/partner-engineers/`;
     const payload = { ...form };
@@ -909,12 +1134,15 @@ export default function PartnerEngineerList() {
       const errText = await res.text();
       console.error("保存エラー:", errText);
       toast.error(`保存に失敗しました。\n${errText}`);
-      return;
+      return false;
     }
 
-    setShowForm(false);
-    setEditTarget(null);
+    if (!continueAfter) {
+      setShowForm(false);
+      setEditTarget(null);
+    }
     await fetchAll();
+    return true;
   };
 
   const handleDelete = async (id) => {
@@ -990,7 +1218,7 @@ export default function PartnerEngineerList() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
         <div className="space-y-2">
           <h2 className="text-2xl font-medium tracking-wide text-slate-700 flex items-center gap-4 font-display">
-            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-md">
+            <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-md">
               <i className="fas fa-user-tie text-white text-xl"></i>
             </div>
             BPエンジニアリスト
@@ -1039,8 +1267,8 @@ export default function PartnerEngineerList() {
           {/* 新規登録ボタン */}
           <button
             onClick={() => { setEditTarget(null); setShowForm(true); }}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-medium flex items-center gap-3 transition-all duration-300 text-sm"
-            style={{ boxShadow: '0 8px 25px rgba(99, 102, 241, 0.35)' }}
+            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-medium flex items-center gap-3 transition-all duration-300 text-sm"
+            style={{ boxShadow: '0 8px 25px rgba(245, 158, 11, 0.35)' }}
           >
             <i className="fas fa-plus text-sm"></i>
             新規登録

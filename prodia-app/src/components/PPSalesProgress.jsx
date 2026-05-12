@@ -1044,7 +1044,8 @@ export default function PPSalesProgress() {
                       inputMode="decimal"
                       value={formatUnitPrice(editingInterview.unit_price || '')}
                       onChange={(e) => {
-                        const raw = e.target.value.replace(/,/g, '');
+                        const normalized = e.target.value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+                        const raw = normalized.replace(/,/g, '');
                         if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
                           setEditingInterview({ ...editingInterview, unit_price: raw });
                         }

@@ -72,6 +72,8 @@ class Engineer(models.Model):
     project_location = models.CharField(max_length=200, blank=True, null=True, verbose_name='プロジェクト所在地')
     working_days_per_month = models.IntegerField(default=20, verbose_name='月稼働日数')
     working_rate = models.DecimalField(max_digits=3, decimal_places=2, default=1.00, verbose_name='稼働率（0.0-1.0）')
+    settlement_lower = models.IntegerField(blank=True, null=True, verbose_name='精算幅 下限（h）')
+    settlement_upper = models.IntegerField(blank=True, null=True, verbose_name='精算幅 上限（h）')
     
     # 売上計算用
     monthly_revenue = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='月売上（自動計算）')
@@ -837,6 +839,7 @@ class PartnerEngineer(models.Model):
     actual_work_hours = models.CharField(max_length=20, blank=True, null=True, verbose_name='実働時間', default='8h')
 
     # ── 甲（クライアント）契約単価 ──
+    client_planner      = models.CharField(max_length=100, blank=True, null=True, verbose_name='甲：担当プランナー')
     client_company      = models.CharField(max_length=200, blank=True, null=True, verbose_name='甲：会社名')
     client_unit_price   = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='甲：基本単価（円）')
     client_settlement_range  = models.CharField(max_length=50, blank=True, null=True, verbose_name='甲：精算幅', default='140-180h')
@@ -851,6 +854,7 @@ class PartnerEngineer(models.Model):
     client_contact_cc        = models.CharField(max_length=200, blank=True, null=True, verbose_name='甲：書類送付先 Cc')
 
     # ── 乙（パートナー）契約単価 ──
+    partner_planner          = models.CharField(max_length=100, blank=True, null=True, verbose_name='乙：担当プランナー')
     partner_unit_price       = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True, verbose_name='乙：基本単価（円）')
     partner_settlement_range = models.CharField(max_length=50, blank=True, null=True, verbose_name='乙：精算幅', default='140-180h')
     partner_overtime_rate    = models.DecimalField(max_digits=8, decimal_places=0, blank=True, null=True, verbose_name='乙：超過単価（円）')

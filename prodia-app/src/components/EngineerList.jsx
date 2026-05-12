@@ -456,7 +456,7 @@ export default function EngineerList() {
             {[
               { key: 'dashboard',         icon: 'fa-tachometer-alt', label: 'ダッシュボード',  color: 'bg-amber-500' },
               { key: 'engineers',         icon: 'fa-users',          label: 'IDRエンジニア',   color: 'bg-amber-500' },
-              { key: 'partner-engineers', icon: 'fa-user-tie',       label: 'BPエンジニア',    color: 'bg-indigo-600' },
+              { key: 'partner-engineers', icon: 'fa-user-tie',       label: 'BPエンジニア',    color: 'bg-amber-500' },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -597,7 +597,7 @@ export default function EngineerList() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-10 gap-6">
         <div className="space-y-2">
           <h2 className="text-2xl font-medium tracking-wide text-slate-700 flex items-center gap-4 font-display">
-            <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-stone-400 rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center">
               <i className="fas fa-users text-white text-xl"></i>
             </div>
             IDRエンジニアリスト

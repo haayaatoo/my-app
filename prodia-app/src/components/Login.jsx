@@ -146,7 +146,7 @@ export default function Login({ onLogin, logoutMsg }) {
               {/* フォームヘッダー */}
               <div className="text-center mb-8 animate-fadeInUp animate-delay-400">
                 <h3 className="text-2xl font-bold text-slate-700 mb-2">ログイン</h3>
-                <p className="text-slate-500">アカウントにサインイン</p>
+                <p className="text-slate-500">Prodiaにサインイン</p>
                 <div className="w-12 h-0.5 bg-amber-400 mx-auto mt-4 animate-expandWidth"></div>
               </div>
 
@@ -217,7 +217,7 @@ export default function Login({ onLogin, logoutMsg }) {
                     ) : (
                       <div className="flex items-center justify-center gap-3">
                         <i className="fas fa-sign-in-alt"></i>
-                        <span>Prodiaにログイン</span>
+                        <span>ログイン</span>
                       </div>
                     )}
                   </button>

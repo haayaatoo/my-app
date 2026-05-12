@@ -259,6 +259,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
         phase: form.phase,
         rate_type: form.rate_type || 'monthly',
         monthly_rate: form.monthly_rate ? form.monthly_rate.replace(/,/g, "") : "",
+        settlement_lower: form.rate_type === 'monthly' ? (form.settlement_lower || null) : null,
+        settlement_upper: form.rate_type === 'monthly' ? (form.settlement_upper || null) : null,
         project_start_date: form.project_start_date || null,
         project_end_date: form.project_end_date || null,
         project_location: form.project_locations.filter(v => v.trim()).join(", "),
@@ -315,10 +317,10 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
             </div>
             <div>
               <h2 className={`text-xl font-bold leading-tight ${initialData ? 'text-emerald-700' : 'text-blue-700'}`}>
-                {initialData ? 'エンジニア編集' : 'エンジニア新規登録'}
+                {initialData ? 'IDRエンジニア編集' : 'IDRエンジニア新規登録'}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                {initialData ? 'エンジニア情報を更新します' : '新しいエンジニアを登録します'}
+                {initialData ? 'IDRエンジニア情報を更新します' : '新しいIDRエンジニアを登録します'}
               </p>
             </div>
           </div>
@@ -435,7 +437,8 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   engineer_status: opt.value,
                   ...(opt.value === '未アサイン' ? {
                     project_name: '', planner: '', client_company: '',
-                    monthly_rate: '', project_start_date: '', project_end_date: '', project_locations: ['']
+                    monthly_rate: '', settlement_lower: '', settlement_upper: '',
+                    project_start_date: '', project_end_date: '', project_locations: ['']
                   } : {})
                 }))}
               >
@@ -612,7 +615,7 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                 {/* スライドトグル */}
                 <div
                   className="relative flex bg-slate-100 rounded-full p-1 w-36 cursor-pointer select-none"
-                  onClick={() => setForm(f => ({ ...f, rate_type: f.rate_type === 'monthly' ? 'hourly' : 'monthly', monthly_rate: '' }))}
+                  onClick={() => setForm(f => ({ ...f, rate_type: f.rate_type === 'monthly' ? 'hourly' : 'monthly', monthly_rate: '', settlement_lower: '', settlement_upper: '' }))}
                 >
                   <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full shadow transition-all duration-300 ${form.rate_type === 'monthly' ? 'left-1' : 'left-[calc(50%+3px)]'}`}></div>
                   <span className={`relative z-10 flex-1 text-center text-xs font-semibold py-1 transition-colors duration-300 ${form.rate_type === 'monthly' ? 'text-emerald-600' : 'text-slate-400'}`}>月単価</span>
@@ -635,6 +638,46 @@ export default function EngineerForm({ onSubmit, onCancel, initialData }) {
                   <span className="text-slate-500 font-medium text-base flex-shrink-0">/h</span>
                 )}
               </div>
+
+              {/* 精算幅（月単価のみ表示） */}
+              {form.rate_type === 'monthly' && (
+                <div className="mt-4 grid grid-cols-2 gap-6">
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      時間幅（下限）
+                    </label>
+                    <div className="relative flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={form.settlement_lower}
+                        onChange={(e) => setForm(f => ({ ...f, settlement_lower: e.target.value.replace(/[^0-9]/g, '') }))}
+                        className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                        style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                        placeholder="140"
+                      />
+                      <span className="text-slate-500 font-medium text-base shrink-0">h</span>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      時間幅（上限）
+                    </label>
+                    <div className="relative flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={form.settlement_upper}
+                        onChange={(e) => setForm(f => ({ ...f, settlement_upper: e.target.value.replace(/[^0-9]/g, '') }))}
+                        className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-white/80 text-lg font-medium placeholder-slate-400"
+                        style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}
+                        placeholder="180"
+                      />
+                      <span className="text-slate-500 font-medium text-base shrink-0">h</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>

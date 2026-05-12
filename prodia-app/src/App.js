@@ -295,7 +295,7 @@ function MainLayout({ page, setPage, handleLogout }) {
               isActive={page === "timeline"}
               onClick={() => setPage("timeline")}
               iconClass="fas fa-history"
-              label="操作タイムライン"
+              label="タイムライン"
               activeColors={{
                 icon: "bg-indigo-500",
                 bg: "bg-gradient-to-r from-indigo-100 to-violet-100",
