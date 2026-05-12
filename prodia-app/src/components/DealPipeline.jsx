@@ -440,7 +440,7 @@ function DealDrawer({ deal, onClose, onSave, onDelete, engineers }) {
 function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
   const [form, setForm] = useState({
     title: "",
-    stage: initialStage || "open_system",
+    stage: "",
     priority: "medium",
     location: "",
     timing: "",
@@ -449,7 +449,8 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
     interview: "",
     headcount: "",
     expected_monthly_rate: "",
-    time_range: "",
+    time_range_lower: "",
+    time_range_upper: "",
   });
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -458,6 +459,12 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
   const handleCreate = async () => {
     if (!form.title) return;
     setSaving(true);
+    // 時間幅を結合
+    const timeRange = form.time_range_lower || form.time_range_upper
+      ? `${form.time_range_lower || ""}～${form.time_range_upper || ""}h`
+      : "";
+    // 単価のカンマを除去
+    const rate = form.expected_monthly_rate ? form.expected_monthly_rate.replace(/,/g, "") : null;
     // 各項目を description に構造化して保存
     const description = [
       form.location   && `【場所】${form.location}`,
@@ -465,8 +472,8 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
       form.language   && `【言語】${form.language}`,
       form.phase      && `【担当フェーズ】${form.phase}`,
       form.interview  && `【面談】${form.interview}`,
-      form.headcount  && `【人数】${form.headcount}`,
-      form.time_range && `【時間幅】${form.time_range}`,
+      form.headcount  && `【人数】${form.headcount}名`,
+      timeRange       && `【時間幅】${timeRange}`,
     ].filter(Boolean).join("\n");
 
     await onCreate({
@@ -475,7 +482,7 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
       assigned_to: "未定",
       stage: form.stage,
       priority: form.priority,
-      expected_monthly_rate: form.expected_monthly_rate || null,
+      expected_monthly_rate: rate || null,
       description,
     });
     setSaving(false);
@@ -485,7 +492,7 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-[520px] max-h-[88vh] flex flex-col overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-stone-50 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-slate-100 bg-white flex items-center justify-between">
           <h2 className="font-bold text-slate-800">新規案件概要を追加</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
         </div>
@@ -513,6 +520,7 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
               value={form.stage}
               onChange={(e) => set("stage", e.target.value)}
             >
+              <option value="">選択してください</option>
               {STAGES.map((s) => (
                 <option key={s.key} value={s.key}>{s.label}</option>
               ))}
@@ -576,33 +584,77 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
 
           {/* 人数・単価・時間幅 を横並び */}
           <div className="grid grid-cols-3 gap-3">
+            {/* 人数: カウンター */}
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">【人数】</label>
-              <input
-                className="mt-1 w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                placeholder="例: 2名"
-                value={form.headcount}
-                onChange={(e) => set("headcount", e.target.value)}
-              />
+              <div className="mt-1 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => set("headcount", String(Math.max(1, Number(form.headcount || 1) - 1)))}
+                  className="w-8 h-9 flex items-center justify-center border border-slate-200 rounded-l-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold flex-shrink-0"
+                >−</button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="flex-1 min-w-0 text-sm border-y border-slate-200 px-1 py-2 text-center focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="1"
+                  value={form.headcount}
+                  onChange={(e) => set("headcount", e.target.value.replace(/[^0-9]/g, ""))}
+                />
+                <button
+                  type="button"
+                  onClick={() => set("headcount", String(Number(form.headcount || 0) + 1))}
+                  className="w-8 h-9 flex items-center justify-center border border-slate-200 rounded-r-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold flex-shrink-0"
+                >+</button>
+                <span className="text-slate-400 text-xs ml-1 flex-shrink-0">名</span>
+              </div>
             </div>
+            {/* 単価: 全角→半角+カンマ区切り */}
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">【単価】</label>
-              <input
-                type="number"
-                className="mt-1 w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                placeholder="例: 650000"
-                value={form.expected_monthly_rate}
-                onChange={(e) => set("expected_monthly_rate", e.target.value)}
-              />
+              <div className="mt-1 flex items-center gap-1">
+                <span className="text-slate-400 text-xs flex-shrink-0">¥</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="flex-1 min-w-0 text-sm border border-slate-200 rounded-xl px-2 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="650,000"
+                  value={form.expected_monthly_rate}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                      .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+                      .replace(/　/g, " ")
+                      .replace(/,/g, "")
+                      .replace(/[^0-9]/g, "");
+                    set("expected_monthly_rate", raw ? Number(raw).toLocaleString() : "");
+                  }}
+                />
+                <span className="text-slate-400 text-xs flex-shrink-0">円</span>
+              </div>
             </div>
+            {/* 時間幅: 下限〜上限 */}
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">【時間幅】</label>
-              <input
-                className="mt-1 w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                placeholder="例: 140〜180h"
-                value={form.time_range}
-                onChange={(e) => set("time_range", e.target.value)}
-              />
+              <div className="mt-1 flex items-center gap-1">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full min-w-0 text-sm border border-slate-200 rounded-xl px-2 py-2.5 text-center focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="140"
+                  value={form.time_range_lower ?? ""}
+                  onChange={(e) => set("time_range_lower", e.target.value.replace(/[^0-9]/g, ""))}
+                />
+                <span className="text-slate-400 text-xs flex-shrink-0">〜</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full min-w-0 text-sm border border-slate-200 rounded-xl px-2 py-2.5 text-center focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="180"
+                  value={form.time_range_upper ?? ""}
+                  onChange={(e) => set("time_range_upper", e.target.value.replace(/[^0-9]/g, ""))}
+                />
+                <span className="text-slate-400 text-xs flex-shrink-0">h</span>
+              </div>
             </div>
           </div>
         </div>
@@ -611,7 +663,7 @@ function NewDealModal({ initialStage, onClose, onCreate, engineers }) {
           <button
             onClick={handleCreate}
             disabled={saving || !form.title}
-            className="flex-1 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold py-2.5 rounded-xl text-sm transition-all disabled:opacity-40"
+            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm transition-all disabled:opacity-40"
           >
             {saving ? "作成中..." : "案件を作成"}
           </button>
