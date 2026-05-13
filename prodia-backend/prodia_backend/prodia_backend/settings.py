@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Google Calendar API 設定
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
-GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:8000/api/calendar/oauth/callback/')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'https://prodia.jp/api/calendar/oauth/callback/')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -74,6 +74,8 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
+    "https://prodia.jp",
+    "https://www.prodia.jp",
 ]
 CORS_ALLOW_CREDENTIALS = True  # セッションCookieをCORSで許可
 
@@ -81,6 +83,7 @@ CORS_ALLOW_CREDENTIALS = True  # セッションCookieをCORSで許可
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 86400 * 30  # 30日間
 SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = not DEBUG  # 本番(HTTPS)環境ではSecureフラグを有効化
 
 ROOT_URLCONF = 'prodia_backend.urls'
 

@@ -63,7 +63,7 @@ export default function Login({ onLogin, logoutMsg }) {
     <div className="min-h-screen bg-amber-50 flex items-center justify-center px-4 py-12">
 
       {/* ログアウトメッセージ */}
-      {(showLogoutMsg || logoutMsg) && (
+      {showLogoutMsg && (
         <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] p-4 bg-white border-2 border-emerald-400 shadow-xl text-center rounded-lg max-w-sm animate-slideDown">
           <div className="flex items-center justify-center gap-3">
             <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center">

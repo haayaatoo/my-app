@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useToast } from "./Toast";
 import { useUser } from "../contexts/UserContext";
 import EngineerCard from "./EngineerCard";
@@ -91,6 +91,7 @@ export default function EngineerList() {
   const [showCSVImporter, setShowCSVImporter] = useState(false); // CSVインポートモーダル
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 12;
+  const scrollContainerRef = useRef(null);
 
   const fetchEngineers = () => {
     setLoading(true);
@@ -161,6 +162,13 @@ export default function EngineerList() {
 
   // フィルター変更時にページをリセット
   useEffect(() => { setCurrentPage(1); }, [search, sortBy, sortOrder]);
+
+  // ページ変更時にスクロールをトップへ戻す
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentPage]);
 
   // 新規登録・編集
   const handleSubmit = async (form, continueAfter = false) => {
@@ -500,7 +508,7 @@ export default function EngineerList() {
           </div>
         </div>
       </div>
-      <div className="relative z-10 flex-1 overflow-auto px-6 py-5">
+      <div ref={scrollContainerRef} className="relative z-10 flex-1 overflow-auto px-6 py-5">
 
         {/* ダッシュボード表示 - エンジニア統計 */}
         {activeTab === 'dashboard' && (

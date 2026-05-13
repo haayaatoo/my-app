@@ -91,7 +91,7 @@ export default function ActivityTimeline() {
 
   useEffect(() => {
     fetchLogs();
-    const timer = setInterval(fetchLogs, 30000);
+    const timer = setInterval(fetchLogs, 10000);
     return () => clearInterval(timer);
   }, []);
 
