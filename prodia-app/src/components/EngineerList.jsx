@@ -92,6 +92,7 @@ export default function EngineerList() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 12;
   const scrollContainerRef = useRef(null);
+  const pendingScrollToIdRef = useRef(null);
 
   const fetchEngineers = () => {
     setLoading(true);
@@ -103,6 +104,16 @@ export default function EngineerList() {
       .then((data) => {
         setEngineers(data);
         setLoading(false);
+        if (pendingScrollToIdRef.current) {
+          const targetId = pendingScrollToIdRef.current;
+          pendingScrollToIdRef.current = null;
+          setTimeout(() => {
+            const el = document.getElementById(`engineer-card-${targetId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        }
       })
       .catch((err) => {
         setError(err.message);
@@ -252,7 +263,10 @@ export default function EngineerList() {
         setEditingEngineer(null);
       }
       
-      // データを再取得
+      // 更新時はスクロール位置を記憶してから再取得
+      if (editingEngineer) {
+        pendingScrollToIdRef.current = editingEngineer.id;
+      }
       fetchEngineers();
       
       // 成功メッセージ
@@ -967,6 +981,7 @@ export default function EngineerList() {
           {paginated.map((e, index) => (
           <div 
             key={e.id}
+            id={`engineer-card-${e.id}`}
             className="h-full"
           >
             <EngineerCard 

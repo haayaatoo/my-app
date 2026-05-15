@@ -1,32 +1,141 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../utils/api';
 
+// エンジニア名オートコンプリート入力コンポーネント
+function EngineerNameAutocomplete({ value, onChange, engineerNames, className, placeholder }) {
+  const [suggestions, setSuggestions] = React.useState([]);
+  const [showSuggestions, setShowSuggestions] = React.useState(false);
+  const [activeIndex, setActiveIndex] = React.useState(-1);
+  const wrapperRef = React.useRef(null);
+
+  // 外側クリックで候補を閉じる
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+        setActiveIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleChange = (e) => {
+    const input = e.target.value;
+    onChange(input);
+    if (input.trim()) {
+      const filtered = engineerNames.filter(name =>
+        name.includes(input) || name.toLowerCase().includes(input.toLowerCase())
+      );
+      setSuggestions(filtered.slice(0, 8));
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+    setActiveIndex(-1);
+  };
+
+  const handleSelect = (name) => {
+    onChange(name);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveIndex(-1);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!showSuggestions) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(prev => Math.min(prev + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(prev => Math.max(prev - 1, -1));
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      handleSelect(suggestions[activeIndex]);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => {
+          if (value.trim() && suggestions.length > 0) setShowSuggestions(true);
+        }}
+        className={className}
+        placeholder={placeholder || 'エンジニア名を入力'}
+        autoComplete="off"
+      />
+      {showSuggestions && suggestions.length > 0 && (
+        <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-lg mt-1 overflow-hidden max-h-56 overflow-y-auto">
+          {suggestions.map((name, idx) => (
+            <li
+              key={name}
+              onMouseDown={() => handleSelect(name)}
+              className={`px-4 py-2 cursor-pointer text-sm transition-colors ${
+                idx === activeIndex
+                  ? 'bg-blue-500 text-white'
+                  : 'text-slate-700 hover:bg-blue-50'
+              }`}
+            >
+              <i className="fas fa-user mr-2 text-xs opacity-50"></i>
+              {name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // カンバンボードのカラム定義
 const KANBAN_COLUMNS = [
-  { id: 'scheduling', title: '日程調整中', icon: 'fa-calendar-plus', color: 'from-slate-500 to-slate-600' },
-  { id: 'scheduled', title: '面談予定', icon: 'fa-calendar-check', color: 'from-blue-500 to-blue-600' },
-  { id: 'completed', title: '面談済み／回答待ち', icon: 'fa-handshake', color: 'from-indigo-500 to-indigo-600' },
-  { id: 'won', title: '成約', icon: 'fa-trophy', color: 'from-emerald-500 to-emerald-600' },
-  { id: 'lost', title: '見送り', icon: 'fa-times-circle', color: 'from-red-500 to-red-600' }
+  { id: 'scheduling1', title: '日程調整中（1/2）', icon: 'fa-calendar-plus', color: 'from-slate-400 to-slate-500' },
+  { id: 'scheduling2', title: '日程調整中（2/2）', icon: 'fa-calendar-plus', color: 'from-slate-600 to-slate-700' },
+  { id: 'scheduled1',  title: '面談予定（1/2）',  icon: 'fa-calendar-check', color: 'from-blue-400 to-blue-500' },
+  { id: 'scheduled2',  title: '面談予定（2/2）',  icon: 'fa-calendar-check', color: 'from-blue-600 to-blue-700' },
+  { id: 'completed1',  title: '面談済み（1/2）／回答待ち', icon: 'fa-handshake', color: 'from-indigo-400 to-indigo-500' },
+  { id: 'completed2',  title: '面談済み（2/2）／回答待ち', icon: 'fa-handshake', color: 'from-indigo-600 to-indigo-700' },
+  { id: 'won',         title: '成約',           icon: 'fa-trophy',      color: 'from-emerald-500 to-emerald-600' },
+  { id: 'lost',        title: 'お見送り',        icon: 'fa-times-circle', color: 'from-red-500 to-red-600' }
 ];
 
 // ステータスとカラムのマッピング
 const STATUS_TO_COLUMN = {
-  '日程調整中': 'scheduling',
-  '面談予定': 'scheduled',
-  '面談済み': 'completed',
-  '回答待ち': 'completed',
-  '面談済み／回答待ち': 'completed',
-  '成約': 'won',
-  '見送り': 'lost'
+  '日程調整中（1/2）': 'scheduling1',
+  '日程調整中（2/2）': 'scheduling2',
+  '面談予定（1/2）':   'scheduled1',
+  '面談予定（2/2）':   'scheduled2',
+  '面談済み（1/2）／回答待ち': 'completed1',
+  '面談済み（2/2）／回答待ち': 'completed2',
+  '成約':     'won',
+  'お見送り': 'lost',
+  // 旧ステータス（後方互換）
+  '日程調整中': 'scheduling1',
+  '面談予定':   'scheduled1',
+  '面談済み':   'completed1',
+  '回答待ち':   'completed1',
+  '面談済み／回答待ち': 'completed1',
+  '見送り':     'lost'
 };
 
 const COLUMN_TO_STATUS = {
-  'scheduling': '日程調整中',
-  'scheduled': '面談予定',
-  'completed': '面談済み／回答待ち',
-  'won': '成約',
-  'lost': '見送り'
+  'scheduling1': '日程調整中（1/2）',
+  'scheduling2': '日程調整中（2/2）',
+  'scheduled1':  '面談予定（1/2）',
+  'scheduled2':  '面談予定（2/2）',
+  'completed1':  '面談済み（1/2）／回答待ち',
+  'completed2':  '面談済み（2/2）／回答待ち',
+  'won':  '成約',
+  'lost': 'お見送り'
 };
 
 // 単価表示用: 数値文字列に3桁コンマを挿入
@@ -192,7 +301,10 @@ export default function PPSalesProgress() {
   // 自動スクロール用のref
   const scrollContainerRef = useRef(null);
   const autoScrollIntervalRef = useRef(null);
-  
+
+  // IDRエンジニア名リスト（オートコンプリート用）
+  const [engineerNames, setEngineerNames] = useState([]);
+
   // 新規面談フォーム
   const [newInterview, setNewInterview] = useState({
     engineer_name: '',
@@ -216,6 +328,17 @@ export default function PPSalesProgress() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }, []);
+
+  // IDRエンジニア名リスト取得
+  useEffect(() => {
+    apiFetch('/engineers/')
+      .then(res => res.json())
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data.results || []);
+        setEngineerNames(list.map(e => e.name).filter(Boolean).sort());
+      })
+      .catch(() => {});
   }, []);
 
   // 開始月ごとにグループ化
@@ -327,34 +450,23 @@ export default function PPSalesProgress() {
 
   // カラムごとにグループ化
   const getInterviewsByColumn = (columnId) => {
-    if (columnId === 'completed') {
-      return filteredInterviews.filter(interview =>
-        ['面談済み', '回答待ち', '面談済み／回答待ち'].includes(interview.status)
-      );
-    }
-    const status = COLUMN_TO_STATUS[columnId];
-    return filteredInterviews.filter(interview => interview.status === status);
+    const primaryStatus = COLUMN_TO_STATUS[columnId];
+    // 旧ステータスも含めて後方互換でマッチ
+    return filteredInterviews.filter(interview => {
+      const col = STATUS_TO_COLUMN[interview.status];
+      return col === columnId;
+    });
   };
 
   // ステータスの色を取得
   const getStatusColor = (status) => {
-    switch (status) {
-      case '面談済み／回答待ち':
-      case '面談済み':
-        return 'bg-emerald-100 text-emerald-700 border-emerald-300';
-      case '面談予定':
-        return 'bg-blue-100 text-blue-700 border-blue-300';
-      case '回答待ち':
-        return 'bg-amber-100 text-amber-700 border-amber-300';
-      case '日程調整中':
-        return 'bg-slate-100 text-slate-700 border-slate-300';
-      case '見送り':
-        return 'bg-red-100 text-red-700 border-red-300';
-      case '成約':
-        return 'bg-purple-100 text-purple-700 border-purple-300';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-300';
-    }
+    if (status.startsWith('日程調整中')) return 'bg-slate-100 text-slate-700 border-slate-300';
+    if (status.startsWith('面談予定'))   return 'bg-blue-100 text-blue-700 border-blue-300';
+    if (status.startsWith('面談済み'))   return 'bg-indigo-100 text-indigo-700 border-indigo-300';
+    if (status === '成約')               return 'bg-emerald-100 text-emerald-700 border-emerald-300';
+    if (status === 'お見送り' || status === '見送り') return 'bg-red-100 text-red-700 border-red-300';
+    if (status === '回答待ち')           return 'bg-amber-100 text-amber-700 border-amber-300';
+    return 'bg-gray-100 text-gray-700 border-gray-300';
   };
 
   // 営業担当者の色を取得
@@ -544,16 +656,16 @@ export default function PPSalesProgress() {
       {/* カンバンボード（パイプラインビュー） */}
       <div 
         ref={scrollContainerRef}
-        className="bg-white rounded-3xl shadow-xl border-2 border-slate-200 p-6 overflow-x-auto"
+        className="bg-white rounded-3xl shadow-xl border-2 border-slate-200 p-6"
       >
-        <div className="flex gap-4 min-w-max">
+        <div className="grid grid-cols-4 gap-4">
           {KANBAN_COLUMNS.map((column, columnIndex) => {
             const columnInterviews = getInterviewsByColumn(column.id);
             
             return (
               <div 
                 key={column.id}
-                className="flex-shrink-0 w-80 animate-slideInFromLeft"
+                className="animate-slideInFromLeft"
                 style={{ animationDelay: `${columnIndex * 0.1}s` }}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, column.id)}
@@ -563,7 +675,7 @@ export default function PPSalesProgress() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <i className={`fas ${column.icon} text-xl`}></i>
-                      <h3 className="font-bold text-lg">{column.title}</h3>
+                      <h3 className="font-bold text-sm whitespace-nowrap">{column.title}</h3>
                     </div>
                     <span className="bg-white/30 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold">
                       {columnInterviews.length}
@@ -572,7 +684,7 @@ export default function PPSalesProgress() {
                 </div>
 
                 {/* カードリスト */}
-                <div className="space-y-3 min-h-[400px]">
+                <div className="space-y-3 min-h-[200px]">
                   {columnInterviews.map((interview, cardIndex) => (
                     <div 
                       key={interview.id}
@@ -778,10 +890,10 @@ export default function PPSalesProgress() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">エンジニア名 *</label>
-                  <input
-                    type="text"
+                  <EngineerNameAutocomplete
                     value={newInterview.engineer_name}
-                    onChange={(e) => setNewInterview({ ...newInterview, engineer_name: e.target.value })}
+                    onChange={(name) => setNewInterview({ ...newInterview, engineer_name: name })}
+                    engineerNames={engineerNames}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="例: 浜田太郎"
                   />
@@ -843,11 +955,14 @@ export default function PPSalesProgress() {
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">選択してください</option>
-                    <option value="日程調整中">日程調整中</option>
-                    <option value="面談予定">面談予定</option>
-                    <option value="面談済み／回答待ち">面談済み／回答待ち</option>
+                    <option value="日程調整中（1/2）">日程調整中（1/2）</option>
+                    <option value="日程調整中（2/2）">日程調整中（2/2）</option>
+                    <option value="面談予定（1/2）">面談予定（1/2）</option>
+                    <option value="面談予定（2/2）">面談予定（2/2）</option>
+                    <option value="面談済み（1/2）／回答待ち">面談済み（1/2）／回答待ち</option>
+                    <option value="面談済み（2/2）／回答待ち">面談済み（2/2）／回答待ち</option>
                     <option value="成約">成約</option>
-                    <option value="見送り">見送り</option>
+                    <option value="お見送り">お見送り</option>
                   </select>
                 </div>
                 
@@ -945,10 +1060,10 @@ export default function PPSalesProgress() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">エンジニア名 *</label>
-                    <input
-                      type="text"
+                    <EngineerNameAutocomplete
                       value={editingInterview.engineer_name}
-                      onChange={(e) => setEditingInterview({ ...editingInterview, engineer_name: e.target.value })}
+                      onChange={(name) => setEditingInterview({ ...editingInterview, engineer_name: name })}
+                      engineerNames={engineerNames}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -1006,11 +1121,14 @@ export default function PPSalesProgress() {
                       onChange={(e) => setEditingInterview({ ...editingInterview, status: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="日程調整中">日程調整中</option>
-                      <option value="面談予定">面談予定</option>
-                      <option value="面談済み／回答待ち">面談済み／回答待ち</option>
+                      <option value="日程調整中（1/2）">日程調整中（1/2）</option>
+                      <option value="日程調整中（2/2）">日程調整中（2/2）</option>
+                      <option value="面談予定（1/2）">面談予定（1/2）</option>
+                      <option value="面談予定（2/2）">面談予定（2/2）</option>
+                      <option value="面談済み（1/2）／回答待ち">面談済み（1/2）／回答待ち</option>
+                      <option value="面談済み（2/2）／回答待ち">面談済み（2/2）／回答待ち</option>
                       <option value="成約">成約</option>
-                      <option value="見送り">見送り</option>
+                      <option value="お見送り">お見送り</option>
                     </select>
                   </div>
                   

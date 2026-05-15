@@ -232,16 +232,6 @@ const KANBAN_COLUMNS = [
 ];
 
 // ステータスとカラムのマッピング
-const STATUS_TO_COLUMN = {
-  '日程調整中': 'scheduling',
-  '面談予定': 'scheduled',
-  '面談済み': 'completed',
-  '回答待ち': 'completed',
-  '面談済み／回答待ち': 'completed',
-  '成約': 'won',
-  '見送り': 'declined'
-};
-
 const COLUMN_TO_STATUS = {
   'scheduling': '日程調整中',
   'scheduled': '面談予定',
@@ -265,6 +255,9 @@ export default function BPProgress() {
   // 自動スクロール用のref
   const scrollContainerRef = useRef(null);
   const autoScrollIntervalRef = useRef(null);
+
+  // 新規登録フォームのバリデーションエラー
+  const [newProspectErrors, setNewProspectErrors] = useState({});
   
   // 新規BP見込みフォーム
   const [newProspect, setNewProspect] = useState({
@@ -495,21 +488,53 @@ export default function BPProgress() {
 
   // 新規見込み追加
   const handleAddProspect = () => {
+    // バリデーション
+    const errors = {};
+    if (!newProspect.company_name.trim()) errors.company_name = 'クライアント名は必須です';
+    if (!newProspect.engineer_name.trim()) errors.engineer_name = 'パートナー名は必須です';
+    if (!newProspect.main_planner) errors.main_planner = 'メインプランナーは必須です';
+
+    if (Object.keys(errors).length > 0) {
+      setNewProspectErrors(errors);
+      return;
+    }
+    setNewProspectErrors({});
+
     const now = new Date();
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const payload = {
       ...newProspect,
+      status: newProspect.status || '日程調整中',
+      priority: newProspect.priority || '中',
       sales_price: newProspect.sales_price === '' ? '' : Number(String(newProspect.sales_price).replace(/,/g, '')),
       purchase_price: newProspect.purchase_price === '' ? '' : Number(String(newProspect.purchase_price).replace(/,/g, '')),
       interview_count: { main: 1, support: newProspect.support_planners.length > 0 ? 0.5 : 0 },
       history: [{ timestamp, user: newProspect.main_planner || '不明', changes: [{ field: '作成', old: '', new: '新規登録' }] }]
     };
     apiFetch('/bp-prospects/', { method: 'POST', body: JSON.stringify(payload) })
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) {
+          let errMsg = `HTTPエラー ${res.status}`;
+          try {
+            const errData = await res.json();
+            errMsg = JSON.stringify(errData);
+          } catch {
+            try { errMsg = await res.text(); } catch {}
+          }
+          throw new Error(errMsg);
+        }
+        return res.json();
+      })
       .then(created => {
         setProspects(prev => [created, ...prev]);
         setShowNewProspectModal(false);
         setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], priority: '', status: '', notes: '' });
+        setNewProspectErrors({});
+      })
+      .catch(err => {
+        console.error('登録エラー詳細:', err);
+        const msg = err?.message ? `登録に失敗しました: ${err.message}` : '登録に失敗しました。入力内容を確認してください。';
+        setNewProspectErrors({ api: msg });
       });
   };
 
@@ -706,16 +731,16 @@ export default function BPProgress() {
         {/* カンバンボード（パイプラインビュー） */}
         <div 
           ref={scrollContainerRef}
-          className="bg-white rounded-3xl shadow-xl border-2 border-slate-200 p-6 overflow-x-auto"
+          className="bg-white rounded-3xl shadow-xl border-2 border-slate-200 p-6"
         >
-          <div className="flex gap-4 min-w-max">
+          <div className="grid grid-cols-5 gap-4">
             {KANBAN_COLUMNS.map((column, columnIndex) => {
               const columnProspects = getProspectsByColumn(column.id);
               
               return (
                 <div 
                   key={column.id}
-                  className="flex-shrink-0 w-80 animate-slideInFromLeft"
+                  className="animate-slideInFromLeft"
                   style={{ animationDelay: `${columnIndex * 0.1}s` }}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, column.id)}
@@ -725,7 +750,7 @@ export default function BPProgress() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <i className={`fas ${column.icon} text-xl`}></i>
-                        <h3 className="font-bold text-lg">{column.title}</h3>
+                        <h3 className="font-bold text-sm whitespace-nowrap">{column.title}</h3>
                       </div>
                       <span className="bg-white/30 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold">
                         {columnProspects.length}
@@ -734,7 +759,7 @@ export default function BPProgress() {
                   </div>
 
                   {/* カードリスト */}
-                  <div className="space-y-3 min-h-[400px]">
+                  <div className="space-y-3 min-h-[300px]">
                     {columnProspects.map((prospect, cardIndex) => (
                       <div 
                         key={prospect.id}
@@ -968,6 +993,7 @@ export default function BPProgress() {
               if (e.target === e.currentTarget) {
                 setShowNewProspectModal(false);
                 setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], priority: '', status: '', notes: '' });
+                setNewProspectErrors({});
               }
             }}
           >
@@ -983,6 +1009,13 @@ export default function BPProgress() {
               </div>
               
               <div className="p-6 space-y-4">
+                {/* APIエラー表示 */}
+                {newProspectErrors.api && (
+                  <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 text-sm text-red-600 flex items-center gap-2">
+                    <i className="fas fa-exclamation-circle"></i>
+                    {newProspectErrors.api}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -991,10 +1024,21 @@ export default function BPProgress() {
                     <input
                       type="text"
                       value={newProspect.company_name}
-                      onChange={(e) => setNewProspect({ ...newProspect, company_name: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      onChange={(e) => {
+                        setNewProspect({ ...newProspect, company_name: e.target.value });
+                        if (newProspectErrors.company_name) setNewProspectErrors(prev => ({ ...prev, company_name: '' }));
+                      }}
+                      className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                        newProspectErrors.company_name ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                      }`}
                       placeholder="例: トヨタ自動車"
                     />
+                    {newProspectErrors.company_name && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <i className="fas fa-exclamation-circle"></i>
+                        {newProspectErrors.company_name}
+                      </p>
+                    )}
                   </div>
                   
                   <div>
@@ -1004,10 +1048,21 @@ export default function BPProgress() {
                     <input
                       type="text"
                       value={newProspect.engineer_name}
-                      onChange={(e) => setNewProspect({ ...newProspect, engineer_name: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      onChange={(e) => {
+                        setNewProspect({ ...newProspect, engineer_name: e.target.value });
+                        if (newProspectErrors.engineer_name) setNewProspectErrors(prev => ({ ...prev, engineer_name: '' }));
+                      }}
+                      className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                        newProspectErrors.engineer_name ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                      }`}
                       placeholder="例: YM"
                     />
+                    {newProspectErrors.engineer_name && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <i className="fas fa-exclamation-circle"></i>
+                        {newProspectErrors.engineer_name}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1127,14 +1182,25 @@ export default function BPProgress() {
                     </label>
                     <select
                       value={newProspect.main_planner}
-                      onChange={(e) => setNewProspect({ ...newProspect, main_planner: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      onChange={(e) => {
+                        setNewProspect({ ...newProspect, main_planner: e.target.value });
+                        if (newProspectErrors.main_planner) setNewProspectErrors(prev => ({ ...prev, main_planner: '' }));
+                      }}
+                      className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                        newProspectErrors.main_planner ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                      }`}
                     >
                       <option value="">選択してください</option>
                       {planners.map(planner => (
                         <option key={planner} value={planner}>{planner}</option>
                       ))}
                     </select>
+                    {newProspectErrors.main_planner && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <i className="fas fa-exclamation-circle"></i>
+                        {newProspectErrors.main_planner}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1212,7 +1278,10 @@ export default function BPProgress() {
                   登録
                 </button>
                 <button
-                  onClick={() => setShowNewProspectModal(false)}
+                  onClick={() => {
+                    setShowNewProspectModal(false);
+                    setNewProspectErrors({});
+                  }}
                   className="flex-1 px-6 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-all duration-300 font-medium"
                 >
                   <i className="fas fa-times mr-2"></i>
