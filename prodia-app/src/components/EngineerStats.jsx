@@ -374,7 +374,7 @@ const ModernKpiCard = ({ icon, label, value, sub, gradient, onClick, change, uni
 };
 
 // プランナーリスト（定数として外部定義）
-const PLANNERS = ['熊谷', '瀬戸山', '上前', '岡田', '温水', '野田', '服部', '山口'];
+const PLANNERS = ['瀬戸山', '上前', '岡田', '温水', '野田', '服部'];
 
 // 個人別決定ランキング
 const DecisionRankingSection = ({ decisions, onDetailClick, onOpenDetailAnalytics }) => {
