@@ -131,8 +131,7 @@ const PLANNER_OPTIONS = [
   "上前",
   "岡田",
   "野田",
-  "服部",
-  "山口"
+  "服部"
 ];
 
 const SKILL_OPTIONS = [
