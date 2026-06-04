@@ -224,20 +224,26 @@ function SmartMonthInput({ value, onChange, name, className }) {
 
 // カンバンボードのカラム定義
 const KANBAN_COLUMNS = [
-  { id: 'scheduling', title: '日程調整中', icon: 'fa-calendar-plus', color: 'from-slate-500 to-slate-600' },
-  { id: 'scheduled', title: '面談予定', icon: 'fa-calendar-check', color: 'from-blue-500 to-blue-600' },
-  { id: 'completed', title: '面談済み／回答待ち', icon: 'fa-handshake', color: 'from-indigo-500 to-indigo-600' },
-  { id: 'won', title: '成約', icon: 'fa-trophy', color: 'from-emerald-500 to-emerald-600' },
-  { id: 'declined', title: '見送り', icon: 'fa-times-circle', color: 'from-red-500 to-red-600' }
+  { id: 'scheduling1', title: '日程調整中（1/2）', icon: 'fa-calendar-plus', color: 'from-slate-400 to-slate-500' },
+  { id: 'scheduling2', title: '日程調整中（2/2）', icon: 'fa-calendar-plus', color: 'from-slate-600 to-slate-700' },
+  { id: 'scheduled1',  title: '面談予定（1/2）',  icon: 'fa-calendar-check', color: 'from-blue-400 to-blue-500' },
+  { id: 'scheduled2',  title: '面談予定（2/2）',  icon: 'fa-calendar-check', color: 'from-blue-600 to-blue-700' },
+  { id: 'completed1',  title: '面談済み（1/2）／回答待ち', icon: 'fa-handshake', color: 'from-indigo-400 to-indigo-500' },
+  { id: 'completed2',  title: '面談済み（2/2）／回答待ち', icon: 'fa-handshake', color: 'from-indigo-600 to-indigo-700' },
+  { id: 'won',         title: '成約',           icon: 'fa-trophy',        color: 'from-emerald-500 to-emerald-600' },
+  { id: 'declined',    title: '見送り',          icon: 'fa-times-circle',  color: 'from-red-500 to-red-600' }
 ];
 
 // ステータスとカラムのマッピング
 const COLUMN_TO_STATUS = {
-  'scheduling': '日程調整中',
-  'scheduled': '面談予定',
-  'completed': '面談済み／回答待ち',
-  'won': '成約',
-  'declined': '見送り'
+  'scheduling1': '日程調整中（1/2）',
+  'scheduling2': '日程調整中（2/2）',
+  'scheduled1':  '面談予定（1/2）',
+  'scheduled2':  '面談予定（2/2）',
+  'completed1':  '面談済み（1/2）／回答待ち',
+  'completed2':  '面談済み（2/2）／回答待ち',
+  'won':         '成約',
+  'declined':    '見送り'
 };
 
 export default function BPProgress() {
@@ -336,25 +342,41 @@ export default function BPProgress() {
   // ステータス別の件数を計算
   const getStatusCounts = () => {
     const counts = {
-      '日程調整中': 0,
-      '面談予定': 0,
-      '面談済み／回答待ち': 0,
+      '日程調整中（1/2）': 0,
+      '日程調整中（2/2）': 0,
+      '面談予定（1/2）': 0,
+      '面談予定（2/2）': 0,
+      '面談済み（1/2）／回答待ち': 0,
+      '面談済み（2/2）／回答待ち': 0,
       '成約': 0,
-      '見送り': 0,
-      '保留': 0
+      '見送り': 0
     };
-    
+
     prospects.forEach(prospect => {
-      const key = ['面談済み', '回答待ち'].includes(prospect.status)
-        ? '面談済み／回答待ち'
-        : prospect.status;
+      let key = prospect.status;
+      // 旧ステータスを新ステータスにマッピング（後方互換）
+      if (key === '日程調整中') key = '日程調整中（1/2）';
+      else if (key === '面談予定') key = '面談予定（1/2）';
+      else if (['面談済み', '回答待ち', '面談済み／回答待ち'].includes(key)) key = '面談済み（1/2）／回答待ち';
       if (counts[key] !== undefined) {
         counts[key]++;
       }
     });
-    
+
     return counts;
   };
+
+  // ステータスサマリー用カラー設定
+  const STATUS_SUMMARY_CONFIG = [
+    { key: '日程調整中（1/2）', icon: 'fa-calendar-plus', color: 'from-slate-400 to-slate-500', bg: 'from-slate-50 to-slate-100', border: 'border-slate-300', text: 'text-slate-700' },
+    { key: '日程調整中（2/2）', icon: 'fa-calendar-plus', color: 'from-slate-600 to-slate-700', bg: 'from-slate-100 to-slate-200', border: 'border-slate-400', text: 'text-slate-800' },
+    { key: '面談予定（1/2）',   icon: 'fa-calendar-check', color: 'from-blue-400 to-blue-500', bg: 'from-blue-50 to-blue-100', border: 'border-blue-300', text: 'text-blue-700' },
+    { key: '面談予定（2/2）',   icon: 'fa-calendar-check', color: 'from-blue-600 to-blue-700', bg: 'from-blue-100 to-blue-200', border: 'border-blue-400', text: 'text-blue-800' },
+    { key: '面談済み（1/2）／回答待ち', icon: 'fa-handshake', color: 'from-indigo-400 to-indigo-500', bg: 'from-indigo-50 to-indigo-100', border: 'border-indigo-300', text: 'text-indigo-700' },
+    { key: '面談済み（2/2）／回答待ち', icon: 'fa-handshake', color: 'from-indigo-600 to-indigo-700', bg: 'from-indigo-100 to-indigo-200', border: 'border-indigo-400', text: 'text-indigo-800' },
+    { key: '成約',  icon: 'fa-trophy',      color: 'from-emerald-500 to-emerald-600', bg: 'from-emerald-50 to-emerald-100', border: 'border-emerald-300', text: 'text-emerald-700' },
+    { key: '見送り', icon: 'fa-times-circle', color: 'from-red-500 to-red-600',     bg: 'from-red-50 to-red-100',     border: 'border-red-300',     text: 'text-red-700' },
+  ];
 
   const statusCounts = getStatusCounts();
 
@@ -450,13 +472,21 @@ export default function BPProgress() {
 
   // カラムごとにグループ化
   const getProspectsByColumn = (columnId) => {
-    if (columnId === 'completed') {
-      return filteredProspects.filter(prospect =>
-        ['面談済み', '回答待ち', '面談済み／回答待ち'].includes(prospect.status)
+    const status = COLUMN_TO_STATUS[columnId];
+    // 後方互換：旧ステータスを scheduling1/scheduled1/completed1 に含める
+    if (columnId === 'scheduling1') {
+      return filteredProspects.filter(p => p.status === status || p.status === '日程調整中');
+    }
+    if (columnId === 'scheduled1') {
+      return filteredProspects.filter(p => p.status === status || p.status === '面談予定');
+    }
+    if (columnId === 'completed1') {
+      return filteredProspects.filter(p =>
+        p.status === status ||
+        ['面談済み', '回答待ち', '面談済み／回答待ち'].includes(p.status)
       );
     }
-    const status = COLUMN_TO_STATUS[columnId];
-    return filteredProspects.filter(prospect => prospect.status === status);
+    return filteredProspects.filter(p => p.status === status);
   };
 
   // 優先度の色を取得
@@ -504,7 +534,7 @@ export default function BPProgress() {
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const payload = {
       ...newProspect,
-      status: newProspect.status || '日程調整中',
+      status: newProspect.status || '日程調整中（1/2）',
       priority: newProspect.priority || '中',
       sales_price: newProspect.sales_price === '' ? '' : Number(String(newProspect.sales_price).replace(/,/g, '')),
       purchase_price: newProspect.purchase_price === '' ? '' : Number(String(newProspect.purchase_price).replace(/,/g, '')),
@@ -656,14 +686,20 @@ export default function BPProgress() {
             <i className="fas fa-chart-pie text-amber-500"></i>
             ステータス別件数
           </h3>
-          <div className="grid grid-cols-6 gap-4">
-            {Object.entries(statusCounts).map(([status, count]) => (
-              <div 
-                key={status}
-                className="bg-gradient-to-br from-slate-50 to-stone-50 rounded-xl p-4 border border-slate-200/30 text-center"
+          <div className="grid grid-cols-4 gap-3">
+            {STATUS_SUMMARY_CONFIG.map(({ key, icon, color, bg, border, text }) => (
+              <div
+                key={key}
+                className={`bg-gradient-to-br ${bg} rounded-xl border ${border} overflow-hidden`}
               >
-                <div className="text-sm text-slate-600 mb-1">{status}</div>
-                <div className="text-2xl font-bold text-slate-700">{count}</div>
+                <div className={`bg-gradient-to-r ${color} px-3 py-1.5 flex items-center gap-2`}>
+                  <i className={`fas ${icon} text-white text-xs`}></i>
+                  <span className="text-white text-xs font-semibold leading-tight">{key}</span>
+                </div>
+                <div className="px-3 py-3 text-center">
+                  <span className={`text-3xl font-bold ${text}`}>{statusCounts[key] ?? 0}</span>
+                  <span className={`text-xs ${text} ml-1 opacity-70`}>件</span>
+                </div>
               </div>
             ))}
           </div>
@@ -733,7 +769,7 @@ export default function BPProgress() {
           ref={scrollContainerRef}
           className="bg-white rounded-3xl shadow-xl border-2 border-slate-200 p-6"
         >
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             {KANBAN_COLUMNS.map((column, columnIndex) => {
               const columnProspects = getProspectsByColumn(column.id);
               
@@ -1248,12 +1284,14 @@ export default function BPProgress() {
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="">選択してください</option>
-                    <option value="日程調整中">日程調整中</option>
-                    <option value="面談予定">面談予定</option>
-                    <option value="面談済み／回答待ち">面談済み／回答待ち</option>
+                    <option value="日程調整中（1/2）">日程調整中（1/2）</option>
+                    <option value="日程調整中（2/2）">日程調整中（2/2）</option>
+                    <option value="面談予定（1/2）">面談予定（1/2）</option>
+                    <option value="面談予定（2/2）">面談予定（2/2）</option>
+                    <option value="面談済み（1/2）／回答待ち">面談済み（1/2）／回答待ち</option>
+                    <option value="面談済み（2/2）／回答待ち">面談済み（2/2）／回答待ち</option>
                     <option value="成約">成約</option>
                     <option value="見送り">見送り</option>
-                    <option value="保留">保留</option>
                   </select>
                 </div>
 
@@ -1510,12 +1548,14 @@ export default function BPProgress() {
                     onChange={(e) => setEditingProspect({ ...editingProspect, status: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="日程調整中">日程調整中</option>
-                    <option value="面談予定">面談予定</option>
-                    <option value="面談済み／回答待ち">面談済み／回答待ち</option>
+                    <option value="日程調整中（1/2）">日程調整中（1/2）</option>
+                    <option value="日程調整中（2/2）">日程調整中（2/2）</option>
+                    <option value="面談予定（1/2）">面談予定（1/2）</option>
+                    <option value="面談予定（2/2）">面談予定（2/2）</option>
+                    <option value="面談済み（1/2）／回答待ち">面談済み（1/2）／回答待ち</option>
+                    <option value="面談済み（2/2）／回答待ち">面談済み（2/2）／回答待ち</option>
                     <option value="成約">成約</option>
                     <option value="見送り">見送り</option>
-                    <option value="保留">保留</option>
                   </select>
                 </div>
 
