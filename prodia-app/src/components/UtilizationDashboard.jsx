@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { businessDaysUntil } from "../utils/businessDays";
 
 const API_BASE = "/api";
 
@@ -23,11 +24,13 @@ function waitingDays(waitingSince) {
 }
 
 // 緊急度の設定
-function urgencyConfig(days) {
+// days: カレンダー日数（フィルタ閾値用）, bizDays: 営業日数（表示用）
+function urgencyConfig(days, bizDays) {
   if (days === null) return null;
+  const displayDays = bizDays !== undefined && bizDays !== null ? bizDays : days;
   if (days < 0)  return { label: "契約終了済", color: "bg-slate-100 text-slate-500", badge: "bg-slate-400", ring: "ring-slate-300", dot: "bg-slate-400", priority: 0 };
-  if (days <= 14) return { label: `残${days}日`, color: "bg-red-50 text-red-700", badge: "bg-red-500", ring: "ring-red-300", dot: "bg-red-500", priority: 1 };
-  if (days <= 30) return { label: `残${days}日`, color: "bg-orange-50 text-orange-700", badge: "bg-orange-400", ring: "ring-orange-300", dot: "bg-orange-400", priority: 2 };
+  if (days <= 14) return { label: `残${displayDays}営業日`, color: "bg-red-50 text-red-700", badge: "bg-red-500", ring: "ring-red-300", dot: "bg-red-500", priority: 1 };
+  if (days <= 30) return { label: `残${displayDays}営業日`, color: "bg-orange-50 text-orange-700", badge: "bg-orange-400", ring: "ring-orange-300", dot: "bg-orange-400", priority: 2 };
   return null; // 30日超は警告対象外
 }
 
@@ -55,7 +58,10 @@ function extensionAlertStatus(endDateStr) {
   if (daysToEnd <= 0) return null; // 契約終了済めは除外
   const daysToCheck = Math.round((check - today) / 86400000);
   if (daysToCheck > 14) return null; // 2週間超先はまだ表示しない
-  return { checkDate: check, daysToCheck, daysToEnd };
+  // 営業日数（表示用）
+  const daysToCheckBiz = businessDaysUntil(check);
+  const daysToEndBiz = businessDaysUntil(endDateStr);
+  return { checkDate: check, daysToCheck, daysToEnd, daysToCheckBiz, daysToEndBiz };
 }
 
 // ────────────────────────────────────────────────
@@ -142,14 +148,15 @@ function AlertRow({ engineer, days, cfg }) {
 function ExtensionCheckRow({ engineer }) {
   const isBP = engineer._type === 'bp';
   const endDateStr = isBP ? engineer.contract_end : engineer.project_end_date;
-  const { checkDate, daysToCheck, daysToEnd } = engineer._extStatus;
+  const { checkDate, daysToCheck, daysToEnd, daysToCheckBiz, daysToEndBiz } = engineer._extStatus;
 
   const checkDateLabel = checkDate.toLocaleDateString("ja-JP", { month: "short", day: "numeric", weekday: "short" });
   const endDateLabel = new Date(endDateStr).toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" });
 
+  // 表示は営業日数、色の閾値はカレンダー日数を使用
   let statusLabel, badgeColor, rowColor, ringColor;
   if (daysToCheck < 0) {
-    statusLabel = `${Math.abs(daysToCheck)}日超過`;
+    statusLabel = `${Math.abs(daysToCheckBiz)}日超過`;
     badgeColor = "bg-red-500";
     rowColor = "bg-red-50 text-red-700";
     ringColor = "ring-red-200";
@@ -159,12 +166,12 @@ function ExtensionCheckRow({ engineer }) {
     rowColor = "bg-red-50 text-red-700";
     ringColor = "ring-red-200";
   } else if (daysToCheck <= 3) {
-    statusLabel = `${daysToCheck}日後に確認`;
+    statusLabel = `${daysToCheckBiz}日後に確認`;
     badgeColor = "bg-orange-400";
     rowColor = "bg-orange-50 text-orange-700";
     ringColor = "ring-orange-200";
   } else {
-    statusLabel = `${daysToCheck}日後に確認`;
+    statusLabel = `${daysToCheckBiz}日後に確認`;
     badgeColor = "bg-amber-400";
     rowColor = "bg-amber-50 text-amber-700";
     ringColor = "ring-amber-200";
@@ -206,7 +213,7 @@ function ExtensionCheckRow({ engineer }) {
         </p>
         <p className="text-[11px] text-slate-500 flex items-center gap-1 justify-end mt-0.5">
           <i className="fas fa-calendar-times text-[10px] text-slate-300"></i>
-          終了: {endDateLabel}（残{daysToEnd}日）
+          終了: {endDateLabel}（残{daysToEndBiz}営業日）
         </p>
       </div>
     </div>
@@ -341,7 +348,7 @@ function EngineerTable({ engineers }) {
 
   const rows = useMemo(() => {
     return engineers
-      .map((e) => ({ ...e, _days: daysUntil(e.project_end_date), _extStatus: extensionAlertStatus(e.project_end_date) }))
+      .map((e) => ({ ...e, _days: daysUntil(e.project_end_date), _bizDays: businessDaysUntil(e.project_end_date), _extStatus: extensionAlertStatus(e.project_end_date) }))
       .filter((e) => {
         // 要対応フィルター: 30日以内に終了 OR 待機中 OR フェードアウト OR 延長確認対象
         if (viewMode === "action") {
@@ -447,7 +454,7 @@ function EngineerTable({ engineers }) {
                 </td>
               </tr>
             ) : rows.map((e) => {
-              const cfg = urgencyConfig(e._days);
+              const cfg = urgencyConfig(e._days, e._bizDays);
               const statusColor =
                 e.engineer_status === "アサイン済" ? "bg-emerald-100 text-emerald-700" :
                 e.engineer_status === "未アサイン" ? "bg-amber-100 text-amber-700" :
@@ -487,7 +494,7 @@ function EngineerTable({ engineers }) {
                           {cfg.label}
                         </span>
                       ) : e._days !== null ? (
-                        <span className="text-xs text-slate-400">残{e._days}日</span>
+                        <span className="text-xs text-slate-400">残{e._bizDays ?? e._days}営業日</span>
                       ) : (
                         <span className="text-slate-300 text-xs">-</span>
                       )}
@@ -497,7 +504,7 @@ function EngineerTable({ engineers }) {
                           e._extStatus.daysToCheck <= 3 ? 'bg-orange-400' : 'bg-amber-400'
                         }`}>
                           <i className="fas fa-clipboard-check text-[8px]"></i>
-                          延長確認{e._extStatus.daysToCheck <= 0 ? `（${Math.abs(e._extStatus.daysToCheck)}日超過）` : `（${e._extStatus.daysToCheck}日後）`}
+                          延長確認{e._extStatus.daysToCheck <= 0 ? `（${Math.abs(e._extStatus.daysToCheckBiz)}日超過）` : `（${e._extStatus.daysToCheckBiz}日後）`}
                         </span>
                       )}
                     </div>
@@ -559,7 +566,7 @@ function BPTable({ partners }) {
 
   const rows = useMemo(() => {
     return partners
-      .map((p) => ({ ...p, _days: daysUntil(p.contract_end), _extStatus: extensionAlertStatus(p.contract_end) }))
+      .map((p) => ({ ...p, _days: daysUntil(p.contract_end), _bizDays: businessDaysUntil(p.contract_end), _extStatus: extensionAlertStatus(p.contract_end) }))
       .filter((p) => {
         // 要対応フィルター: 30日以内に終了 OR 非稼働 OR 延長確認対象
         if (viewMode === "action") {
@@ -665,7 +672,7 @@ function BPTable({ partners }) {
                 }
               </td></tr>
             ) : rows.map((p) => {
-              const cfg = urgencyConfig(p._days);
+              const cfg = urgencyConfig(p._days, p._bizDays);
               const gross = (p.client_unit_price && p.partner_unit_price)
                 ? Number(p.client_unit_price) - Number(p.partner_unit_price)
                 : null;
@@ -703,7 +710,7 @@ function BPTable({ partners }) {
                       {cfg ? (
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full text-white ${cfg.badge}`}>{cfg.label}</span>
                       ) : p._days !== null ? (
-                        <span className="text-xs text-slate-400">残{p._days}日</span>
+                        <span className="text-xs text-slate-400">残{p._bizDays ?? p._days}営業日</span>
                       ) : (
                         <span className="text-slate-300 text-xs">-</span>
                       )}
@@ -713,7 +720,7 @@ function BPTable({ partners }) {
                           p._extStatus.daysToCheck <= 3 ? 'bg-orange-400' : 'bg-amber-400'
                         }`}>
                           <i className="fas fa-clipboard-check text-[8px]"></i>
-                          延長確認{p._extStatus.daysToCheck <= 0 ? `（${Math.abs(p._extStatus.daysToCheck)}日超過）` : `（${p._extStatus.daysToCheck}日後）`}
+                          延長確認{p._extStatus.daysToCheck <= 0 ? `（${Math.abs(p._extStatus.daysToCheckBiz)}日超過）` : `（${p._extStatus.daysToCheckBiz}日後）`}
                         </span>
                       )}
                     </div>
@@ -1148,7 +1155,7 @@ export default function UtilizationDashboard() {
       .filter(e => e.engineer_status === "アサイン済" && e.monthly_rate)
       .reduce((s, e) => s + Number(e.monthly_rate), 0);
     const idrAlerts = engineers
-      .map((e) => ({ ...e, _days: daysUntil(e.project_end_date), _type: 'idr' }))
+      .map((e) => ({ ...e, _days: daysUntil(e.project_end_date), _bizDays: businessDaysUntil(e.project_end_date), _type: 'idr' }))
       .filter((e) => e._days !== null && e._days <= 30)
       .sort((a, b) => a._days - b._days);
     const critical = idrAlerts.filter((e) => e._days <= 14).length;
@@ -1172,7 +1179,7 @@ export default function UtilizationDashboard() {
       return rates.reduce((s, r) => s + r, 0) / rates.length;
     })();
     const bpAlerts = partners
-      .map((p) => ({ ...p, _days: daysUntil(p.contract_end), _type: 'bp' }))
+      .map((p) => ({ ...p, _days: daysUntil(p.contract_end), _bizDays: businessDaysUntil(p.contract_end), _type: 'bp' }))
       .filter((p) => p._days !== null && p._days <= 30)
       .sort((a, b) => a._days - b._days);
     const critical = bpAlerts.filter((p) => p._days <= 14).length;
@@ -1277,7 +1284,7 @@ export default function UtilizationDashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {combinedAlerts.map((e) => {
-                const cfg = urgencyConfig(e._days);
+                const cfg = urgencyConfig(e._days, e._bizDays);
                 return cfg ? <AlertRow key={`${e._type}-${e.id}`} engineer={e} days={e._days} cfg={cfg} /> : null;
               })}
             </div>

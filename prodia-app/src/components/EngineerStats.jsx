@@ -1,5 +1,7 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import DetailedAnalytics from './DetailedAnalytics';
+import { businessDaysUntil } from '../utils/businessDays';
+import { apiFetch } from '../utils/api';
 
 // 決定実績データ（月別） - APIから取得予定
 const DECISIONS_BY_MONTH = {};
@@ -49,10 +51,40 @@ const useCountUp = (target = 0, duration = 1200) => {
 };
 
 // 決定目標バナーコンポーネント
-const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMonth, onMonthChange, ppPrevMonth, bpPrevMonth }) => {
+const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMonth, onMonthChange, ppPrevMonth, bpPrevMonth, onPpGoalChange, onBpGoalChange }) => {
   const ppProgress = ppGoal > 0 ? (ppAchieved / ppGoal) * 100 : 0;
   const bpProgress = bpGoal > 0 ? (bpAchieved / bpGoal) * 100 : 0;
   const totalRemaining = (ppGoal - ppAchieved) + (bpGoal - bpAchieved);
+
+  // PP目標インライン編集
+  const [editingPp, setEditingPp] = React.useState(false);
+  const [ppInputVal, setPpInputVal] = React.useState('');
+  const ppInputRef = React.useRef(null);
+
+  // BP目標インライン編集
+  const [editingBp, setEditingBp] = React.useState(false);
+  const [bpInputVal, setBpInputVal] = React.useState('');
+  const bpInputRef = React.useRef(null);
+
+  const startEditPp = () => {
+    setPpInputVal(String(ppGoal));
+    setEditingPp(true);
+    setTimeout(() => ppInputRef.current?.select(), 0);
+  };
+  const commitPp = () => {
+    onPpGoalChange && onPpGoalChange(ppInputVal);
+    setEditingPp(false);
+  };
+
+  const startEditBp = () => {
+    setBpInputVal(String(bpGoal));
+    setEditingBp(true);
+    setTimeout(() => bpInputRef.current?.select(), 0);
+  };
+  const commitBp = () => {
+    onBpGoalChange && onBpGoalChange(bpInputVal);
+    setEditingBp(false);
+  };
 
   // 残り日数を実際の月末から計算
   const now = new Date();
@@ -113,7 +145,28 @@ const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMon
           <div className="flex items-center justify-between mb-2">
             <span className="text-white/80 text-sm font-medium">PP営業</span>
             <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-lg">{ppAchieved}/{ppGoal}名</span>
+              <span className="text-white font-bold text-lg">
+                {ppAchieved}/
+                {editingPp ? (
+                  <input
+                    ref={ppInputRef}
+                    type="number"
+                    min="0"
+                    value={ppInputVal}
+                    onChange={(e) => setPpInputVal(e.target.value)}
+                    onBlur={commitPp}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitPp(); if (e.key === 'Escape') setEditingPp(false); }}
+                    className="w-12 text-center bg-white/20 border border-white/50 rounded-lg text-white font-bold text-base px-1 focus:outline-none focus:ring-2 focus:ring-white/70"
+                  />
+                ) : (
+                  <button
+                    title="クリックして目標を変更"
+                    onClick={startEditPp}
+                    className="underline decoration-dotted hover:text-yellow-300 transition-colors cursor-pointer"
+                  >{ppGoal}</button>
+                )}
+                名
+              </span>
               {ppPrevMonth !== undefined && (
                 <span className={`flex items-center gap-1 text-xs ${getChangeIcon(ppChange).color}`}>
                   <i className={`fas ${getChangeIcon(ppChange).icon}`}></i>
@@ -144,7 +197,28 @@ const MonthlyGoalBanner = ({ ppGoal, bpGoal, ppAchieved, bpAchieved, selectedMon
           <div className="flex items-center justify-between mb-2">
             <span className="text-white/80 text-sm font-medium">BP営業</span>
             <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-lg">{bpAchieved}/{bpGoal}名</span>
+              <span className="text-white font-bold text-lg">
+                {bpAchieved}/
+                {editingBp ? (
+                  <input
+                    ref={bpInputRef}
+                    type="number"
+                    min="0"
+                    value={bpInputVal}
+                    onChange={(e) => setBpInputVal(e.target.value)}
+                    onBlur={commitBp}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitBp(); if (e.key === 'Escape') setEditingBp(false); }}
+                    className="w-12 text-center bg-white/20 border border-white/50 rounded-lg text-white font-bold text-base px-1 focus:outline-none focus:ring-2 focus:ring-white/70"
+                  />
+                ) : (
+                  <button
+                    title="クリックして目標を変更"
+                    onClick={startEditBp}
+                    className="underline decoration-dotted hover:text-yellow-300 transition-colors cursor-pointer"
+                  >{bpGoal}</button>
+                )}
+                名
+              </span>
               {bpPrevMonth !== undefined && (
                 <span className={`flex items-center gap-1 text-xs ${getChangeIcon(bpChange).color}`}>
                   <i className={`fas ${getChangeIcon(bpChange).icon}`}></i>
@@ -214,8 +288,7 @@ const MonthlyActionsCard = ({ engineers }) => {
       ) : (
         <div className="space-y-2 flex-1">
           {endingThisMonth.map(e => {
-            const end = new Date(e.project_end_date);
-            const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+            const daysLeft = businessDaysUntil(e.project_end_date);
             const isUrgent = daysLeft <= 7;
             const isVeryUrgent = daysLeft <= 3;
             return (
@@ -254,7 +327,7 @@ const MonthlyActionsCard = ({ engineers }) => {
                       ? 'bg-amber-200 text-amber-700'
                       : 'bg-indigo-200 text-indigo-700'
                   }`}>
-                    {daysLeft <= 0 ? '本日終了' : `残${daysLeft}日`}
+                    {daysLeft <= 0 ? '本日終了' : `残${daysLeft}営業日`}
                   </span>
                   <p className={`text-[10px] mt-0.5 ${
                     isVeryUrgent ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-indigo-400'
@@ -377,7 +450,7 @@ const ModernKpiCard = ({ icon, label, value, sub, gradient, onClick, change, uni
 const PLANNERS = ['瀬戸山', '上前', '岡田', '温水', '野田', '服部'];
 
 // 個人別決定ランキング
-const DecisionRankingSection = ({ decisions, onDetailClick, onOpenDetailAnalytics }) => {
+const DecisionRankingSection = ({ decisions, onDetailClick, onOpenDetailAnalytics, ppGoal, bpGoal }) => {
   
   const plannerStats = useMemo(() => {
     const stats = {};
@@ -432,7 +505,7 @@ const DecisionRankingSection = ({ decisions, onDetailClick, onOpenDetailAnalytic
         {/* PP決定 */}
         <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/30">
           <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center justify-between">
-            <span>PP決定 ({sortedPP.reduce((sum, p) => sum + p.count, 0)}/5名)</span>
+            <span>PP決定 ({sortedPP.reduce((sum, p) => sum + p.count, 0)}/{ppGoal ?? 5}名)</span>
           </h4>
           <div className="space-y-2">
             {sortedPP.map((p, idx) => (
@@ -519,6 +592,26 @@ const EngineerStats = ({ engineers }) => {
   });
   const [isDetailAnalyticsOpen, setIsDetailAnalyticsOpen] = useState(false);
 
+  // 月済目標（localStoragラ毎月保存）
+  const [monthlyGoals, setMonthlyGoals] = useState(() => {
+    try {
+      const saved = localStorage.getItem('monthlyGoals');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const getPpGoal = (month) => monthlyGoals[month]?.pp ?? 5;
+  const getBpGoal = (month) => monthlyGoals[month]?.bp ?? 10;
+
+  const updateGoal = (month, type, value) => {
+    const num = Math.max(0, parseInt(value) || 0);
+    setMonthlyGoals(prev => {
+      const next = { ...prev, [month]: { ...(prev[month] || {}), [type]: num } };
+      try { localStorage.setItem('monthlyGoals', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   // ダッシュボードで参照する派生データをまとめて計算
   const stats = useMemo(() => {
     const total = engineers.length;
@@ -595,21 +688,17 @@ const EngineerStats = ({ engineers }) => {
   
   React.useEffect(() => {
     const loadPPInterviews = () => {
-      const savedData = localStorage.getItem('ppInterviews');
-      if (savedData) {
-        try {
-          setPpInterviews(JSON.parse(savedData));
-        } catch (e) {
-          console.error('PP営業データの読み込みに失敗しました', e);
-        }
-      }
+      apiFetch('/pp-interviews/')
+        .then(res => res.json())
+        .then(data => setPpInterviews(Array.isArray(data) ? data : (data.results || [])))
+        .catch(e => console.error('PP営業データの読み込みに失敗しました', e));
     };
     
     // 初回読み込み
     loadPPInterviews();
     
-    // 定期的にデータを更新（1秒ごと）
-    const interval = setInterval(loadPPInterviews, 1000);
+    // 定期的にデータを更新（30秒ごと）
+    const interval = setInterval(loadPPInterviews, 30000);
     return () => clearInterval(interval);
   }, []);
   
@@ -618,59 +707,72 @@ const EngineerStats = ({ engineers }) => {
 
   React.useEffect(() => {
     const loadBPProspects = () => {
-      const savedData = localStorage.getItem('bpProspects');
-      if (savedData) {
-        try {
-          setBpProspects(JSON.parse(savedData));
-        } catch (e) {
-          console.error('BP見込みデータの読み込みに失敗しました', e);
-        }
-      }
+      apiFetch('/bp-prospects/')
+        .then(res => res.json())
+        .then(data => setBpProspects(Array.isArray(data) ? data : (data.results || [])))
+        .catch(e => console.error('BP見込みデータの読み込みに失敗しました', e));
     };
     loadBPProspects();
-    const interval = setInterval(loadBPProspects, 1000);
+    const interval = setInterval(loadBPProspects, 30000);
     return () => clearInterval(interval);
   }, []);
 
+  // 成約になった月を履歴から取得する（"YYYY-MM" 形式）
+  // history に「ステータス → 成約」の変更が記録されている場合はその月、
+  // 見つからない場合は created_at の年月にフォールバック
+  const getWonMonth = (item) => {
+    if (Array.isArray(item.history)) {
+      const wonEntry = [...item.history].reverse().find(h =>
+        Array.isArray(h.changes) && h.changes.some(c => c.new === '成約')
+      );
+      if (wonEntry?.timestamp) {
+        return wonEntry.timestamp.substring(0, 7); // "YYYY-MM"
+      }
+    }
+    // フォールバック: created_at（"YYYY-MM-DDT..." 形式）
+    if (item.created_at) return item.created_at.substring(0, 7);
+    return null;
+  };
+
   // 選択月のデータ（PP・BP実データから統合）
+  // ※ 成約になった月（history の timestamp）で集計する
   const currentMonthDecisions = React.useMemo(() => {
     const ppWon = ppInterviews
-      .filter(i => i.status === '成約' && i.start_month === selectedMonth)
+      .filter(i => i.status === '成約' && getWonMonth(i) === selectedMonth)
       .map(i => ({ ...i, planner: i.sales_person, type: 'PP' }));
     const bpWon = bpProspects
-      .filter(p => p.status === '成約' && p.start_month === selectedMonth)
+      .filter(p => p.status === '成約' && getWonMonth(p) === selectedMonth)
       .map(p => ({ ...p, planner: p.main_planner, type: 'BP' }));
     return [...ppWon, ...bpWon];
   }, [ppInterviews, bpProspects, selectedMonth]);
 
-  // 営業データ統計 - PP営業進捗の実データを使用
+  // 営業データ統計 - 成約になった月（history）で集計
   const currentMonthStr = selectedMonth;
-  const ppDecisions = ppInterviews.filter(i => 
-    i.status === '成約' && i.start_month === currentMonthStr
+  const ppDecisions = ppInterviews.filter(i =>
+    i.status === '成約' && getWonMonth(i) === currentMonthStr
   ).length;
-  
-  // BP進捗の実データを使用（開始月が当月の成約件数）
+
+  // BP進捗の実データ（成約になった月で集計）
   const bpDecisions = bpProspects.filter(p =>
-    p.status === '成約' &&
-    p.start_month === currentMonthStr
+    p.status === '成約' && getWonMonth(p) === currentMonthStr
   ).length;
-  const inProgressCount = ppInterviews.filter(i => 
+
+  const inProgressCount = ppInterviews.filter(i =>
     ['日程調整中', '面談予定', '面談済み', '回答待ち'].includes(i.status) &&
     i.start_month === currentMonthStr
   ).length;
-  
+
   // 前月データ - PP/BP両方の実データを使用
   const prevMonthStr = (() => {
     const [y, m] = selectedMonth.split('-').map(Number);
     const prev = new Date(y, m - 2, 1); // m-1が現在月(0-indexed)なのでm-2が前月
     return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
   })();
-  const ppPrevMonth = ppInterviews.filter(i => 
-    i.status === '成約' && i.start_month === prevMonthStr
+  const ppPrevMonth = ppInterviews.filter(i =>
+    i.status === '成約' && getWonMonth(i) === prevMonthStr
   ).length;
   const bpPrevMonth = bpProspects.filter(p =>
-    p.status === '成約' &&
-    p.start_month === prevMonthStr
+    p.status === '成約' && getWonMonth(p) === prevMonthStr
   ).length;
   
   // 前月比
@@ -690,14 +792,16 @@ const EngineerStats = ({ engineers }) => {
       <div className="max-w-[1800px] mx-auto">
         {/* 🎯 ZONE 1: 司令塔 */}
         <MonthlyGoalBanner 
-          ppGoal={5} 
-          bpGoal={10} 
+          ppGoal={getPpGoal(selectedMonth)} 
+          bpGoal={getBpGoal(selectedMonth)} 
           ppAchieved={ppDecisions} 
           bpAchieved={bpDecisions}
           selectedMonth={selectedMonth}
           onMonthChange={setSelectedMonth}
           ppPrevMonth={ppPrevMonth}
           bpPrevMonth={bpPrevMonth}
+          onPpGoalChange={(v) => updateGoal(selectedMonth, 'pp', v)}
+          onBpGoalChange={(v) => updateGoal(selectedMonth, 'bp', v)}
         />
 
         {/* アクションエリア：今月 / 今日 横並び */}
@@ -777,6 +881,8 @@ const EngineerStats = ({ engineers }) => {
           decisions={currentMonthDecisions} 
           onDetailClick={handleDetailClick}
           onOpenDetailAnalytics={() => setIsDetailAnalyticsOpen(true)}
+          ppGoal={getPpGoal(selectedMonth)}
+          bpGoal={getBpGoal(selectedMonth)}
         />
 
         {/* ⚙️ ZONE 3: 戦力（リソース分析） */}
