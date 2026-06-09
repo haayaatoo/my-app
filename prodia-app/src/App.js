@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { UserProvider, useUser } from "./contexts/UserContext";
 import { ToastProvider } from "./components/Toast";
 import Login from "./components/Login";
@@ -17,6 +17,7 @@ import UtilizationDashboard from "./components/UtilizationDashboard";
 import ActivityTimeline from "./components/ActivityTimeline";
 
 const CS_CASE_ALLOWED = ['y-okada@1dr.co.jp'];
+const PAGE_KEY = 'prodia_active_page';
 
 const INTERVIEWS_ALLOWED = [
   'kamiya@1dr.co.jp',      // 上谷
@@ -374,8 +375,12 @@ function getInitialLogoutMsg() {
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => isSessionValid());
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState(() => localStorage.getItem(PAGE_KEY) || "dashboard");
   const [showLogoutMsg, setShowLogoutMsg] = useState(() => getInitialLogoutMsg());
+
+  useEffect(() => {
+    localStorage.setItem(PAGE_KEY, page);
+  }, [page]);
 
   const handleLogin = () => {
     localStorage.setItem(LOGIN_TS_KEY, String(Date.now()));

@@ -84,7 +84,7 @@ export default function EngineerList() {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const [displayMode, setDisplayMode] = useState('card'); // 'card' or 'table'（カード/テーブル表示切り替え）
-  const [activeTab, setActiveTab] = useState('dashboard'); // タブ切り替え用の状態（初期表示はダッシュボード）
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('prodia_engineer_tab') || 'dashboard'); // タブ切り替え用の状態（初期表示はダッシュボード）
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [selectedEngineerForMemo, setSelectedEngineerForMemo] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // メモ変更時のカード更新トリガー
@@ -124,6 +124,10 @@ export default function EngineerList() {
   useEffect(() => {
     fetchEngineers();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('prodia_engineer_tab', activeTab);
+  }, [activeTab]);
 
   // 検索フィルタ + ソート
   const nameSuggestions = search.name

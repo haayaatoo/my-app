@@ -290,12 +290,113 @@ function SmartMonthInput({ value, onChange, name, className }) {
   );
 }
 
+const normalizeStatus = (status) => {
+  if (status === 'お見送り') return '見送り';
+  return status || '';
+};
+
+const formatInterviewDate = (dateValue, timeValue) => {
+  if (!dateValue) return '未定';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+  const formatted = date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return timeValue ? `${formatted} ${timeValue}` : formatted;
+};
+
+const formatStartMonth = (monthValue) => {
+  if (!monthValue || monthValue === '未定') return '未定';
+  const parts = String(monthValue).split('-');
+  if (parts.length !== 2) return String(monthValue);
+  return `${parts[0]}年${Number(parts[1])}月`;
+};
+
+const parseHistoryTimestamp = (timestamp) => {
+  if (!timestamp) return null;
+  const parsed = new Date(String(timestamp).replace(' ', 'T'));
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+};
+
+const getLatestRecordTimestamp = (interview) => {
+  const candidates = [interview.updated_at, interview.created_at]
+    .map(parseHistoryTimestamp)
+    .filter(Boolean);
+  const historyCandidates = (interview.history || [])
+    .map(entry => parseHistoryTimestamp(entry.timestamp))
+    .filter(Boolean);
+  const allCandidates = [...candidates, ...historyCandidates];
+  return allCandidates.length > 0 ? Math.max(...allCandidates) : 0;
+};
+
+const getStatusChangeTimestamp = (interview, targetStatuses) => {
+  const targets = targetStatuses.map(normalizeStatus);
+  const history = Array.isArray(interview.history) ? interview.history : [];
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index];
+    const hasStatusChange = (entry.changes || []).some(change => {
+      const fieldName = String(change.field || '').trim();
+      if (fieldName !== 'ステータス' && fieldName !== 'status') return false;
+      return targets.includes(normalizeStatus(change.new));
+    });
+    if (hasStatusChange) {
+      const time = parseHistoryTimestamp(entry.timestamp);
+      if (time) return time;
+    }
+  }
+  return null;
+};
+
+const getInterviewSortTimestamp = (interview) => {
+  if (!interview.interview_date) return null;
+  const timeValue = interview.interview_time || '00:00';
+  const parsed = new Date(`${interview.interview_date}T${timeValue}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+};
+
+const getIsArchivedInterview = (interview) => {
+  const status = normalizeStatus(interview.status);
+  const now = Date.now();
+
+  if (status === '成約') {
+    if (!interview.start_month || interview.start_month === '未定') return false;
+    const parts = String(interview.start_month).split('-');
+    if (parts.length !== 2) return false;
+    const nextMonthStart = new Date(Number(parts[0]), Number(parts[1]), 1).getTime();
+    return now >= nextMonthStart;
+  }
+
+  if (status === '見送り') {
+    const lostAt = getStatusChangeTimestamp(interview, ['見送り', 'お見送り']);
+    return lostAt ? now - lostAt >= 7 * 24 * 60 * 60 * 1000 : false;
+  }
+
+  return false;
+};
+
+const compareInterviewsByColumn = (columnId, a, b) => {
+  if (columnId === 'won' || columnId === 'lost') {
+    return getLatestRecordTimestamp(b) - getLatestRecordTimestamp(a);
+  }
+
+  const aTime = getInterviewSortTimestamp(a);
+  const bTime = getInterviewSortTimestamp(b);
+  if (aTime !== null && bTime !== null) return aTime - bTime;
+  if (aTime !== null) return -1;
+  if (bTime !== null) return 1;
+  return getLatestRecordTimestamp(b) - getLatestRecordTimestamp(a);
+};
+
 export default function PPSalesProgress() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewInterviewModal, setShowNewInterviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archiveStatus, setArchiveStatus] = useState('成約');
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [editingInterview, setEditingInterview] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState('all'); // デフォルトは「すべて」表示（新規登録後すぐ表示されるように）
@@ -322,6 +423,7 @@ export default function PPSalesProgress() {
     unit_price: '',
     notes: ''
   });
+  const [newInterviewErrors, setNewInterviewErrors] = useState({});
 
   // 初回マウント時にAPIからデータ取得
   useEffect(() => {
@@ -354,6 +456,12 @@ export default function PPSalesProgress() {
     acc[month].push(interview);
     return acc;
   }, {});
+
+  const visibleInterviews = interviews.filter(interview => !getIsArchivedInterview(interview));
+  const archiveInterviews = interviews
+    .filter(interview => normalizeStatus(interview.status) === archiveStatus)
+    .slice()
+    .sort((a, b) => getLatestRecordTimestamp(b) - getLatestRecordTimestamp(a));
 
   // ドラッグ&ドロップハンドラー
   const handleDragStart = (e, interview) => {
@@ -446,7 +554,7 @@ export default function PPSalesProgress() {
   }, []);
 
   // フィルタリング（カンバンボード用）
-  const filteredInterviews = interviews.filter(interview => {
+  const filteredInterviews = visibleInterviews.filter(interview => {
     const monthMatch = selectedMonth === 'all' || interview.start_month === selectedMonth;
     const salesMatch = selectedSales === 'all' || interview.sales_person === selectedSales;
     return monthMatch && salesMatch;
@@ -454,12 +562,14 @@ export default function PPSalesProgress() {
 
   // カラムごとにグループ化
   const getInterviewsByColumn = (columnId) => {
-    const primaryStatus = COLUMN_TO_STATUS[columnId];
     // 旧ステータスも含めて後方互換でマッチ
-    return filteredInterviews.filter(interview => {
+    return filteredInterviews
+      .filter(interview => {
       const col = STATUS_TO_COLUMN[interview.status];
       return col === columnId;
-    });
+      })
+      .slice()
+      .sort((a, b) => compareInterviewsByColumn(columnId, a, b));
   };
 
   // ステータスの色を取得
@@ -488,6 +598,17 @@ export default function PPSalesProgress() {
 
   // 新規面談追加
   const handleAddInterview = () => {
+    const errors = {};
+    if (!newInterview.engineer_name.trim()) errors.engineer_name = 'エンジニア名は必須です';
+    if (!newInterview.company_name.trim()) errors.company_name = '企業名は必須です';
+    if (!newInterview.sales_person) errors.sales_person = '営業担当は必須です';
+    if (!newInterview.status) errors.status = 'ステータスは必須です';
+    if (!newInterview.start_month) errors.start_month = '開始月は必須です';
+    if (Object.keys(errors).length > 0) {
+      setNewInterviewErrors(errors);
+      return;
+    }
+    setNewInterviewErrors({});
     const now = new Date();
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const payload = {
@@ -499,6 +620,7 @@ export default function PPSalesProgress() {
       .then(created => {
         setInterviews(prev => [created, ...prev]);
         setShowNewInterviewModal(false);
+        setNewInterviewErrors({});
         setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '', status: '', start_month: '', response_deadline: '', unit_price: '', notes: '' });
       });
   };
@@ -611,24 +733,18 @@ export default function PPSalesProgress() {
             {selectedMonth === 'all' ? '総面談数' : `${selectedMonth.split('-')[1]}月面談数`}
           </p>
         </div>
-        
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <i className="fas fa-check-circle text-3xl opacity-80"></i>
-            <span className="text-4xl font-bold">
-              {filteredInterviews.filter(i => i.status === '成約').length}
-            </span>
-          </div>
-          <p className="text-emerald-100">
-            {selectedMonth === 'all' ? '成約済み' : `${selectedMonth.split('-')[1]}月成約`}
-          </p>
-        </div>
-        
+
         <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-2">
             <i className="fas fa-clock text-3xl opacity-80"></i>
             <span className="text-4xl font-bold">
-              {filteredInterviews.filter(i => ['面談予定', '面談済み', '回答待ち', '面談済み／回答待ち'].includes(i.status)).length}
+              {filteredInterviews.filter(i =>
+                i.status && (
+                  i.status.startsWith('日程調整中') ||
+                  i.status.startsWith('面談予定') ||
+                  i.status.startsWith('面談済み／回答待ち')
+                )
+              ).length}
             </span>
           </div>
           <p className="text-amber-100">進行中</p>
@@ -643,6 +759,25 @@ export default function PPSalesProgress() {
           </div>
           <p className="text-purple-100">対象エンジニア</p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setArchiveStatus('成約');
+            setShowArchiveModal(true);
+          }}
+          className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg text-left hover:shadow-xl transition-all duration-200 cursor-pointer"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <i className="fas fa-check-circle text-3xl opacity-80"></i>
+            <span className="text-4xl font-bold">
+              {filteredInterviews.filter(i => i.status === '成約').length}
+            </span>
+          </div>
+          <p className="text-emerald-100">
+            {selectedMonth === 'all' ? '成約済み' : `${selectedMonth.split('-')[1]}月成約`}
+          </p>
+        </button>
       </div>
 
       {/* カンバンボード説明 */}
@@ -706,13 +841,13 @@ export default function PPSalesProgress() {
                       }}
                     >
                       {/* （1/2）/（2/2）バッジ */}
-                      {getStatusSuffix(interview.status) && (
-                        <div className="flex justify-end mb-2">
-                          <span className="bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold px-2 py-0.5 rounded-full">
-                            {getStatusSuffix(interview.status)}
-                          </span>
-                        </div>
-                      )}
+                        {getStatusSuffix(interview.status) && (
+                          <div className="flex justify-end mb-2">
+                            <span className="bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold px-2 py-0.5 rounded-full">
+                              {getStatusSuffix(interview.status)}
+                            </span>
+                          </div>
+                        )}
 
                       {/* エンジニア名 */}
                       <div className="flex items-center gap-2 mb-3">
@@ -737,27 +872,18 @@ export default function PPSalesProgress() {
                         </div>
                       </div>
 
-                      {/* 面談日 */}
-                      {interview.interview_date && (
-                        <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-                          <i className="fas fa-calendar"></i>
-                          <span>
-                            {new Date(interview.interview_date).toLocaleDateString('ja-JP', { 
-                              month: 'numeric', 
-                              day: 'numeric'
-                            })}
-                            {interview.interview_time && ` ${interview.interview_time}`}
-                          </span>
+                      <div className="grid grid-cols-1 gap-2 text-xs text-slate-500 mb-2">
+                        <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                          <i className="fas fa-calendar text-slate-400"></i>
+                          <span className="font-medium text-slate-600">面談日</span>
+                          <span className="text-slate-700">{formatInterviewDate(interview.interview_date, interview.interview_time)}</span>
                         </div>
-                      )}
-
-                      {/* 開始月 */}
-                      {interview.start_month && interview.start_month !== '未定' && (
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <i className="fas fa-arrow-right"></i>
-                          <span>{parseInt(interview.start_month.split('-')[1])}月開始予定</span>
+                        <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                          <i className="fas fa-calendar-alt text-slate-400"></i>
+                          <span className="font-medium text-slate-600">開始月</span>
+                          <span className="text-slate-700">{formatStartMonth(interview.start_month)}</span>
                         </div>
-                      )}
+                      </div>
 
                       {/* 回答期限（アラート） */}
                       {interview.response_deadline && (
@@ -816,7 +942,7 @@ export default function PPSalesProgress() {
             </div>
             
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 rounded-xl p-4">
                   <p className="text-sm text-slate-600 mb-1">ステータス</p>
                   <p className="font-bold text-slate-800">{selectedInterview.status}</p>
@@ -828,14 +954,12 @@ export default function PPSalesProgress() {
                 <div className="bg-slate-50 rounded-xl p-4">
                   <p className="text-sm text-slate-600 mb-1">面談日</p>
                   <p className="font-bold text-slate-800">
-                    {selectedInterview.interview_date 
-                      ? new Date(selectedInterview.interview_date).toLocaleDateString('ja-JP') + ' ' + (selectedInterview.interview_time || '')
-                      : '未定'}
+                      {formatInterviewDate(selectedInterview.interview_date, selectedInterview.interview_time)}
                   </p>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-4">
                   <p className="text-sm text-slate-600 mb-1">開始月</p>
-                  <p className="font-bold text-slate-800">{selectedInterview.start_month || '未定'}</p>
+                    <p className="font-bold text-slate-800">{formatStartMonth(selectedInterview.start_month)}</p>
                 </div>
               </div>
 
@@ -882,11 +1006,93 @@ export default function PPSalesProgress() {
         </div>
       )}
 
+      {/* 履歴モーダル */}
+      {showArchiveModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowArchiveModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className={`bg-gradient-to-r ${archiveStatus === '成約' ? 'from-emerald-500 to-emerald-600' : 'from-red-500 to-red-600'} text-white p-6 rounded-t-3xl`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-bold mb-2">{archiveStatus}履歴</h3>
+                  <p className="text-emerald-100 text-sm">画面上では消えた案件も、ここから履歴を確認できます。</p>
+                </div>
+                <button
+                  onClick={() => setShowArchiveModal(false)}
+                  className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+                >
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="flex gap-2 mb-4">
+                {['成約', '見送り'].map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setArchiveStatus(status)}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                      archiveStatus === status
+                        ? status === '成約'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-red-600 text-white border-red-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+              {archiveInterviews.length > 0 ? archiveInterviews.map((interview) => (
+                <button
+                  key={interview.id}
+                  type="button"
+                  onClick={() => {
+                    setShowArchiveModal(false);
+                    setSelectedInterview(interview);
+                    setShowDetailModal(true);
+                  }}
+                  className="w-full text-left bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 border border-slate-200 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-slate-800 truncate">{interview.engineer_name}</span>
+                        <span className="text-xs text-slate-500">{interview.company_name}</span>
+                      </div>
+                      <div className="text-xs text-slate-500 space-y-1">
+                        <p>面談日: {formatInterviewDate(interview.interview_date, interview.interview_time)}</p>
+                        <p>開始月: {formatStartMonth(interview.start_month)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-slate-500 flex-shrink-0">
+                      <p className={`font-bold ${archiveStatus === '成約' ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {archiveStatus}
+                      </p>
+                      <p>{normalizeStatus(interview.status)}</p>
+                    </div>
+                  </div>
+                </button>
+              )) : (
+                <div className="text-center py-12 text-slate-400">
+                  <i className="fas fa-history text-4xl mb-3 opacity-20"></i>
+                  <p className="text-sm">履歴はまだありません</p>
+                </div>
+              )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 新規面談追加モーダル */}
       {showNewInterviewModal && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) { setShowNewInterviewModal(false); setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '', status: '', start_month: '', response_deadline: '', unit_price: '', notes: '' }); } }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowNewInterviewModal(false); setNewInterviewErrors({}); setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '', status: '', start_month: '', response_deadline: '', unit_price: '', notes: '' }); } }}
         >
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-t-3xl">
@@ -902,25 +1108,41 @@ export default function PPSalesProgress() {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">エンジニア名 *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">エンジニア名 <span className="text-red-500">*</span></label>
                   <EngineerNameAutocomplete
                     value={newInterview.engineer_name}
-                    onChange={(name) => setNewInterview({ ...newInterview, engineer_name: name })}
+                    onChange={(name) => { setNewInterview({ ...newInterview, engineer_name: name }); if (newInterviewErrors.engineer_name) setNewInterviewErrors(prev => ({ ...prev, engineer_name: '' })); }}
                     engineerNames={engineerNames}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      newInterviewErrors.engineer_name ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                    }`}
                     placeholder="例: 浜田太郎"
                   />
+                  {newInterviewErrors.engineer_name && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <i className="fas fa-exclamation-circle"></i>
+                      {newInterviewErrors.engineer_name}
+                    </p>
+                  )}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">企業名 *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">企業名 <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={newInterview.company_name}
-                    onChange={(e) => setNewInterview({ ...newInterview, company_name: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => { setNewInterview({ ...newInterview, company_name: e.target.value }); if (newInterviewErrors.company_name) setNewInterviewErrors(prev => ({ ...prev, company_name: '' })); }}
+                    className={`w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      newInterviewErrors.company_name ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                    }`}
                     placeholder="例: 株式会社メイテツコム"
                   />
+                  {newInterviewErrors.company_name && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <i className="fas fa-exclamation-circle"></i>
+                      {newInterviewErrors.company_name}
+                    </p>
+                  )}
                 </div>
                 
                 <div>
@@ -944,11 +1166,13 @@ export default function PPSalesProgress() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">営業担当 *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">営業担当 <span className="text-red-500">*</span></label>
                   <select
                     value={newInterview.sales_person}
-                    onChange={(e) => setNewInterview({ ...newInterview, sales_person: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => { setNewInterview({ ...newInterview, sales_person: e.target.value }); if (newInterviewErrors.sales_person) setNewInterviewErrors(prev => ({ ...prev, sales_person: '' })); }}
+                    className={`w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      newInterviewErrors.sales_person ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                    }`}
                   >
                     <option value="">選択してください</option>
                     <option value="温水">温水</option>
@@ -958,14 +1182,22 @@ export default function PPSalesProgress() {
                     <option value="野田">野田</option>
                     <option value="服部">服部</option>
                   </select>
+                  {newInterviewErrors.sales_person && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <i className="fas fa-exclamation-circle"></i>
+                      {newInterviewErrors.sales_person}
+                    </p>
+                  )}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">ステータス *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">ステータス <span className="text-red-500">*</span></label>
                   <select
                     value={newInterview.status}
-                    onChange={(e) => setNewInterview({ ...newInterview, status: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => { setNewInterview({ ...newInterview, status: e.target.value }); if (newInterviewErrors.status) setNewInterviewErrors(prev => ({ ...prev, status: '' })); }}
+                    className={`w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      newInterviewErrors.status ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                    }`}
                   >
                     <option value="">選択してください</option>
                     <option value="日程調整中">日程調整中</option>
@@ -980,16 +1212,30 @@ export default function PPSalesProgress() {
                     <option value="成約">成約</option>
                     <option value="見送り">見送り</option>
                   </select>
+                  {newInterviewErrors.status && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <i className="fas fa-exclamation-circle"></i>
+                      {newInterviewErrors.status}
+                    </p>
+                  )}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">開始月 *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">開始月 <span className="text-red-500">*</span></label>
                   <SmartMonthInput
                     name="start_month"
                     value={newInterview.start_month}
-                    onChange={(e) => setNewInterview({ ...newInterview, start_month: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => { setNewInterview({ ...newInterview, start_month: e.target.value }); if (newInterviewErrors.start_month) setNewInterviewErrors(prev => ({ ...prev, start_month: '' })); }}
+                    className={`w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      newInterviewErrors.start_month ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                    }`}
                   />
+                  {newInterviewErrors.start_month && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <i className="fas fa-exclamation-circle"></i>
+                      {newInterviewErrors.start_month}
+                    </p>
+                  )}
                 </div>
                 
                 <div>
@@ -1047,7 +1293,11 @@ export default function PPSalesProgress() {
                   追加
                 </button>
                 <button
-                  onClick={() => setShowNewInterviewModal(false)}
+                  onClick={() => {
+                    setShowNewInterviewModal(false);
+                    setNewInterviewErrors({});
+                    setNewInterview({ engineer_name: '', company_name: '', interview_date: '', interview_time: '', sales_person: '', status: '', start_month: '', response_deadline: '', unit_price: '', notes: '' });
+                  }}
                   className="flex-1 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-medium transition-all duration-300"
                 >
                   <i className="fas fa-times mr-2"></i>

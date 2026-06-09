@@ -267,16 +267,120 @@ const getStatusSuffix = (status) => {
   return null;
 };
 
+const formatDateWithTime = (dateValue, timeValue) => {
+  if (!dateValue) return '未定';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  const formattedDate = date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return timeValue ? `${formattedDate} ${timeValue}` : formattedDate;
+};
+
+const formatStartMonth = (monthValue) => {
+  if (!monthValue || monthValue === '未定') return '未定';
+  const parts = String(monthValue).split('-');
+  if (parts.length !== 2) return String(monthValue);
+  return `${parts[0]}年${Number(parts[1])}月`;
+};
+
+const getDateTimeForSort = (prospect, fallbackField = 'interview_date') => {
+  const dateValue = prospect[fallbackField] || prospect.interview_date || prospect.decision_date || '';
+  const timeValue = prospect.interview_time || '00:00';
+  if (!dateValue) return null;
+  const parsed = new Date(`${dateValue}T${timeValue}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+};
+
+const getRecentChangeTime = (prospect) => {
+  const timestamps = (prospect.history || [])
+    .map(entry => new Date(entry.timestamp).getTime())
+    .filter(time => !Number.isNaN(time));
+  return timestamps.length > 0 ? Math.max(...timestamps) : 0;
+};
+
+const compareProspectsByColumn = (columnId, a, b) => {
+  if (columnId === 'won' || columnId === 'declined') {
+    const aTime = getDateTimeForSort(a, 'decision_date') || getRecentChangeTime(a);
+    const bTime = getDateTimeForSort(b, 'decision_date') || getRecentChangeTime(b);
+    return bTime - aTime;
+  }
+
+  const aTime = getDateTimeForSort(a);
+  const bTime = getDateTimeForSort(b);
+  if (aTime !== null && bTime !== null) return aTime - bTime;
+  if (aTime !== null) return -1;
+  if (bTime !== null) return 1;
+  return getRecentChangeTime(b) - getRecentChangeTime(a);
+};
+
+const normalizeBPStatus = (status) => String(status || '');
+
+const parseBPHistoryTimestamp = (timestamp) => {
+  if (!timestamp) return null;
+  const parsed = new Date(String(timestamp).replace(' ', 'T'));
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+};
+
+const getBPLatestRecordTimestamp = (prospect) => {
+  const candidates = [prospect.updated_at, prospect.created_at]
+    .map(parseBPHistoryTimestamp)
+    .filter(Boolean);
+  const historyCandidates = (prospect.history || [])
+    .map(entry => parseBPHistoryTimestamp(entry.timestamp))
+    .filter(Boolean);
+  const allCandidates = [...candidates, ...historyCandidates];
+  return allCandidates.length > 0 ? Math.max(...allCandidates) : 0;
+};
+
+const getBPStatusChangeTimestamp = (prospect, targetStatuses) => {
+  const history = Array.isArray(prospect.history) ? prospect.history : [];
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const entry = history[i];
+    const hasChange = (entry.changes || []).some(c => {
+      const f = String(c.field || '').trim();
+      if (f !== 'ステータス' && f !== 'status') return false;
+      return targetStatuses.includes(normalizeBPStatus(c.new));
+    });
+    if (hasChange) {
+      const time = parseBPHistoryTimestamp(entry.timestamp);
+      if (time) return time;
+    }
+  }
+  return null;
+};
+
+const getIsArchivedProspect = (prospect) => {
+  const status = normalizeBPStatus(prospect.status);
+  const now = Date.now();
+  if (status === '成約' || status.startsWith('成約')) {
+    const sm = prospect.start_month || prospect.decision_date || '';
+    if (!sm || sm === '未定') return false;
+    const parts = String(sm).split('-');
+    if (parts.length !== 2) return false;
+    const nextMonthStart = new Date(Number(parts[0]), Number(parts[1]), 1).getTime();
+    return now >= nextMonthStart;
+  }
+  if (status === '見送り') {
+    const lostAt = getBPStatusChangeTimestamp(prospect, ['見送り']);
+    return lostAt ? now - lostAt >= 7 * 24 * 60 * 60 * 1000 : false;
+  }
+  return false;
+};
+
 export default function BPProgress() {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewProspectModal, setShowNewProspectModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archiveStatus, setArchiveStatus] = useState('成約');
   const [selectedProspect, setSelectedProspect] = useState(null);
   const [editingProspect, setEditingProspect] = useState(null);
   const [selectedPlanner, setSelectedPlanner] = useState('all');
-  const [selectedPriority, setSelectedPriority] = useState('all');
   const [draggedItem, setDraggedItem] = useState(null);
   
   // 自動スクロール用のref
@@ -299,7 +403,6 @@ export default function BPProgress() {
     purchase_price: '',
     main_planner: '',
     support_planners: [],
-    priority: '',
     status: '',
     notes: ''
   });
@@ -334,8 +437,7 @@ export default function BPProgress() {
       // サポートプランナー
       prospect.support_planners.forEach(sp => {
         if (stats[sp]) {
-          const supportCount = prospect.interview_count.support / prospect.support_planners.length;
-          stats[sp].support += supportCount;
+          stats[sp].support += 1;
         }
       });
     });
@@ -355,9 +457,8 @@ export default function BPProgress() {
     const plannerMatch = selectedPlanner === 'all' || 
       prospect.main_planner === selectedPlanner || 
       prospect.support_planners.includes(selectedPlanner);
-    const priorityMatch = selectedPriority === 'all' || prospect.priority === selectedPriority;
     
-    return plannerMatch && priorityMatch;
+    return plannerMatch;
   });
 
   // ステータス別の件数を計算
@@ -488,35 +589,17 @@ export default function BPProgress() {
 
   // カラムごとにグループ化
   const getProspectsByColumn = (columnId) => {
-    return filteredProspects.filter(p => STATUS_TO_COLUMN_BP[p.status] === columnId);
+    return filteredProspects
+      .filter(p => !getIsArchivedProspect(p))
+      .filter(p => STATUS_TO_COLUMN_BP[p.status] === columnId)
+      .slice()
+      .sort((a, b) => compareProspectsByColumn(columnId, a, b));
   };
 
-  // 優先度の色を取得
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case '高':
-        return 'text-red-600 bg-red-50 border-red-200';
-      case '中':
-        return 'text-amber-600 bg-amber-50 border-amber-200';
-      case '低':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
-      default:
-        return 'text-slate-600 bg-slate-50 border-slate-200';
-    }
-  };
-
-  const getPriorityIcon = (priority) => {
-    switch (priority) {
-      case '高':
-        return 'fa-exclamation-circle';
-      case '中':
-        return 'fa-minus-circle';
-      case '低':
-        return 'fa-info-circle';
-      default:
-        return 'fa-circle';
-    }
-  };
+  const archiveProspects = prospects
+    .filter(p => normalizeBPStatus(p.status) === archiveStatus)
+    .slice()
+    .sort((a, b) => getBPLatestRecordTimestamp(b) - getBPLatestRecordTimestamp(a));
 
   // 新規見込み追加
   const handleAddProspect = () => {
@@ -537,7 +620,6 @@ export default function BPProgress() {
     const payload = {
       ...newProspect,
       status: newProspect.status || '日程調整中（1/2）',
-      priority: newProspect.priority || '中',
       sales_price: newProspect.sales_price === '' ? '' : Number(String(newProspect.sales_price).replace(/,/g, '')),
       purchase_price: newProspect.purchase_price === '' ? '' : Number(String(newProspect.purchase_price).replace(/,/g, '')),
       interview_count: { main: 1, support: newProspect.support_planners.length > 0 ? 0.5 : 0 },
@@ -560,7 +642,7 @@ export default function BPProgress() {
       .then(created => {
         setProspects(prev => [created, ...prev]);
         setShowNewProspectModal(false);
-        setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], priority: '', status: '', notes: '' });
+        setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], status: '', notes: '' });
         setNewProspectErrors({});
       })
       .catch(err => {
@@ -688,20 +770,17 @@ export default function BPProgress() {
             <i className="fas fa-chart-pie text-amber-500"></i>
             ステータス別件数
           </h3>
-          <div className="grid grid-cols-5 gap-3">
-            {STATUS_SUMMARY_CONFIG.map(({ key, icon, color, bg, border, text }) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {STATUS_SUMMARY_CONFIG.map(({ key, icon, color }) => (
               <div
                 key={key}
-                className={`bg-gradient-to-br ${bg} rounded-xl border ${border} overflow-hidden`}
+                className={`bg-gradient-to-br ${color} rounded-2xl p-5 text-white shadow-lg`}
               >
-                <div className={`bg-gradient-to-r ${color} px-3 py-1.5 flex items-center gap-2`}>
-                  <i className={`fas ${icon} text-white text-xs`}></i>
-                  <span className="text-white text-xs font-semibold leading-tight">{key}</span>
+                <div className="flex items-center justify-between mb-3">
+                  <i className={`fas ${icon} text-2xl opacity-80`}></i>
+                  <span className="text-4xl font-bold">{statusCounts[key] ?? 0}</span>
                 </div>
-                <div className="px-3 py-3 text-center">
-                  <span className={`text-3xl font-bold ${text}`}>{statusCounts[key] ?? 0}</span>
-                  <span className={`text-xs ${text} ml-1 opacity-70`}>件</span>
-                </div>
+                <p className="text-white/80 text-sm font-medium truncate">{key}</p>
               </div>
             ))}
           </div>
@@ -726,17 +805,6 @@ export default function BPProgress() {
               ))}
             </select>
 
-            <select
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value)}
-              className="px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              <option value="all">全優先度</option>
-              <option value="高">高</option>
-              <option value="中">中</option>
-              <option value="低">低</option>
-            </select>
-
             <div className="ml-auto flex items-center gap-3">
               <span className="text-slate-600 text-sm">
                 表示件数: <span className="font-bold text-amber-600">{filteredProspects.length}</span> / {prospects.length}
@@ -747,6 +815,13 @@ export default function BPProgress() {
               >
                 <i className="fas fa-plus text-xs"></i>
                 新規見込み登録
+              </button>
+              <button
+                onClick={() => { setArchiveStatus('成約'); setShowArchiveModal(true); }}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl hover:shadow-md transition-all duration-300 flex items-center gap-2 font-medium text-sm"
+              >
+                <i className="fas fa-history text-xs"></i>
+                履歴
               </button>
             </div>
           </div>
@@ -760,8 +835,7 @@ export default function BPProgress() {
               <strong>操作方法:</strong> カードをドラッグ&ドロップしてステータスを変更 
               <span className="ml-3 text-amber-600">|</span>
               <span className="ml-3">カードクリックで詳細表示</span>
-              <span className="ml-3 text-amber-600">|</span>
-              <span className="ml-3">🔴=高優先度 🟡=中優先度 🔵=低優先度</span>
+
             </p>
           </div>
         </div>
@@ -814,19 +888,14 @@ export default function BPProgress() {
                           setShowDetailModal(true);
                         }}
                       >
-                        {/* 優先度アイコン */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className={`px-3 py-1 rounded-lg border-2 font-bold text-xs flex items-center gap-2 ${getPriorityColor(prospect.priority)}`}>
-                            <i className={`fas ${getPriorityIcon(prospect.priority)}`}></i>
-                            {prospect.priority}
-                          </div>
-                          {/* （1/2）/（2/2）バッジ */}
-                          {getStatusSuffix(prospect.status) && (
+                        {/* （1/2）/（2/2）バッジ */}
+                        {getStatusSuffix(prospect.status) && (
+                          <div className="flex justify-end mb-2">
                             <span className="bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold px-2 py-0.5 rounded-full">
                               {getStatusSuffix(prospect.status)}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {/* クライアント + メインプランナー セクション */}
                         <div className="bg-blue-50 rounded-xl p-3 mb-2 border-l-4 border-blue-400">
@@ -889,18 +958,18 @@ export default function BPProgress() {
                         </div>
 
                         {/* 面談日 */}
-                        {prospect.interview_date && (
-                          <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-                            <i className="fas fa-calendar"></i>
-                            <span>
-                              {new Date(prospect.interview_date).toLocaleDateString('ja-JP', { 
-                                month: 'numeric', 
-                                day: 'numeric'
-                              })}
-                              {prospect.interview_time && ` ${prospect.interview_time}`}
-                            </span>
+                        <div className="grid grid-cols-1 gap-2 text-xs text-slate-500 mb-2">
+                          <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                            <i className="fas fa-calendar text-slate-400"></i>
+                            <span className="font-medium text-slate-600">面談日</span>
+                            <span className="text-slate-700">{formatDateWithTime(prospect.interview_date, prospect.interview_time)}</span>
                           </div>
-                        )}
+                          <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                            <i className="fas fa-calendar-alt text-slate-400"></i>
+                            <span className="font-medium text-slate-600">開始月</span>
+                            <span className="text-slate-700">{formatStartMonth(prospect.start_month)}</span>
+                          </div>
+                        </div>
 
                         {/* 備考（あれば） */}
                         {prospect.notes && (
@@ -939,17 +1008,7 @@ export default function BPProgress() {
               <div className="bg-gradient-to-r from-amber-500 to-yellow-600 text-white p-6 rounded-t-3xl">
                 <div className="flex justify-between items-start">
                   <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-2xl font-bold">{selectedProspect.company_name}</h3>
-                      <span className={`px-3 py-1 rounded-lg border-2 font-bold text-xs flex items-center gap-1 ${
-                        selectedProspect.priority === '高' ? 'bg-red-100 text-red-700 border-red-300' :
-                        selectedProspect.priority === '中' ? 'bg-amber-100 text-amber-700 border-amber-300' :
-                        'bg-blue-100 text-blue-700 border-blue-300'
-                      }`}>
-                        <i className={`fas ${getPriorityIcon(selectedProspect.priority)}`}></i>
-                        {selectedProspect.priority}優先度
-                      </span>
-                    </div>
+                    <h3 className="text-2xl font-bold mb-2">{selectedProspect.company_name}</h3>
                     <p className="text-amber-100">パートナー: {selectedProspect.engineer_name}{selectedProspect.supplier_name && <span className="ml-2 text-amber-200 text-sm">(仕入れ先: {selectedProspect.supplier_name})</span>}</p>
                   </div>
                   <button
@@ -986,14 +1045,18 @@ export default function BPProgress() {
                   </div>
                 )}
 
-                {selectedProspect.interview_date && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-green-50 rounded-xl p-4">
                     <p className="text-sm text-green-700 mb-1">面談日時</p>
                     <p className="font-bold text-green-900">
-                      {new Date(selectedProspect.interview_date).toLocaleDateString('ja-JP')} {selectedProspect.interview_time || ''}
+                      {formatDateWithTime(selectedProspect.interview_date, selectedProspect.interview_time)}
                     </p>
                   </div>
-                )}
+                  <div className="bg-amber-50 rounded-xl p-4">
+                    <p className="text-sm text-amber-700 mb-1">開始月</p>
+                    <p className="font-bold text-amber-900">{formatStartMonth(selectedProspect.start_month)}</p>
+                  </div>
+                </div>
 
                 {selectedProspect.notes && (
                   <div className="bg-amber-50 rounded-xl p-4">
@@ -1030,13 +1093,84 @@ export default function BPProgress() {
         )}
 
         {/* 新規見込み登録モーダル */}
+        {showArchiveModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowArchiveModal(false)}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className={`bg-gradient-to-r ${archiveStatus === '成約' ? 'from-emerald-500 to-emerald-600' : 'from-red-500 to-red-600'} text-white p-6 rounded-t-3xl`}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">{archiveStatus}履歴</h3>
+                    <p className="text-sm opacity-80">画面上では消えた案件も、ここから履歴を確認できます。</p>
+                  </div>
+                  <button onClick={() => setShowArchiveModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors">
+                    <i className="fas fa-times text-xl"></i>
+                  </button>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="flex gap-2 mb-4">
+                  {['成約', '見送り'].map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setArchiveStatus(status)}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                        archiveStatus === status
+                          ? status === '成約'
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-red-600 text-white border-red-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  {archiveProspects.length > 0 ? archiveProspects.map((prospect) => (
+                    <button
+                      key={prospect.id}
+                      type="button"
+                      onClick={() => { setShowArchiveModal(false); setSelectedProspect(prospect); setShowDetailModal(true); }}
+                      className="w-full text-left bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 border border-slate-200 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-slate-800 truncate">{prospect.company_name}</span>
+                            <span className="text-xs text-slate-500">{prospect.engineer_name}</span>
+                          </div>
+                          <div className="text-xs text-slate-500 space-y-0.5">
+                            <p>メインプランナー: {prospect.main_planner}</p>
+                            <p>面談日: {formatDateWithTime(prospect.interview_date, prospect.interview_time)}</p>
+                            <p>開始月: {formatStartMonth(prospect.start_month)}</p>
+                          </div>
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-lg flex-shrink-0 ${
+                          archiveStatus === '成約' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                        }`}>{archiveStatus}</span>
+                      </div>
+                    </button>
+                  )) : (
+                    <div className="text-center py-12 text-slate-400">
+                      <i className="fas fa-history text-4xl mb-3 opacity-20"></i>
+                      <p className="text-sm">履歴はまだありません</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 新規見込み登録モーダル */}
         {showNewProspectModal && (
           <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setShowNewProspectModal(false);
-                setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], priority: '', status: '', notes: '' });
+                setNewProspect({ company_name: '', engineer_name: '', supplier_name: '', interview_date: '', interview_time: '', decision_date: '', start_month: '', sales_price: '', purchase_price: '', main_planner: '', support_planners: [], status: '', notes: '' });
                 setNewProspectErrors({});
               }
             }}
@@ -1247,19 +1381,6 @@ export default function BPProgress() {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">優先度</label>
-                    <select
-                      value={newProspect.priority}
-                      onChange={(e) => setNewProspect({ ...newProspect, priority: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="高">高</option>
-                      <option value="中">中</option>
-                      <option value="低">低</option>
-                    </select>
-                  </div>
                 </div>
 
                 <div>
@@ -1267,7 +1388,7 @@ export default function BPProgress() {
                     クロスマッチング
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {planners.filter(p => p !== newProspect.main_planner).map(planner => (
+                    {planners.map(planner => (
                       <button
                         key={planner}
                         type="button"
@@ -1516,18 +1637,6 @@ export default function BPProgress() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">優先度</label>
-                    <select
-                      value={editingProspect.priority}
-                      onChange={(e) => setEditingProspect({ ...editingProspect, priority: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="高">高</option>
-                      <option value="中">中</option>
-                      <option value="低">低</option>
-                    </select>
-                  </div>
                 </div>
 
                 <div>
@@ -1535,7 +1644,7 @@ export default function BPProgress() {
                     クロスマッチング
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {planners.filter(p => p !== editingProspect.main_planner).map(planner => (
+                    {planners.map(planner => (
                       <button
                         key={planner}
                         type="button"
