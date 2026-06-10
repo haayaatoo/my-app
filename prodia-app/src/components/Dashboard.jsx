@@ -363,9 +363,16 @@ function RecentTimeline({ onNavigate }) {
   const [logs, setLogs] = useState([]);
 
   const fetchLogs = () => {
-    fetch('/api/activity-logs/?limit=8')
+    fetch('/api/activity-logs/?limit=50')
       .then(res => res.json())
-      .then(data => setLogs(Array.isArray(data) ? data.slice(0, 8) : []))
+      .then(data => {
+        if (!Array.isArray(data)) { setLogs([]); return; }
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        oneWeekAgo.setHours(0, 0, 0, 0);
+        const filtered = data.filter(log => new Date(log.created_at) >= oneWeekAgo);
+        setLogs(filtered.slice(0, 8));
+      })
       .catch(() => {});
   };
 
@@ -406,7 +413,7 @@ function RecentTimeline({ onNavigate }) {
       {logs.length === 0 ? (
         <div className="text-center py-6 text-slate-300">
           <i className="fas fa-clock text-2xl mb-2 block"></i>
-          <p className="text-xs">操作履歴がまだありません</p>
+          <p className="text-xs">直近1週間の操作はありません</p>
         </div>
       ) : (
         <div className="space-y-2">

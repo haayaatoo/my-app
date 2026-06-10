@@ -437,7 +437,7 @@ export default function BPProgress() {
       // サポートプランナー
       prospect.support_planners.forEach(sp => {
         if (stats[sp]) {
-          stats[sp].support += 1;
+          stats[sp].support += 0.5;
         }
       });
     });
