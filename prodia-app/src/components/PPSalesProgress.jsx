@@ -401,6 +401,7 @@ export default function PPSalesProgress() {
   const [editingInterview, setEditingInterview] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState('all'); // デフォルトは「すべて」表示（新規登録後すぐ表示されるように）
   const [selectedSales, setSelectedSales] = useState('all');
+  const [selectedStatsMonth, setSelectedStatsMonth] = useState('all');
   const [draggedItem, setDraggedItem] = useState(null);
   
   // 自動スクロール用のref
@@ -456,6 +457,13 @@ export default function PPSalesProgress() {
     acc[month].push(interview);
     return acc;
   }, {});
+
+  // 現在月基準（面談日ベース）の月リスト生成
+  const now = new Date();
+  const ppRecentMonths = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   const visibleInterviews = interviews.filter(interview => !getIsArchivedInterview(interview));
   const archiveInterviews = interviews
@@ -553,9 +561,17 @@ export default function PPSalesProgress() {
     };
   }, []);
 
-  // フィルタリング（カンバンボード用）
+  // カンバンボード用フィルタリング（開始月ベース）
   const filteredInterviews = visibleInterviews.filter(interview => {
     const monthMatch = selectedMonth === 'all' || interview.start_month === selectedMonth;
+    const salesMatch = selectedSales === 'all' || interview.sales_person === selectedSales;
+    return monthMatch && salesMatch;
+  });
+
+  // KPIカード・月別実績用フィルタリング（面談日ベース + 担当者フィルター）
+  const statsFilteredInterviews = interviews.filter(interview => {
+    const monthMatch = selectedStatsMonth === 'all' ||
+      (interview.interview_date && String(interview.interview_date).slice(0, 7) === selectedStatsMonth);
     const salesMatch = selectedSales === 'all' || interview.sales_person === selectedSales;
     return monthMatch && salesMatch;
   });
@@ -723,14 +739,33 @@ export default function PPSalesProgress() {
       </div>
 
       {/* 統計カード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+            <i className="fas fa-calendar-alt text-slate-400"></i>
+            集計月（面談日ベース）
+          </span>
+          <select
+            value={selectedStatsMonth}
+            onChange={(e) => setSelectedStatsMonth(e.target.value)}
+            className="px-3 py-1.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+          >
+            <option value="all">全期間</option>
+            {ppRecentMonths.map((month, i) => {
+              const m = parseInt(month.split('-')[1]);
+              const optLabel = i === 0 ? `今月 (${m}月)` : i === 1 ? `先月 (${m}月)` : i === 2 ? `先々月 (${m}月)` : `${m}月 (${i}ヶ月前)`;
+              return <option key={month} value={month}>{optLabel}</option>;
+            })}
+          </select>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-2">
             <i className="fas fa-clipboard-list text-3xl opacity-80"></i>
-            <span className="text-4xl font-bold">{filteredInterviews.length}</span>
+            <span className="text-4xl font-bold">{statsFilteredInterviews.length}</span>
           </div>
           <p className="text-blue-100">
-            {selectedMonth === 'all' ? '総面談数' : `${selectedMonth.split('-')[1]}月面談数`}
+            {selectedStatsMonth === 'all' ? '総面談数' : '面談数'}
           </p>
         </div>
 
@@ -738,7 +773,7 @@ export default function PPSalesProgress() {
           <div className="flex items-center justify-between mb-2">
             <i className="fas fa-clock text-3xl opacity-80"></i>
             <span className="text-4xl font-bold">
-              {filteredInterviews.filter(i =>
+              {statsFilteredInterviews.filter(i =>
                 i.status && (
                   i.status.startsWith('日程調整中') ||
                   i.status.startsWith('面談予定') ||
@@ -754,7 +789,7 @@ export default function PPSalesProgress() {
           <div className="flex items-center justify-between mb-2">
             <i className="fas fa-users text-3xl opacity-80"></i>
             <span className="text-4xl font-bold">
-              {new Set(filteredInterviews.map(i => i.engineer_name)).size}
+              {new Set(statsFilteredInterviews.map(i => i.engineer_name)).size}
             </span>
           </div>
           <p className="text-purple-100">対象エンジニア</p>
@@ -771,13 +806,14 @@ export default function PPSalesProgress() {
           <div className="flex items-center justify-between mb-2">
             <i className="fas fa-check-circle text-3xl opacity-80"></i>
             <span className="text-4xl font-bold">
-              {filteredInterviews.filter(i => i.status === '成約').length}
+              {statsFilteredInterviews.filter(i => i.status === '成約').length}
             </span>
           </div>
           <p className="text-emerald-100">
-            {selectedMonth === 'all' ? '成約済み' : `${selectedMonth.split('-')[1]}月成約`}
+            {selectedStatsMonth === 'all' ? '成約済み' : '成約数'}
           </p>
         </button>
+      </div>
       </div>
 
       {/* カンバンボード説明 */}

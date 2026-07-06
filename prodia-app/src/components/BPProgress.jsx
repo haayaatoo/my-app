@@ -381,6 +381,7 @@ export default function BPProgress() {
   const [selectedProspect, setSelectedProspect] = useState(null);
   const [editingProspect, setEditingProspect] = useState(null);
   const [selectedPlanner, setSelectedPlanner] = useState('all');
+  const [selectedStatsMonth, setSelectedStatsMonth] = useState('all');
   const [draggedItem, setDraggedItem] = useState(null);
   
   // 自動スクロール用のref
@@ -422,20 +423,27 @@ export default function BPProgress() {
   }, []);
 
   // プランナー別面談件数を計算
-  const calculatePlannerStats = () => {
+  const calculatePlannerStats = (monthFilter = 'all') => {
     const stats = {};
     planners.forEach(planner => {
       stats[planner] = { main: 0, support: 0, total: 0 };
     });
 
-    prospects.forEach(prospect => {
-      // メインプランナー
+    const filtered = monthFilter === 'all'
+      ? prospects
+      : prospects.filter(p => {
+          const dateMonth = p.interview_date ? String(p.interview_date).slice(0, 7) : '';
+          return dateMonth === monthFilter;
+        });
+
+    filtered.forEach(prospect => {
+      // クライアント担当: 常に0.5件
       if (stats[prospect.main_planner]) {
-        stats[prospect.main_planner].main += prospect.interview_count.main;
+        stats[prospect.main_planner].main += 0.5;
       }
       
-      // サポートプランナー
-      prospect.support_planners.forEach(sp => {
+      // パートナー担当: 各0.5件
+      (prospect.support_planners || []).forEach(sp => {
         if (stats[sp]) {
           stats[sp].support += 0.5;
         }
@@ -450,7 +458,13 @@ export default function BPProgress() {
     return stats;
   };
 
-  const plannerStats = calculatePlannerStats();
+  const now = new Date();
+  const recentMonths = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const plannerStats = calculatePlannerStats(selectedStatsMonth);
 
   // フィルタリング
   const filteredProspects = prospects.filter(prospect => {
@@ -461,8 +475,11 @@ export default function BPProgress() {
     return plannerMatch;
   });
 
-  // ステータス別の件数を計算
-  const getStatusCounts = () => {
+  // ステータス別の件数を計算（月フィルター対応）
+  const getStatusCounts = (monthFilter = 'all') => {
+    const source = monthFilter === 'all'
+      ? prospects
+      : prospects.filter(p => p.interview_date && String(p.interview_date).slice(0, 7) === monthFilter);
     const counts = {
       '日程調整中': 0,
       '面談予定': 0,
@@ -479,7 +496,7 @@ export default function BPProgress() {
       if (s === '見送り') return '見送り';
       return '';
     };
-    prospects.forEach(prospect => {
+    source.forEach(prospect => {
       const key = normalize(prospect.status);
       if (key && counts[key] !== undefined) counts[key]++;
     });
@@ -495,9 +512,8 @@ export default function BPProgress() {
     { key: '見送り',             icon: 'fa-times-circle',   color: 'from-red-500 to-red-600',       bg: 'from-red-50 to-red-100',       border: 'border-red-300',     text: 'text-red-700' },
   ];
 
-  const statusCounts = getStatusCounts();
+  const statusCounts = getStatusCounts(selectedStatsMonth);
 
-  // ドラッグ&ドロップハンドラー
   const handleDragStart = (e, prospect) => {
     setDraggedItem(prospect);
     e.dataTransfer.effectAllowed = 'move';
@@ -607,7 +623,7 @@ export default function BPProgress() {
     const errors = {};
     if (!newProspect.company_name.trim()) errors.company_name = 'クライアント名は必須です';
     if (!newProspect.engineer_name.trim()) errors.engineer_name = 'パートナー名は必須です';
-    if (!newProspect.main_planner) errors.main_planner = 'メインプランナーは必須です';
+    if (!newProspect.main_planner) errors.main_planner = 'クライアントは必須です';
 
     if (Object.keys(errors).length > 0) {
       setNewProspectErrors(errors);
@@ -733,10 +749,26 @@ export default function BPProgress() {
             </div>
             <div className="flex items-center gap-1">
               <i className="fas fa-handshake text-purple-500"></i>
-              <span className="text-purple-600 font-medium">クロスマッチング</span>
-              <span>= クロスマッチング担当</span>
+              <span className="text-purple-600 font-medium">パートナー</span>
+              <span>= パートナー担当</span>
             </div>
           </div>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-sm text-slate-600 font-medium">表示月:</span>
+            <select
+              value={selectedStatsMonth}
+              onChange={(e) => setSelectedStatsMonth(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+            >
+              <option value="all">全期間</option>
+              {recentMonths.map((month, i) => {
+                const m = parseInt(month.split('-')[1]);
+                const optLabel = i === 0 ? `今月 (${m}月)` : i === 1 ? `先月 (${m}月)` : i === 2 ? `先々月 (${m}月)` : `${m}月 (${i}ヶ月前)`;
+                return <option key={month} value={month}>{optLabel}</option>;
+              })}
+            </select>
+          </div>
+
           <div className="grid grid-cols-3 gap-4">
             {planners.map(planner => (
               <div 
@@ -1027,14 +1059,14 @@ export default function BPProgress() {
                     <p className="font-bold text-slate-800">{selectedProspect.status}</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm text-slate-600 mb-1">メインプランナー</p>
+                    <p className="text-sm text-slate-600 mb-1">クライアント</p>
                     <p className="font-bold text-slate-800">{selectedProspect.main_planner}</p>
                   </div>
                 </div>
 
                 {selectedProspect.support_planners.length > 0 && (
                   <div className="bg-blue-50 rounded-xl p-4">
-                    <p className="text-sm text-blue-700 mb-2">クロスマッチング</p>
+                    <p className="text-sm text-blue-700 mb-2">パートナー</p>
                     <div className="flex flex-wrap gap-2">
                       {selectedProspect.support_planners.map(sp => (
                         <span key={sp} className="bg-blue-200 text-blue-800 px-3 py-1 rounded-lg font-semibold">
@@ -1141,7 +1173,7 @@ export default function BPProgress() {
                             <span className="text-xs text-slate-500">{prospect.engineer_name}</span>
                           </div>
                           <div className="text-xs text-slate-500 space-y-0.5">
-                            <p>メインプランナー: {prospect.main_planner}</p>
+                            <p>クライアント: {prospect.main_planner}</p>
                             <p>面談日: {formatDateWithTime(prospect.interview_date, prospect.interview_time)}</p>
                             <p>開始月: {formatStartMonth(prospect.start_month)}</p>
                           </div>
@@ -1353,39 +1385,40 @@ export default function BPProgress() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      メインプランナー <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={newProspect.main_planner}
-                      onChange={(e) => {
-                        setNewProspect({ ...newProspect, main_planner: e.target.value });
-                        if (newProspectErrors.main_planner) setNewProspectErrors(prev => ({ ...prev, main_planner: '' }));
-                      }}
-                      className={`w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                        newProspectErrors.main_planner ? 'border-red-400 bg-red-50' : 'border-slate-300'
-                      }`}
-                    >
-                      <option value="">選択してください</option>
-                      {planners.map(planner => (
-                        <option key={planner} value={planner}>{planner}</option>
-                      ))}
-                    </select>
-                    {newProspectErrors.main_planner && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                        <i className="fas fa-exclamation-circle"></i>
-                        {newProspectErrors.main_planner}
-                      </p>
-                    )}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    クライアント <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {planners.map(planner => (
+                      <button
+                        key={planner}
+                        type="button"
+                        onClick={() => {
+                          setNewProspect({ ...newProspect, main_planner: planner });
+                          if (newProspectErrors.main_planner) setNewProspectErrors(prev => ({ ...prev, main_planner: '' }));
+                        }}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          newProspect.main_planner === planner
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {planner}
+                      </button>
+                    ))}
                   </div>
-
+                  {newProspectErrors.main_planner && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <i className="fas fa-exclamation-circle"></i>
+                      {newProspectErrors.main_planner}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    クロスマッチング
+                    パートナー
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {planners.map(planner => (
@@ -1621,27 +1654,31 @@ export default function BPProgress() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      メインプランナー <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={editingProspect.main_planner}
-                      onChange={(e) => setEditingProspect({ ...editingProspect, main_planner: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {planners.map(planner => (
-                        <option key={planner} value={planner}>{planner}</option>
-                      ))}
-                    </select>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    クライアント <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {planners.map(planner => (
+                      <button
+                        key={planner}
+                        type="button"
+                        onClick={() => setEditingProspect({ ...editingProspect, main_planner: planner })}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          editingProspect.main_planner === planner
+                            ? 'bg-blue-500 text-white shadow-md'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {planner}
+                      </button>
+                    ))}
                   </div>
-
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    クロスマッチング
+                    パートナー
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {planners.map(planner => (
