@@ -354,18 +354,27 @@ const getBPStatusChangeTimestamp = (prospect, targetStatuses) => {
 
 const getIsArchivedProspect = (prospect) => {
   const status = normalizeBPStatus(prospect.status);
-  const now = Date.now();
+  const now = new Date();
+  const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const getStatusSetYM = (ts) => {
+    if (!ts) return null;
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
   if (status === '成約' || status.startsWith('成約')) {
-    const sm = prospect.start_month || prospect.decision_date || '';
-    if (!sm || sm === '未定') return false;
-    const parts = String(sm).split('-');
-    if (parts.length !== 2) return false;
-    const nextMonthStart = new Date(Number(parts[0]), Number(parts[1]), 1).getTime();
-    return now >= nextMonthStart;
+    const wonAt = getBPStatusChangeTimestamp(prospect, ['成約']);
+    const fallbackAt = parseBPHistoryTimestamp(prospect.updated_at || prospect.created_at);
+    const ym = getStatusSetYM(wonAt || fallbackAt);
+    return ym ? ym < currentYM : false;
   }
   if (status === '見送り') {
     const lostAt = getBPStatusChangeTimestamp(prospect, ['見送り']);
-    return lostAt ? now - lostAt >= 7 * 24 * 60 * 60 * 1000 : false;
+    const fallbackAt = parseBPHistoryTimestamp(prospect.updated_at || prospect.created_at);
+    const ym = getStatusSetYM(lostAt || fallbackAt);
+    return ym ? ym < currentYM : false;
   }
   return false;
 };
@@ -459,7 +468,7 @@ export default function BPProgress() {
   };
 
   const now = new Date();
-  const recentMonths = Array.from({ length: 6 }, (_, i) => {
+  const recentMonths = Array.from({ length: 13 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
@@ -761,10 +770,9 @@ export default function BPProgress() {
               className="px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
             >
               <option value="all">全期間</option>
-              {recentMonths.map((month, i) => {
-                const m = parseInt(month.split('-')[1]);
-                const optLabel = i === 0 ? `今月 (${m}月)` : i === 1 ? `先月 (${m}月)` : i === 2 ? `先々月 (${m}月)` : `${m}月 (${i}ヶ月前)`;
-                return <option key={month} value={month}>{optLabel}</option>;
+              {recentMonths.map((month) => {
+                const [y, m] = month.split('-');
+                return <option key={month} value={month}>{`${y}年${parseInt(m)}月`}</option>;
               })}
             </select>
           </div>

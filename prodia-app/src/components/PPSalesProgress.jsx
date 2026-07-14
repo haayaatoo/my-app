@@ -358,19 +358,28 @@ const getInterviewSortTimestamp = (interview) => {
 
 const getIsArchivedInterview = (interview) => {
   const status = normalizeStatus(interview.status);
-  const now = Date.now();
+  const now = new Date();
+  const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const getStatusSetYM = (ts) => {
+    if (!ts) return null;
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
 
   if (status === '成約') {
-    if (!interview.start_month || interview.start_month === '未定') return false;
-    const parts = String(interview.start_month).split('-');
-    if (parts.length !== 2) return false;
-    const nextMonthStart = new Date(Number(parts[0]), Number(parts[1]), 1).getTime();
-    return now >= nextMonthStart;
+    const wonAt = getStatusChangeTimestamp(interview, ['成約']);
+    const fallbackAt = parseHistoryTimestamp(interview.updated_at || interview.created_at);
+    const ym = getStatusSetYM(wonAt || fallbackAt);
+    return ym ? ym < currentYM : false;
   }
 
   if (status === '見送り') {
     const lostAt = getStatusChangeTimestamp(interview, ['見送り', 'お見送り']);
-    return lostAt ? now - lostAt >= 7 * 24 * 60 * 60 * 1000 : false;
+    const fallbackAt = parseHistoryTimestamp(interview.updated_at || interview.created_at);
+    const ym = getStatusSetYM(lostAt || fallbackAt);
+    return ym ? ym < currentYM : false;
   }
 
   return false;
@@ -458,12 +467,21 @@ export default function PPSalesProgress() {
     return acc;
   }, {});
 
-  // 現在月基準（面談日ベース）の月リスト生成
+  // 現在月基準（面談日ベース）の月リスト生成（過去12ヶ月分）
   const now = new Date();
-  const ppRecentMonths = Array.from({ length: 6 }, (_, i) => {
+  const ppRecentMonths = Array.from({ length: 13 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  // カンバン絞り込み用の月リスト（過去12ヶ月固定 + 未定）
+  const kanbanMonthOptions = [
+    ...(groupedByMonth['未定'] ? ['未定'] : []),
+    ...Array.from({ length: 13 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    })
+  ];
 
   const visibleInterviews = interviews.filter(interview => !getIsArchivedInterview(interview));
   const archiveInterviews = interviews
@@ -709,11 +727,11 @@ export default function PPSalesProgress() {
               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             >
               <option value="all">すべての月</option>
-              {Object.keys(groupedByMonth).sort().reverse().map(month => (
-                <option key={month} value={month}>
-                  {month === '未定' ? '未定' : `${parseInt(month.split('-')[1])}月開始`}
-                </option>
-              ))}
+              {kanbanMonthOptions.map(month => {
+                if (month === '未定') return <option key={month} value={month}>未定</option>;
+                const [y, m] = month.split('-');
+                return <option key={month} value={month}>{`${y}年${parseInt(m)}月`}</option>;
+              })}
             </select>
           </div>
           
@@ -751,10 +769,9 @@ export default function PPSalesProgress() {
             className="px-3 py-1.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
           >
             <option value="all">全期間</option>
-            {ppRecentMonths.map((month, i) => {
-              const m = parseInt(month.split('-')[1]);
-              const optLabel = i === 0 ? `今月 (${m}月)` : i === 1 ? `先月 (${m}月)` : i === 2 ? `先々月 (${m}月)` : `${m}月 (${i}ヶ月前)`;
-              return <option key={month} value={month}>{optLabel}</option>;
+            {ppRecentMonths.map((month) => {
+              const [y, m] = month.split('-');
+              return <option key={month} value={month}>{`${y}年${parseInt(m)}月`}</option>;
             })}
           </select>
         </div>
